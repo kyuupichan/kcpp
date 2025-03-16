@@ -3,6 +3,7 @@
 # All rights reserved.
 #
 
+import sys
 from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum
@@ -180,6 +181,26 @@ class Preprocessor:
     def directive_names(self):
         return ('include define undef line error warning pragma if ifdef ifndef '
                 'elif elifdef elifndef else endif').split()
+
+    def push_source_file(self, filename):
+        '''Push a source file onto the preprocessor's source file stack.
+
+        filename is the path to the filename.  '-' reads from stdin (all at once -
+        processing doesn't begin until EOF).  Alternatively it can be a file-like object
+        opened for reading in binary mode.
+        '''
+        if filename == '-':
+            raw = sys.stdin.buffer.read()
+            filename = '<stdin>'
+        else:
+            # FIXME: more mature error handling.
+            try:
+                with open(filename, 'rb') as f:
+                    raw = f.read()
+            except OSError as e:
+                print(f'error: unable to open {filename}: {e}', file=sys.stderr)
+                return
+        return self.push_buffer(raw, name=filename)
 
     def push_buffer(self, text, *, name=None):
         buffer = Buffer(text, name=name)

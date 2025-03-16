@@ -17,28 +17,20 @@ __all__ = ['PreprocessedOutput']
 class PreprocessedOutput:
     '''Writes out the preprocessed source.'''
 
-    def run(self, command_line, environ):
-        for filename in command_line.files:
-            pp = Preprocessor(command_line, environ)
-            terminal = UnicodeTerminal(command_line, environ)
-            pp.add_diagnostic_consumer(terminal)
-            try:
-                with open(filename, 'rb') as f:
-                    raw = f.read()
-            except OSError as e:
-                print(f'error: unable to open {filename}: {e}', file=sys.stderr)
-                return
+    def run(self, command_line, environ, filename):
+        pp = Preprocessor(command_line, environ)
+        terminal = UnicodeTerminal(command_line, environ)
+        pp.add_diagnostic_consumer(terminal)
+        pp.push_source_file(filename)
+        token = Token.create()
 
-            pp.push_buffer(raw, name=filename)
-            token = Token.create()
+        if command_line.fe:
+            self.frontend(pp, token)
+        else:
+            self.preprocess(pp, token)
 
-            if command_line.fe:
-                self.frontend(pp, token)
-            else:
-                self.preprocess(pp, token)
-
-            if pp.diags:
-                print(f'{len(pp.diags):,d} diagnostics emitted', file=sys.stderr)
+        if pp.diags:
+            print(f'{len(pp.diags):,d} diagnostics emitted', file=sys.stderr)
 
     def preprocess(self, pp, token):
         write = sys.stdout.buffer.write
