@@ -6,33 +6,21 @@
 
 import sys
 
-from ..cpp import Preprocessor, Token, TokenKind, TokenFlags
-from ..cpp.basic import TargetMachine
-from ..diagnostics import DID, UnicodeTerminal
+from ..cpp import Token, TokenKind, TokenFlags
 
 
 __all__ = ['PreprocessedOutput']
 
 
 class PreprocessedOutput:
-    '''Writes out the preprocessed source.'''
+    '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def run(self, command_line, environ, filename):
-        pp = Preprocessor(command_line, environ)
-        terminal = UnicodeTerminal(command_line, environ)
-        pp.add_diagnostic_consumer(terminal)
-        pp.push_source_file(filename)
+    def __init__(self, command_line, environ):
+        pass
+
+    def run(self, pp):
+        # FIXME: this needs a lot of work; it's currently used for simple debugging.
         token = Token.create()
-
-        if command_line.fe:
-            self.frontend(pp, token)
-        else:
-            self.preprocess(pp, token)
-
-        if pp.diags:
-            print(f'{len(pp.diags):,d} diagnostics emitted', file=sys.stderr)
-
-    def preprocess(self, pp, token):
         write = sys.stdout.buffer.write
 
         line_number = 1
@@ -56,10 +44,20 @@ class PreprocessedOutput:
             write(pp.token_spelling(token.loc))
 
         write(b'\n')
-        print(f'{count} tokens', file=sys.stderr)
 
-    def frontend(self, pp, token):
-        '''Act like a front-end, consuming tokens and evaluating literals.'''
+
+class FrontEnd:
+    '''Simulate a compiler front end.  For now, all it does is output consumed tokens, and the
+    interpretation of literals.
+    '''
+
+    def __init__(self, command_line, environ):
+        pass
+
+    def run(self, pp):
+        '''Act like a front-end, consuming tokens and evaluating literals.  At present
+        this is used for debugging purposes.'''
+        token = Token.create()
         pp.get_token(token)
         while True:
             if token.kind == TokenKind.EOF:

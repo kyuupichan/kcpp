@@ -24,7 +24,7 @@ class UnicodeTerminal(DiagnosticConsumer):
         'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
     )
 
-    def __init__(self, command_line, environ,  *, file=sys.stderr):
+    def __init__(self, command_line, environ, *, file=sys.stderr):
         '''Diagnostics are written to file, with colour formatting information if
         colours is True.  Sourcefile tabs are space-expanded to the given tabstop.'''
         self.file = file

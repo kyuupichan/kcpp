@@ -7,7 +7,9 @@
 import argparse
 import sys
 
-from .pp_output import PreprocessedOutput
+from .processors import PreprocessedOutput, FrontEnd
+from kcpp.cpp import Preprocessor
+from kcpp.diagnostics import UnicodeTerminal
 
 
 class Driver:
@@ -30,6 +32,17 @@ class Driver:
 
     def run(self, argv, environ):
         command_line = self.parser.parse_args(argv)
+        if command_line.fe:
+            processor = PreprocessedOutput(argv, environ)
+        else:
+            processor = FrontEnd(argv, environ)
+        terminal = UnicodeTerminal(command_line, environ)
+
         for filename in command_line.files:
-            processor = PreprocessedOutput()
-            processor.run(command_line, environ, filename)
+            pp = Preprocessor(command_line, environ)
+            pp.add_diagnostic_consumer(terminal)
+            pp.push_source_file(filename)
+            processor.run(pp)
+            # FIXME: put this somewhere more appropriate
+            if pp.diags:
+                print(f'{len(pp.diags):,d} diagnostics emitted', file=sys.stderr)
