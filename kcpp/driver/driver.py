@@ -22,9 +22,9 @@ class Driver:
             environ = os.environ
         command_line = self.parser.parse_args(argv)
         if command_line.fe:
-            processor = PreprocessedOutput(argv, environ)
+            processor = PreprocessedOutput(command_line, environ)
         else:
-            processor = FrontEnd(argv, environ)
+            processor = FrontEnd(command_line, environ)
         terminal = UnicodeTerminal(command_line, environ)
 
         for filename in command_line.files:

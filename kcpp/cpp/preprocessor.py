@@ -82,8 +82,8 @@ class Preprocessor:
         b'UR': Encoding.UTF_32_RAW,
     }
 
-    def __init__(self, command_line, environ):
-        self.target = TargetMachine.default()
+    def __init__(self, command_line, environ, *, target=None):
+        self.target = target or TargetMachine.default()
         self.target.configure(command_line, environ)
 
         # Internal state.
