@@ -15,22 +15,22 @@ Why write a preprocessor in Python?
 Good question.  Essentially because Python makes it very easy to refactor code to find the
 cleanest and most efficient implementation of an idea.
 
-I was a co-maintainer of GCC's preprocessor libcpp from 1999 to 2003.  During this time
-the preprocessor was converted from a standalone executable that would write its output to
-a pipe, to be an integrated "libary" (libcpp) into the compiler proper. I am therefore
-very familiar with the details of a preprocessor.  Furthermore, around 2005-2007 I wrote a
-complete C99 front-end in C (not public), and its implementation of a generic target
-floating point emulator using bignum integer arithmetic was rewritten by me in C++ and
-contributed to the Clang project as APFloat.cpp in around 2007.  From writing my own C
-front-end, it became very clear how hard it is to refactor and restructure C or C++ code
-to do things more simply or in better ways, which generally means it is not done.  Another
-reason refactoring is avoided is fear of breaking things subtly owing to poor testsuite
-coverage, or alternatively having to manually update hundreds or thousands of tests to
-account for changes in output that a refactoring might cause.  A quick glance at the
-preprocessor or diagnostic subsystems of GCC and Clang today, and trying to understand
-them, is good evidence of creeping complexity and loss of clarity - Clang's original
-preprocessor (written by Chris Lattner I believe) was reasonably clean and efficient -
-something I admit could never really be said of GCC's libcpp.  Those days are long gone.
+I was a co-maintainer of GCC's preprocessor 1999 to 2003.  During this time the
+preprocessor was converted from a standalone executable that would write its output to a
+pipe, to be an integrated "libary" (libcpp) into the compiler proper.  Furthermore, around
+2005-2007 I wrote a complete C99 front-end in C (not public), and I rewrote its
+implementation of a generic target floating point emulator using bignum integer arithmetic
+from C to C++ and contributed to the Clang project, which needed such an emulator, as
+APFloat.cpp in around 2007.  From writing a C front-end, it became very clear how hard it
+is to refactor and restructure C or C++ code to do things more simply or in better ways,
+which generally means it is not done.  Another reason refactoring is avoided is fear of
+breaking things subtly owing to poor testsuite coverage, or alternatively having to
+manually update hundreds or thousands of tests to account for changes in output that a
+refactoring might cause.  A quick glance at the preprocessor or diagnostic subsystems of
+GCC and Clang today, and trying to understand them, shows creeping complexity and loss of
+clarity - Clang's original preprocessor (written by Chris Lattner) was fairly clean and
+efficient - something that couldn't really be said of GCC's libcpp - but those days are
+long gone.
 
 I learnt Python in 2012, and since that time have come to love its simplicity and
 elegance.  In 2016 I demonstrated with ElectrumX that, with care, Python can provide
