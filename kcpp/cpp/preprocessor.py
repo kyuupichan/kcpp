@@ -3,6 +3,7 @@
 # All rights reserved.
 #
 
+import argparse
 import sys
 from copy import copy
 from dataclasses import dataclass
@@ -728,3 +729,17 @@ class Preprocessor:
         to highlight.'''
         highlights = [self.elaborated_range(source_range) for source_range in source_ranges]
         return [(did, substitution_args, highlights)]
+
+    @classmethod
+    def argument_parser(cls):
+        parser = argparse.ArgumentParser(
+            prog='kcpp.py',
+        )
+        parser.add_argument('files', metavar='files', nargs='*', default=["-"],
+                            help='files to preprocess')
+        parser.add_argument('--fe', action='store_true')
+        parser.add_argument('-exec-charset', type=str)
+        parser.add_argument('-wide-exec-charset', type=str)
+        parser.add_argument('--tabstop', nargs='?', default=8, type=int)
+        parser.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
+        return parser

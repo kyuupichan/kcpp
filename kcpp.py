@@ -5,14 +5,12 @@
 # A C++23 Preprocessor in Python 3.
 #
 
-import os
-
 from kcpp.driver import Driver
 
 
-def main(argv=None):
+def main():
     driver = Driver()
-    driver.run(argv, os.environ)
+    driver.run()
 
 
 if __name__ == '__main__':
