@@ -19,13 +19,9 @@ class PreprocessedOutput:
 
     def run(self, command_line, environ):
         for filename in command_line.files:
-            target = TargetMachine.default()
-            target.set_narrow_encoding(command_line.exec_charset)
-            target.set_wide_encoding(command_line.wide_exec_charset)
-
-            pp = Preprocessor(target)
-            pp.add_diagnostic_consumer(UnicodeTerminal(tabstop=command_line.tabstop,
-                                                       colours=command_line.colours))
+            pp = Preprocessor(command_line, environ)
+            terminal = UnicodeTerminal(command_line, environ)
+            pp.add_diagnostic_consumer(terminal)
             try:
                 with open(filename, 'rb') as f:
                     raw = f.read()

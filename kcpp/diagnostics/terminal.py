@@ -24,25 +24,24 @@ class UnicodeTerminal(DiagnosticConsumer):
         'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
     )
 
-    def __init__(self, *, tabstop=8, colours=True, file=sys.stderr):
+    def __init__(self, command_line, environ,  *, file=sys.stderr):
         '''Diagnostics are written to file, with colour formatting information if
         colours is True.  Sourcefile tabs are space-expanded to the given tabstop.'''
-        self.tabstop = tabstop
         self.file = file
-        self.echancement_codes = {}
         self.nested_indent = 4
+        self.terminal_width = 0
+        self.tabstop = command_line.tabstop
+        self.enhancement_codes = {}
+        if command_line.colours:
+            self.enhancement_codes = self.parse_colours(environ)
         if self.file.isatty():
             self.terminal_width = os.get_terminal_size(self.file.fileno()).columns
-            if colours:
-                self.enhancement_codes = self.parse_colours()
-        else:
-            self.terminal_width = 0
 
-    def parse_colours(self):
+    def parse_colours(self, environ):
         '''Parse the KCPP_COLOURS environment variable.'''
         def terminal_supports_colours():
             '''Return True if the terminal appears to support colours.'''
-            term = os.getenv('TERM', '')
+            term = environ.get('TERM', '')
             if term in 'ansi cygwin linux'.split():
                 return True
             if any(term.startswith(prefix) for prefix in 'screen xterm vt100 rxvt'.split()):
@@ -52,7 +51,7 @@ class UnicodeTerminal(DiagnosticConsumer):
         def colour_assignments():
             '''A generator returning colour assignments for specified colour hint names.'''
             if terminal_supports_colours():
-                colours = os.getenv('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
+                colours = environ.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
                 parts = colours.split(':')
                 for part in parts:
                     vals = part.split('=', maxsplit=1)

@@ -306,6 +306,20 @@ class TargetMachine:
                    IntegerKind.ulong, IntegerKind.int, IntegerKind.ushort, IntegerKind.uint,
                    'UTF-8', 'UTF-32LE')
 
+    def configure(self, command_line, environ):
+        narrow = command_line.exec_charset
+        if narrow:
+            self.narrow_encoding = narrow
+            width = Encoding.fixed_width_unicode(encoding)
+            if width:
+                self.char_width = width
+        wide = command_line.wide_exec_charset
+        if wide:
+            self.wide_encoding = encoding
+            width = Encoding.fixed_width_unicode(encoding)
+            if width:
+                self.wchar_t_width = width
+
     def pp_arithmetic_width(self):
         return self.long_long_width
 
@@ -345,20 +359,6 @@ class TargetMachine:
         if kind in (IntegerKind.long_long, IntegerKind.ulong_long):
             return self.long_long_width
         raise RuntimeError(f'kind {kind} not handled in is_signed()')
-
-    def set_narrow_encoding(self, encoding):
-        if encoding:
-            self.narrow_encoding = encoding
-            width = Encoding.fixed_width_unicode(encoding)
-            if width:
-                self.char_width = width
-
-    def set_wide_encoding(self, encoding):
-        if encoding:
-            self.wide_encoding = encoding
-            width = Encoding.fixed_width_unicode(encoding)
-            if width:
-                self.wchar_t_width = width
 
 
 @dataclass(slots=True)

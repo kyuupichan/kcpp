@@ -80,11 +80,13 @@ class Preprocessor:
         b'UR': Encoding.UTF_32_RAW,
     }
 
-    def __init__(self, target=None):
-        self.target = target or TargetMachine.default()
-        self.diag_processor = DiagnosticProcessor(self)
-        self.locator = Locator()
+    def __init__(self, command_line, environ):
+        self.target = TargetMachine.default()
+        self.target.configure(command_line, environ)
+
+        # Internal state.
         self.identifiers = {}
+        self.locator = Locator()
         self.expand_macros = True
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}
@@ -96,6 +98,7 @@ class Preprocessor:
         # These can be modified by language options
         self.alt_tokens = Preprocessor.ALT_TOKENS
         self.encoding_prefixes = Preprocessor.ENCODING_PREFIXES
+        self.diag_processor = DiagnosticProcessor(self)
         # Literal interpreter for a front end
         self.literal_interpreter = LiteralInterpreter(self, False)
         # A preprocessing expression parser
