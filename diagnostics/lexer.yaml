@@ -1,0 +1,75 @@
+---
+# Copyright (c) 2025, Neil Booth.
+#
+# All rights reserved.
+#
+
+#
+# Lexer diagnostics
+#
+
+codepoint_basic_character_set:
+  severity: error
+  text: "%q0 is in the basic character set"
+
+codepoint_cannot_begin_identifier:
+  severity: error
+  text: "%q0 cannot begin an identifier"
+
+codepoint_cannot_continue_identifier:
+  severity: error
+  text: "%q0 is not permitted in identifiers or numbers"
+
+codepoint_control_character:
+  severity: error
+  text: "%q0 is a control character"
+
+codepoint_invalid:
+  severity: error
+  text: "%q0 is not a valid codepoint"
+
+codepoint_surrogate:
+  severity: error
+  text: "%q0 is a surrogate codepoint"
+
+delimeter_too_long:
+  severity: error
+  text: raw string literal delimeter is too long
+  group: invalid_pp_token
+
+identifier_not_NFC:
+  severity: error
+  text: identifier %q0 is not in Normalization Form C
+
+incomplete_UCN_as_tokens:
+  severity: warning
+  text: incomplete universal character name; treating as separate tokens
+
+invalid_variadic_identifier_use:
+  severity: error
+  text: use of %q0 is invalid here
+
+unterminated_block_comment:
+  severity: error
+  text: unterminated block comment
+
+unterminated_literal:
+  severity: error
+  text: unterminated %select{character|string|raw string}0 literal
+  group: invalid_pp_token
+
+utf8_invalid:
+  severity: error
+  text: invalid UTF-8 encoding
+
+utf8_overlong:
+  severity: error
+  text: over-long UTF-8 encoding
+
+utf8_surrogate:
+  severity: error
+  text: surrogate in UTF-8 encoding
+
+vertical_whitespace_in_directive:
+  severity: error
+  text: "%select{vertical tab|form feed}0 in preprocessing directive"

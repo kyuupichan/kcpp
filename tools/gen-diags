@@ -1,0 +1,2 @@
+# Presumped to run from the top-level cpp directory
+/usr/bin/env python tools/gen-diags.py diagnostics > diagnostics/definitions.py

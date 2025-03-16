@@ -1,0 +1,57 @@
+---
+# Copyright (c) 2025, Neil Booth.
+#
+# All rights reserved.
+#
+
+#
+# General diagnostic output
+#
+
+at_file_end:
+  severity: none
+  text: '"%0", at end of source'
+
+at_file_and_end_of_line:
+  severity: none
+  text: '"%0", at end of line %1'
+
+at_file_and_line:
+  severity: none
+  text: '"%0", line %1'
+
+at_file_line_and_column:
+  severity: none
+  text: '"%0", line %1, column %2'
+
+brief_at_file_and_line:
+  severity: none
+  text: '%0:%1'
+
+brief_at_file_line_and_column:
+  severity: none
+  text: '%0:%1:%2'
+
+severity_remark:
+  severity: none
+  text: remark
+
+severity_note:
+  severity: none
+  text: note
+
+severity_warning:
+  severity: none
+  text: warning
+
+severity_error:
+  severity: none
+  text: error
+
+severity_fatal:
+  severity: none
+  text: fatal error
+
+severity_ice:
+  severity: none
+  text: internal error

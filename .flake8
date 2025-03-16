@@ -1,0 +1,9 @@
+[flake8]
+
+max_line_length=99
+exclude=__init__.py
+  cpp/tests/files/lexer_tests.py
+  unicode/cp_name_db.py
+  */tests.py
+ignore=E122
+  W503

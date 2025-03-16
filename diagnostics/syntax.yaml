@@ -1,0 +1,33 @@
+---
+# Copyright (c) 2025, Neil Booth.
+#
+# All rights reserved.
+#
+
+#
+# Parser and syntax-related diagnostics
+#
+
+expected_close_brace:
+  severity: error
+  text: expected a %q{}}
+
+expected_close_paren:
+  severity: error
+  text: expected a %q{)}
+
+expected_colon:
+  severity: error
+  text: expected a %q{:}
+
+expected_open_brace:
+  severity: error
+  text: expected a %q{{}
+
+expected_open_paren:
+  severity: error
+  text: expected a %q{(}
+
+prior_match:
+  severity: note
+  text: to match this %q0

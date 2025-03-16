@@ -1,0 +1,97 @@
+---
+# Copyright (c) 2025, Neil Booth.
+#
+# All rights reserved.
+#
+
+#
+# Directive diagnostics
+#
+
+duplicate_macro_parameter:
+  severity: error
+  text: duplicate macro parameter %q0
+
+else_without_if:
+  severity: error
+  text: "#%0 without #if"
+
+else_after_else:
+  severity: error
+  text: "#%0 after #else"
+
+else_location:
+  severity: note
+  text: "#else was here"
+
+endif_without_if:
+  severity: error
+  text: "#endif without #if"
+
+error_directive:
+  severity: fatal
+  text: "%0"
+
+expected_comma_in_parameter_list:
+  severity: error
+  text: expected %q{,} in macro parameter list
+
+expected_macro_parameter:
+  severity: error
+  text: expected a macro parameter name
+
+extra_directive_tokens:
+  severity: error
+  text: 'extra tokens at end of #%0 directive'
+
+hash_requires_macro_parameter:
+  severity: error
+  text: "'#' must be followed by a macro parameter"
+
+invalid_directive:
+  severity: error
+  text: invalid directive %q0
+
+macro_definition_starts_with_concat:
+  severity: error
+  text: macro definition cannot begin with %q{##}
+
+macro_definition_ends_with_concat:
+  severity: error
+  text: macro definition cannot end with %q{##}
+
+macro_name_not_identifier:
+  severity: error
+  text: macro name must be an identifier
+
+macro_name_whitespace:
+  severity: error
+  text: macro name should be followed by whitespace
+
+macro_redefined:
+  severity: error
+  text: redefinition of macro %q0
+
+nested_va_opt:
+  severity: error
+  text: "%q{__VA_OPT__} cannot appear within its own replacement tokens"
+
+prior_macro_definition:
+  severity: note
+  text: previous definition was here
+
+token_concatenation_failed:
+  severity: error
+  text: concatenation produces %q0 which is not a valid preprocessing token
+
+va_opt_starts_with_concat:
+  severity: error
+  text: __VA_OPT__ replacement tokens cannot begin with %q{##}
+
+va_opt_ends_with_concat:
+  severity: error
+  text: __VA_OPT__ replacement tokens cannot end with %q{##}
+
+warning_directive:
+  severity: warning
+  text: "%0"
