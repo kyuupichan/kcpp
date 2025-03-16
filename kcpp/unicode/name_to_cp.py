@@ -335,9 +335,6 @@ def name_to_cp(name):
     '''
     global _cnames_db
     if not _cnames_db:
-        from unicode.cp_name_db import cp_name_db
+        from .cp_name_db import cp_name_db
         _cnames_db = UnicodeCharacterNames.from_bytes(cp_name_db)
-        # Free the module
-        import sys
-        del sys.modules['unicode.cp_name_db']
     return _cnames_db.lookup(name)

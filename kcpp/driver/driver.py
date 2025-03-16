@@ -7,9 +7,9 @@
 import argparse
 import sys
 
-from cpp import Preprocessor, Token, TokenKind, TokenFlags
-from cpp.basic import TargetMachine
-from diagnostics import DID, UnicodeTerminal
+from ..cpp import Preprocessor, Token, TokenKind, TokenFlags
+from ..cpp.basic import TargetMachine
+from ..diagnostics import DID, UnicodeTerminal
 
 
 def preprocess(pp, token):

@@ -3,13 +3,13 @@
 # All rights reserved.
 #
 
-from unicode import (
+from ..unicode import (
     name_to_cp, utf8_cp, REPLACEMENT_CHAR, is_NFC, is_valid_codepoint,
     is_control_character, codepoint_to_hex, is_XID_Start, is_XID_Continue,
     is_surrogate
 )
 
-from diagnostics import BufferRange, DID
+from ..diagnostics import BufferRange, DID
 
 from .basic import Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, HEX_DIGIT_VALUES
 

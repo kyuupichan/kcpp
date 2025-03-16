@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from itertools import accumulate
 
-from unicode import utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex
+from ..unicode import utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
@@ -59,7 +59,7 @@ class Token:
         return self.kind in TokenKind.literal_kinds
 
     def repr(self):
-        from cpp.preprocessor import IdentifierInfo
+        from kcpp.cpp.preprocessor import IdentifierInfo
 
         def flags_repr():
             flags = self.flags

@@ -9,7 +9,7 @@ and diagnostics.
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from diagnostics import Diagnostic, DID, TokenRange
+from ..diagnostics import Diagnostic, DID, TokenRange
 from .basic import Token, TokenKind, IntegerKind
 from .literals import LiteralInterpreter
 

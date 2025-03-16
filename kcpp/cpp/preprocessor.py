@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
 
-from diagnostics import (
+from ..diagnostics import (
     DID, ElaboratedLocation, ElaboratedRange, BufferRange, SpellingRange, TokenRange, Diagnostic,
     DiagnosticProcessor
 )

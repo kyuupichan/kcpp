@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from struct import Struct
 
-from diagnostics import DID, SpellingRange, Diagnostic
-from unicode import (
+from ..diagnostics import DID, SpellingRange, Diagnostic
+from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
     codepoint_to_hex, REPLACEMENT_CHAR,
 )

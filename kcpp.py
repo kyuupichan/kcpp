@@ -7,7 +7,7 @@
 
 import os
 
-from driver import Driver
+from kcpp.driver import Driver
 
 
 def main(argv=None):

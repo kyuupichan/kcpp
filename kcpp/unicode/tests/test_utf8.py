@@ -3,7 +3,7 @@ from random import randrange, choice
 import pytest
 
 
-from unicode import utf8_cp
+from kcpp.unicode import utf8_cp
 
 
 def random_range_values(start, end, avg_step_size):

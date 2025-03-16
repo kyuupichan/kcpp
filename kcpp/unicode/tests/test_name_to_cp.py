@@ -1,10 +1,10 @@
 import pytest
 
-from unicode.name_to_cp import name_to_cp
+from kcpp.unicode.name_to_cp import name_to_cp
 
 
 def name_to_cp_testcases():
-    with open('unicode/tests/name_to_cp.txt', 'r') as f:
+    with open('kcpp/unicode/tests/name_to_cp.txt', 'r') as f:
         for line in f.readlines():
             comment = line.find('#')
             if comment != -1:
