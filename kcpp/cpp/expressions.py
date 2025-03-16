@@ -315,7 +315,7 @@ class ExprParser:
         if lhs.is_unsigned != rhs.is_unsigned:
             # Find the side to convert to unsigned
             side = rhs if lhs.is_unsigned else lhs
-            self.is_unsigned = True
+            side.is_unsigned = True
             if side.value < 0:
                 old_value = side.value
                 side.value += self.mask + 1

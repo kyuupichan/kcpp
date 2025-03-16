@@ -659,7 +659,8 @@ class Preprocessor:
     def evaluate_pp_expression(self, lexer, token):
         self.expand_macros = True
         value, token = self.expr_parser.parse_and_evaluate_constant_expr()
-        self.skip_to_eod(token, int(not value.is_erroneous))   # 1 == do not consume token
+        # 1 rather than True means "do not consume token"
+        self.skip_to_eod(token, int(not value.is_erroneous))
         return bool(value.value)
 
     def is_macro_name(self, token):
