@@ -386,21 +386,18 @@ class ExprParser:
 
     def evaluate_shift(self, lhs, rhs, op):
         '''Evaluate shift expressions.'''
+        lhs_value, rhs_value = lhs.get(self.mask), rhs.get(self.mask)
         # Check negative or too large
-        if rhs.value < 0:
+        if rhs_value < 0:
             # Undefined behaviour - error
             self.diag(DID.shift_count_negative, op.loc, [rhs.loc])
             lhs.is_erroneous = True
-        elif rhs.value >= self.width:
+        elif rhs_value >= self.width:
             # Undefined behaviour - error
             self.diag(DID.shift_count_too_large, op.loc, [rhs.loc])
             lhs.is_erroneous = True
         elif op.kind == TokenKind.LSHIFT:
-            # Work around python arithmetic
-            if lhs.value >= 0:
-                value = (lhs.value << rhs.value) & self.mask
-            else:
-                value = -(((-lhs.value - 1) << rhs.value) & self.mask) + 1
+            value = lhs.value << rhs_value
             if not lhs.is_unsigned:
                 # This operation is well-defined in C++23, as the unique value in the type
                 # of the result congruent to lhs * pow(2, rhs) - this is essentially a
@@ -408,14 +405,14 @@ class ExprParser:
                 # is undefined in C if lhs.value < 0 or if lhs * pow(2, rhs) cannot be
                 # represented in the result's type.  We take the C++ value, but warn in
                 # cases where it is undefined in C.
-                if lhs.value < 0:
+                if lhs_value < 0:
                     self.diag(DID.left_shift_of_negative_value, op.loc, [lhs.loc, 0])
                 elif value > (self.mask >> 1):
                     self.diag(DID.left_shift_overflows, op.loc, [lhs.loc, rhs.loc])
-            lhs.value = value
+            lhs.value = value & self.mask
         else:
             assert op.kind == TokenKind.RSHIFT
-            if not (lhs.is_unsigned or lhs.value >= 0):
+            if not (lhs.is_unsigned or lhs_value >= 0):
                 # Implementation-defined value in C.  In C++, an arithmetic right-shift
                 # preserving the sign (which is what Python does).
                 self.diag(DID.right_shift_of_negative_value, op.loc, [lhs.loc])
