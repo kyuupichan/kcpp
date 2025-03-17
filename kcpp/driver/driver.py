@@ -48,11 +48,10 @@ class Driver:
             pp = Preprocessor(environment)
             pp.add_diagnostic_consumer(terminal)
             pp.diagnostic_engine.emit(environment.diagnostics)
-            pp.push_source_file(filename)
-            processor.run(pp)
-            # FIXME: put this somewhere more appropriate
-            if pp.diags:
-                print(f'{len(pp.diags):,d} diagnostics emitted', file=sys.stderr)
+            if pp.diagnostic_engine.error_count == 0:
+                pp.push_source_file(filename)
+                processor.run(pp)
+            pp.diagnostic_engine.emit_error_count()
 
 
 def main_cli():

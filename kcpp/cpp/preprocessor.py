@@ -127,7 +127,7 @@ class Preprocessor:
                 unit_width = self.target.integer_width(integer_kind)
                 if encoding_unit_size * 8 != unit_width:
                     diagnostic = Diagnostic(DID.invalid_charset, location_command_line,
-                                            [charset_name, integer_kind.name, str(unit_width)])
+                                            [charset_name, integer_kind.name, unit_width])
                     env.diagnostics.append(diagnostic)
                 setattr(self.target, attrib, charset)
 

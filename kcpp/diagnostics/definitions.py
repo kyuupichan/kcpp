@@ -51,6 +51,7 @@ class DID(IntEnum):
     empty_character_literal = auto()
     endif_without_if = auto()
     error_directive = auto()
+    errors_generated = auto()
     escape_sequence_value_too_large = auto()
     expected_close_brace = auto()
     expected_close_paren = auto()
@@ -92,7 +93,6 @@ class DID(IntEnum):
     right_shift_of_negative_value = auto()
     severity_error = auto()
     severity_fatal = auto()
-    severity_ice = auto()
     severity_note = auto()
     severity_remark = auto()
     severity_warning = auto()
@@ -266,6 +266,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         '%0',
+    ),
+    DID.errors_generated: DiagnosticDefinition(
+        DID.errors_generated,
+        DiagnosticSeverity.none,
+        DiagnosticGroup.none,
+        '%plural{1:error|:errors}0 generated.',
     ),
     DID.escape_sequence_value_too_large: DiagnosticDefinition(
         DID.escape_sequence_value_too_large,
@@ -512,12 +518,6 @@ diagnostic_definitions = {
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
         'fatal error',
-    ),
-    DID.severity_ice: DiagnosticDefinition(
-        DID.severity_ice,
-        DiagnosticSeverity.none,
-        DiagnosticGroup.none,
-        'internal error',
     ),
     DID.severity_note: DiagnosticDefinition(
         DID.severity_note,

@@ -187,7 +187,6 @@ class DiagnosticEngine:
         DiagnosticSeverity.warning: (DID.severity_warning, 'warning'),
         DiagnosticSeverity.error: (DID.severity_error, 'error'),
         DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
-        DiagnosticSeverity.ice: (DID.severity_ice, 'error'),
     }
 
     def __init__(self, pp, env, translations=None):
@@ -197,6 +196,8 @@ class DiagnosticEngine:
         self.worded_locations = True
         self.show_columns = False
         self.diagnostic_consumers = []
+        self.error_count = 0
+        self.fatal_count = 0
 
     @classmethod
     def add_arguments(cls, group):
@@ -214,6 +215,10 @@ class DiagnosticEngine:
             elaborated_diagnostic = self.elaborate(diagnostic)
             for consumer in self.diagnostic_consumers:
                 consumer.emit(elaborated_diagnostic)
+
+    def emit_error_count(self):
+        if self.error_count:
+            self.emit(Diagnostic(DID.errors_generated, location_none, [self.error_count]))
 
     def location_text(self, elaborated_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
@@ -261,6 +266,10 @@ class DiagnosticEngine:
             # Determine the message.  The location is determined by the main highlight,
             # which is the first one in the list.
             severity_enum = diagnostic_definitions[did].severity
+            if severity_enum >= DiagnosticSeverity.error:
+                self.error_count += 1
+                if severity_enum == DiagnosticSeverity.fatal:
+                    self.fatal_count += 1
             text = self.translations.diagnostic_text(did)
             text_parts = []
             main_highlight = highlights[0]
@@ -285,6 +294,29 @@ class DiagnosticEngine:
                 raise RuntimeError(f'diagnostic select{text} passed out-of-range value {arg}')
             return (parts[arg], 'message')
 
+        def plural(text, arg):
+            assert isinstance(arg, int)
+            parts = text.split('|')
+            for part in parts:
+                test_arg = arg
+                expr, text = part.split(':')
+                if not expr:
+                    break
+                if expr[0] == '%':
+                    modulo, expr = expr.split('=')
+                    test_arg %= int(modulo)
+                if expr[0] == '[' and expr[-1] == ']':
+                    start, end = expr[1:-1].split(',')
+                    if int(start) < test_arg < int(end):
+                        break
+                else:
+                    value = int(expr)
+                    if value == test_arg:
+                        break
+            else:
+                raise RuntimeError('bad diagnostic format')
+            return (f'{arg:,d} {text}', 'message')
+
         def quote(text, arg):
             assert not (text and arg)
             return (f"'{text or arg}'", 'quote')
@@ -300,11 +332,13 @@ class DiagnosticEngine:
                 argument = arguments[int(arg_index)]
             if func == 'select':
                 return select(func_arg, argument)
+            if func == 'plural':
+                return plural(func_arg, argument)
             if func == 'q':
                 return quote(func_arg, argument)
             assert not func
-            assert isinstance(argument, str)
-            return (argument, 'message')
+            assert isinstance(argument, (str, int))
+            return (str(argument), 'message')
 
         def placeholder_matches(text):
             cursor = 0

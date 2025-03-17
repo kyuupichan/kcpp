@@ -32,6 +32,10 @@ brief_at_file_line_and_column:
   severity: none
   text: '%0:%1:%2'
 
+errors_generated:
+  severity: none
+  text: "%plural{1:error|:errors}0 generated."
+
 severity_remark:
   severity: none
   text: remark
@@ -51,7 +55,3 @@ severity_error:
 severity_fatal:
   severity: none
   text: fatal error
-
-severity_ice:
-  severity: none
-  text: internal error
