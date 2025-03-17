@@ -15,9 +15,6 @@ __all__ = ['PreprocessedOutput']
 class PreprocessedOutput:
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def __init__(self, command_line, environ):
-        pass
-
     def run(self, pp):
         # FIXME: this needs a lot of work; it's currently used for simple debugging.
         token = Token.create()
@@ -50,9 +47,6 @@ class FrontEnd:
     '''Simulate a compiler front end.  For now, all it does is output consumed tokens, and the
     interpretation of literals.
     '''
-
-    def __init__(self, command_line, environ):
-        pass
 
     def run(self, pp):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present

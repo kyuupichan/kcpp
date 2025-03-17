@@ -4,6 +4,7 @@
 #
 '''The compiler driver.'''
 
+import argparse
 import os
 import sys
 
@@ -18,16 +19,28 @@ __all__ = ['Driver', 'main_cli']
 class Driver:
 
     def __init__(self):
-        self.parser = Preprocessor.argument_parser()
+        parser = argparse.ArgumentParser(
+            prog='kcpp',
+            description = 'A preprocessor for C++23 writen in Python',
+        )
+        parser.add_argument('files', metavar='files', nargs='*', default=['-'],
+                            help='files to preprocess')
+        parser.add_argument('--fe', help='emulate a front end', action='store_true')
+        group = parser.add_argument_group(title='preprocessor')
+        Preprocessor.add_arguments(group)
+        group = parser.add_argument_group(title='diagnostics')
+        UnicodeTerminal.add_arguments(group)
+        self.parser = parser
 
     def run(self, argv=None, environ=None):
         if environ is None:
             environ = os.environ
+
         command_line = self.parser.parse_args(argv)
         if command_line.fe:
-            processor = PreprocessedOutput(command_line, environ)
+            processor = PreprocessedOutput()
         else:
-            processor = FrontEnd(command_line, environ)
+            processor = FrontEnd()
         terminal = UnicodeTerminal(command_line, environ)
 
         for filename in command_line.files:

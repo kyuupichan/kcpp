@@ -337,20 +337,6 @@ class TargetMachine:
                    IntegerKind.ulong, IntegerKind.int, IntegerKind.ushort, IntegerKind.uint,
                    Charset.from_name('UTF-8'), Charset.from_name('UTF-32LE'))
 
-    def configure(self, command_line, environ):
-        def set_charset(attrib, charset_name, integer_kind):
-            if charset_name:
-                charset = Charset.from_name(charset_name)
-                encoding_unit_size = charset.encoding_unit_size()
-                unit_width = self.integer_width(integer_kind)
-                if encoding_unit_size * 8 != unit_width:
-                    raise RuntimeError(f'{charset_name} encoding cannot be used for type '
-                                       f"'{integer_kind.name}' with width {unit_width} bits")
-                setattr(self, attrib, charset)
-
-        set_charset('narrow_charset', command_line.exec_charset, IntegerKind.char)
-        set_charset('wide_charset', command_line.wide_exec_charset, IntegerKind.wchar_t)
-
     def pp_arithmetic_width(self):
         return self.long_long_width
 

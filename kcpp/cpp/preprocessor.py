@@ -15,7 +15,10 @@ from ..diagnostics import (
     DiagnosticProcessor
 )
 
-from .basic import Buffer, IdentifierInfo, Token, TokenKind, TokenFlags, Encoding, TargetMachine
+from .basic import (
+    Buffer, IdentifierInfo, Token, TokenKind, TokenFlags, Encoding, TargetMachine, IntegerKind,
+    Charset,
+)
 from .expressions import ExprParser
 from .lexer import Lexer
 from .literals import LiteralInterpreter
@@ -84,7 +87,7 @@ class Preprocessor:
 
     def __init__(self, command_line, environ, *, target=None):
         self.target = target or TargetMachine.default()
-        self.target.configure(command_line, environ)
+        self.configure(command_line, environ)
 
         # Internal state.
         self.identifiers = {}
@@ -110,6 +113,26 @@ class Preprocessor:
         self.diags = []
         self.diagnostic_consumers = []
         self.initialize()
+
+    @classmethod
+    def add_arguments(cls, group):
+        '''Add command line arugments to the group.'''
+        group.add_argument('-exec-charset', type=str)
+        group.add_argument('-wide-exec-charset', type=str)
+
+    def configure(self, command_line, environ):
+        def set_charset(attrib, charset_name, integer_kind):
+            if charset_name:
+                charset = Charset.from_name(charset_name)
+                encoding_unit_size = charset.encoding_unit_size()
+                unit_width = self.target.integer_width(integer_kind)
+                if encoding_unit_size * 8 != unit_width:
+                    raise RuntimeError(f'{charset_name} encoding cannot be used for type '
+                                       f"'{integer_kind.name}' with width {unit_width} bits")
+                setattr(self.target, attrib, charset)
+
+        set_charset('narrow_charset', command_line.exec_charset, IntegerKind.char)
+        set_charset('wide_charset', command_line.wide_exec_charset, IntegerKind.wchar_t)
 
     def initialize(self):
         specials = [
@@ -730,17 +753,3 @@ class Preprocessor:
         to highlight.'''
         highlights = [self.elaborated_range(source_range) for source_range in source_ranges]
         return [(did, substitution_args, highlights)]
-
-    @classmethod
-    def argument_parser(cls):
-        parser = argparse.ArgumentParser(
-            prog='kcpp.py',
-        )
-        parser.add_argument('files', metavar='files', nargs='*', default=["-"],
-                            help='files to preprocess')
-        parser.add_argument('--fe', action='store_true')
-        parser.add_argument('-exec-charset', type=str)
-        parser.add_argument('-wide-exec-charset', type=str)
-        parser.add_argument('--tabstop', nargs='?', default=8, type=int)
-        parser.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
-        return parser

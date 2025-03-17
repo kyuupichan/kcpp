@@ -5,6 +5,7 @@
 '''Handle the details of outputting diagnostics to an ASCII, or unicode-aware,
 terminal.'''
 
+import argparse
 import os
 import sys
 
@@ -36,6 +37,12 @@ class UnicodeTerminal(DiagnosticConsumer):
             self.enhancement_codes = self.parse_colours(environ)
         if self.file.isatty():
             self.terminal_width = os.get_terminal_size(self.file.fileno()).columns
+
+    @classmethod
+    def add_arguments(cls, group):
+        '''Add command line arugments to the group.'''
+        group.add_argument('--tabstop', nargs='?', default=8, type=int)
+        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
     def parse_colours(self, environ):
         '''Parse the KCPP_COLOURS environment variable.'''
