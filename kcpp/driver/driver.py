@@ -12,6 +12,9 @@ from kcpp.cpp import Preprocessor
 from kcpp.diagnostics import UnicodeTerminal
 
 
+__all__ = ['Driver', 'main_cli']
+
+
 class Driver:
 
     def __init__(self):
@@ -35,3 +38,8 @@ class Driver:
             # FIXME: put this somewhere more appropriate
             if pp.diags:
                 print(f'{len(pp.diags):,d} diagnostics emitted', file=sys.stderr)
+
+
+def main_cli():
+    driver = Driver()
+    driver.run()

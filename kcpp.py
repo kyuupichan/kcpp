@@ -5,13 +5,8 @@
 # A C++23 Preprocessor in Python 3.
 #
 
-from kcpp.driver import Driver
-
-
-def main():
-    driver = Driver()
-    driver.run()
+from kcpp import main_cli
 
 
 if __name__ == '__main__':
-    main()
+    main_cli()
