@@ -3,7 +3,6 @@
 # All rights reserved.
 #
 
-import argparse
 import sys
 from copy import copy
 from dataclasses import dataclass
@@ -12,7 +11,7 @@ from functools import partial
 
 from ..diagnostics import (
     DID, ElaboratedLocation, ElaboratedRange, BufferRange, SpellingRange, TokenRange, Diagnostic,
-    DiagnosticProcessor
+    DiagnosticEngine
 )
 
 from .basic import (
@@ -85,9 +84,9 @@ class Preprocessor:
         b'UR': Encoding.UTF_32_RAW,
     }
 
-    def __init__(self, command_line, environ, *, target=None):
+    def __init__(self, env, *, target=None):
         self.target = target or TargetMachine.default()
-        self.configure(command_line, environ)
+        self.configure(env)
 
         # Internal state.
         self.identifiers = {}
@@ -103,7 +102,7 @@ class Preprocessor:
         # These can be modified by language options
         self.alt_tokens = Preprocessor.ALT_TOKENS
         self.encoding_prefixes = Preprocessor.ENCODING_PREFIXES
-        self.diag_processor = DiagnosticProcessor(self)
+        self.diagnostic_engine = DiagnosticEngine(self, env)
         # Literal interpreter for a front end
         self.literal_interpreter = LiteralInterpreter(self, False)
         # A preprocessing expression parser
@@ -111,16 +110,16 @@ class Preprocessor:
         # Token sources.
         self.sources = []
         self.diags = []
-        self.diagnostic_consumers = []
         self.initialize()
 
     @classmethod
-    def add_arguments(cls, group):
+    def add_arguments(cls, pp_group, diag_group):
         '''Add command line arugments to the group.'''
-        group.add_argument('-exec-charset', type=str)
-        group.add_argument('-wide-exec-charset', type=str)
+        pp_group.add_argument('-exec-charset', type=str)
+        pp_group.add_argument('-wide-exec-charset', type=str)
+        DiagnosticEngine.add_arguments(diag_group)
 
-    def configure(self, command_line, environ):
+    def configure(self, env):
         def set_charset(attrib, charset_name, integer_kind):
             if charset_name:
                 charset = Charset.from_name(charset_name)
@@ -131,8 +130,8 @@ class Preprocessor:
                                        f"'{integer_kind.name}' with width {unit_width} bits")
                 setattr(self.target, attrib, charset)
 
-        set_charset('narrow_charset', command_line.exec_charset, IntegerKind.char)
-        set_charset('wide_charset', command_line.wide_exec_charset, IntegerKind.wchar_t)
+        set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
+        set_charset('wide_charset', env.command_line.wide_exec_charset, IntegerKind.wchar_t)
 
     def initialize(self):
         specials = [
@@ -146,17 +145,12 @@ class Preprocessor:
         return self.literal_interpreter.interpret(token)
 
     def add_diagnostic_consumer(self, consumer):
-        self.diagnostic_consumers.append(consumer)
+        self.diagnostic_engine.add_diagnostic_consumer(consumer)
 
     def diag(self, did, loc, args=None):
         diag = Diagnostic(did, loc, args)
         self.diags.append(diag)
-        self.emit_diag(diag)
-
-    def emit_diag(self, diag):
-        elaborated_diag = self.diag_processor.elaborate(diag)
-        for consumer in self.diagnostic_consumers:
-            consumer.emit(elaborated_diag)
+        self.diagnostic_engine.emit(diag)
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)

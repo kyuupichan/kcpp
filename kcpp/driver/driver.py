@@ -10,6 +10,7 @@ import sys
 
 from .processors import PreprocessedOutput, FrontEnd
 from kcpp.cpp import Preprocessor
+from kcpp.cpp.basic import Environment
 from kcpp.diagnostics import UnicodeTerminal
 
 
@@ -21,31 +22,32 @@ class Driver:
     def __init__(self):
         parser = argparse.ArgumentParser(
             prog='kcpp',
-            description = 'A preprocessor for C++23 writen in Python',
+            description='A preprocessor for C++23 writen in Python',
         )
         parser.add_argument('files', metavar='files', nargs='*', default=['-'],
                             help='files to preprocess')
         parser.add_argument('--fe', help='emulate a front end', action='store_true')
-        group = parser.add_argument_group(title='preprocessor')
-        Preprocessor.add_arguments(group)
-        group = parser.add_argument_group(title='diagnostics')
-        UnicodeTerminal.add_arguments(group)
+        pp_group = parser.add_argument_group(title='preprocessor')
+        diag_group = parser.add_argument_group(title='diagnostics')
+        Preprocessor.add_arguments(pp_group, diag_group)
+        UnicodeTerminal.add_arguments(diag_group)
         self.parser = parser
 
     def run(self, argv=None, environ=None):
-        if environ is None:
-            environ = os.environ
-
         command_line = self.parser.parse_args(argv)
+        environ = os.environ if environ is None else environ
+        environment = Environment(command_line, environ, [])
+        terminal = UnicodeTerminal(environment)
+
         if command_line.fe:
             processor = PreprocessedOutput()
         else:
             processor = FrontEnd()
-        terminal = UnicodeTerminal(command_line, environ)
 
         for filename in command_line.files:
-            pp = Preprocessor(command_line, environ)
+            pp = Preprocessor(environment)
             pp.add_diagnostic_consumer(terminal)
+            pp.diagnostic_engine.emit(environment.diagnostics)
             pp.push_source_file(filename)
             processor.run(pp)
             # FIXME: put this somewhere more appropriate

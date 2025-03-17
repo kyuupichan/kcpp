@@ -9,6 +9,7 @@ Should not import other cpp modules.
 '''
 
 from abc import ABC, abstractmethod
+from argparse import Namespace
 from bisect import bisect_left
 from codecs import getincrementalencoder
 from dataclasses import dataclass
@@ -25,6 +26,19 @@ __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
     'IdentifierInfo', 'TargetMachine', 'Buffer', 'BufferLocation', 'SourceLine',
 ]
+
+
+@dataclass(slots=True)
+class Environment:
+    '''The command line and environment variables passed to kcpp.'''
+    # Command line arguments
+    command_line: Namespace
+    # A dictionary of environment variables
+    variables: dict
+    # A list of Diagnostic objects issued when processing the above.  It is the
+    # responsibility of the creator of the Environment object to pass these diagnostics to
+    # a DiagnosticConsumer at the appropriate time.
+    diagnostics: list
 
 
 class TokenSource(ABC):

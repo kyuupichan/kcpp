@@ -14,7 +14,7 @@ from .definitions import (
 
 
 __all__ = [
-    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticProcessor',
+    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine',
     'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
 ]
 
@@ -173,7 +173,7 @@ class Diagnostic:
         return (self.did, args, ranges, diags)
 
 
-class DiagnosticProcessor:
+class DiagnosticEngine:
 
     formatting_code = re.compile('%(([a-z]+)({.+})?)?([0-9]?)')
     severity_map = {
@@ -185,12 +185,30 @@ class DiagnosticProcessor:
         DiagnosticSeverity.ice: (DID.severity_ice, 'error'),
     }
 
-    def __init__(self, pp, translations=None):
-        # A DiagnosticTranslations object
+    def __init__(self, pp, env, translations=None):
         self.pp = pp
+        # A DiagnosticTranslations object
         self.translations = translations or DiagnosticTranslations({})
         self.worded_locations = True
         self.show_columns = False
+        self.diagnostic_consumers = []
+
+    @classmethod
+    def add_arguments(cls, group):
+        '''Add command line arugments to the group.'''
+        pass
+
+    def add_diagnostic_consumer(self, consumer):
+        self.diagnostic_consumers.append(consumer)
+
+    def emit(self, diagnostics):
+        '''Emit one or more diagnostics.  diagnostics is a single Diagnostic or a list of them.'''
+        if not isinstance(diagnostics, list):
+            diagnostics = [diagnostics]
+        for diagnostic in diagnostics:
+            elaborated_diagnostic = self.elaborate(diagnostic)
+            for consumer in self.diagnostic_consumers:
+                consumer.emit(elaborated_diagnostic)
 
     def location_text(self, elaborated_loc):
         arguments = [elaborated_loc.buffer.name, str(elaborated_loc.line_number),
@@ -312,5 +330,5 @@ class DiagnosticConsumer:
     def __init__(self):
         pass
 
-    def emit(self, diagnostic):
+    def emit(self, elab_diagnostic):
         pass
