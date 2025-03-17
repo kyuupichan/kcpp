@@ -30,7 +30,7 @@ class UnicodeTerminal(DiagnosticConsumer):
         colours is True.  Sourcefile tabs are space-expanded to the given tabstop.'''
         self.file = file
         self.nested_indent = 4
-        self.terminal_width = 0
+        self.terminal_width = 120
         self.tabstop = env.command_line.tabstop
         self.enhancement_codes = {}
         if env.command_line.colours:

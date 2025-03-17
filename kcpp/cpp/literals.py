@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from struct import Struct
 
-from ..diagnostics import DID, SpellingRange, Diagnostic
+from ..diagnostics import DID, SpellingRange, Diagnostic, location_in_args
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
     codepoint_to_hex,
@@ -198,7 +198,8 @@ class LiteralInterpreter:
                 self.pp.diag(DID.floating_point_in_pp_expr, token.loc)
                 result = IntegerLiteral(IntegerKind.error, 0, None)
             elif result.ud_suffix:
-                self.pp.diag(DID.user_defined_suffix_in_pp_expr, 0, [result.ud_suffix.loc])
+                self.pp.diag(DID.user_defined_suffix_in_pp_expr, location_in_args,
+                             [result.ud_suffix.loc])
                 result.kind = IntegerKind.error
 
         return result
@@ -598,10 +599,10 @@ class LiteralInterpreter:
 
         def diagnose_conflict(token, bad_tokens, selector):
             args = [spelling_range(token, selector), selector]
-            args.extend([Diagnostic(DID.string_concatenation_prior, 0,
+            args.extend([Diagnostic(DID.string_concatenation_prior, location_in_args,
                                     [selector, spelling_range(bad_token, selector)])
                          for bad_token in bad_tokens])
-            self.pp.diag(DID.string_concatenation_conflict, 0, args)
+            self.pp.diag(DID.string_concatenation_conflict, location_in_args, args)
 
         # Read adjacent string literal tokens
         is_erroneous = False
@@ -890,7 +891,7 @@ class LiteralInterpreter:
 
     def expected_close_brace(self, state, cursor, brace_loc):
         loc = SpellingRange(state.token.loc, brace_loc, brace_loc + 1)
-        note = Diagnostic(DID.prior_match, 0, [loc, '{'])
+        note = Diagnostic(DID.prior_match, location_in_args, [loc, '{'])
         state.diag_char(DID.expected_close_brace, cursor, [note])
 
 
@@ -941,7 +942,7 @@ class State:
     def diag_char_range(self, did, start, end, args=None):
         args = args or []
         args.append(SpellingRange(self.token.loc, start, end))
-        self.diags.append((did, 0, args))
+        self.diags.append((did, location_in_args, args))
 
     def first_non_decimal_digit(self, cursor):
         '''Return the first character starting from cursor that is not a decimal digit.'''

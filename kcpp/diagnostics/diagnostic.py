@@ -16,7 +16,7 @@ from .definitions import (
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine',
     'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
-    'location_command_line', 'location_none',
+    'location_command_line', 'location_none', 'location_in_args',
 ]
 
 
@@ -33,8 +33,9 @@ class BufferPosition(IntEnum):
 
 
 # Locations for diagnostics with a special meaning.
-location_command_line = -1
-location_none = 0
+location_none = -1
+location_command_line = -2
+location_in_args = -3
 
 
 @dataclass(slots=True)
@@ -136,6 +137,7 @@ class Diagnostic:
     front-end.'''
 
     def __init__(self, did, loc, args=None):
+        assert loc
         self.did = did
         self.loc = loc
         self.arguments = args or []
@@ -162,7 +164,8 @@ class Diagnostic:
         ranges = []
         diags = []
 
-        ranges.append(TokenRange(self.loc, self.loc))
+        if self.loc != location_in_args:
+            ranges.append(TokenRange(self.loc, self.loc))
         for arg in self.arguments:
             if isinstance(arg, (str, int)):
                 args.append(arg)
@@ -174,6 +177,8 @@ class Diagnostic:
                 diags.append(arg)
             else:
                 raise RuntimeError(f'unhandled argument: {arg}')
+
+        assert ranges
 
         return (self.did, args, ranges, diags)
 

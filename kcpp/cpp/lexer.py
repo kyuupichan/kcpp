@@ -9,7 +9,7 @@ from ..unicode import (
     is_surrogate
 )
 
-from ..diagnostics import BufferRange, DID
+from ..diagnostics import BufferRange, DID, location_in_args
 
 from .basic import Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, HEX_DIGIT_VALUES
 
@@ -112,7 +112,7 @@ class Lexer(TokenSource):
         if not self.quiet:
             args = args or []
             args.append(BufferRange(start + self.start_loc, end + self.start_loc))
-            self.pp.diag(did, 0, args)
+            self.pp.diag(did, location_in_args, args)
 
     def read_logical_byte(self, cursor):
         # Return the next byte skipping escaped newlines
