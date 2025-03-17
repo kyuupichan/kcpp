@@ -6,7 +6,6 @@
 
 import argparse
 import os
-import sys
 
 from .processors import PreprocessedOutput, FrontEnd
 from kcpp.cpp import Preprocessor
@@ -33,21 +32,24 @@ class Driver:
         UnicodeTerminal.add_arguments(diag_group)
         self.parser = parser
 
-    def run(self, argv=None, environ=None):
+    def environment(self, argv=None, environ=None):
         command_line = self.parser.parse_args(argv)
         environ = os.environ if environ is None else environ
-        environment = Environment(command_line, environ, [])
-        terminal = UnicodeTerminal(environment)
+        return Environment(command_line, environ, [])
 
-        if command_line.fe:
+    def run(self, argv=None, environ=None):
+        env = self.environment(argv, environ)
+        terminal = UnicodeTerminal(env)
+
+        if env.command_line.fe:
             processor = PreprocessedOutput()
         else:
             processor = FrontEnd()
 
-        for filename in command_line.files:
-            pp = Preprocessor(environment)
+        for filename in env.command_line.files:
+            pp = Preprocessor(env)
             pp.add_diagnostic_consumer(terminal)
-            pp.diagnostic_engine.emit(environment.diagnostics)
+            pp.diagnostic_engine.emit(env.diagnostics)
             if pp.diagnostic_engine.error_count == 0:
                 pp.push_source_file(filename)
                 processor.run(pp)
