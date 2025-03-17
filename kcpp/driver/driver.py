@@ -42,9 +42,9 @@ class Driver:
         terminal = UnicodeTerminal(env)
 
         if env.command_line.fe:
-            processor = PreprocessedOutput()
-        else:
             processor = FrontEnd()
+        else:
+            processor = PreprocessedOutput()
 
         for filename in env.command_line.files:
             pp = Preprocessor(env)
