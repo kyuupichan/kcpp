@@ -771,6 +771,8 @@ class Lexer(TokenSource):
         elif diagnose:
             paren_loc = cursor - (c != EOF_CHAR)
             self.diag_range(DID.expected_open_paren, paren_loc, paren_loc + 1)
+            # We must not return cursor in the middle of a multibyte character.
+            c, cursor = self.read_char(paren_loc)
             # Unterminated literals become the error token
             return TokenKind.ERROR, cursor
 
