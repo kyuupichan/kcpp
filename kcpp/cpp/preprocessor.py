@@ -11,7 +11,7 @@ from functools import partial
 
 from ..diagnostics import (
     DID, ElaboratedLocation, ElaboratedRange, BufferRange, SpellingRange, TokenRange, Diagnostic,
-    DiagnosticEngine
+    DiagnosticEngine, location_command_line,
 )
 
 from .basic import (
@@ -126,8 +126,9 @@ class Preprocessor:
                 encoding_unit_size = charset.encoding_unit_size()
                 unit_width = self.target.integer_width(integer_kind)
                 if encoding_unit_size * 8 != unit_width:
-                    raise RuntimeError(f'{charset_name} encoding cannot be used for type '
-                                       f"'{integer_kind.name}' with width {unit_width} bits")
+                    diagnostic = Diagnostic(DID.invalid_charset, location_command_line,
+                                            [charset_name, integer_kind.name, str(unit_width)])
+                    env.diagnostics.append(diagnostic)
                 setattr(self.target, attrib, charset)
 
         set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)

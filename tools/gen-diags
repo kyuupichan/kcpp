@@ -1,2 +1,2 @@
 # Presumped to run from the top-level cpp directory
-/usr/bin/env python tools/gen-diags.py diagnostics > diagnostics/definitions.py
+/usr/bin/env python tools/gen-diags.py kcpp/diagnostics > kcpp/diagnostics/definitions.py

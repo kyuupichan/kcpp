@@ -80,10 +80,6 @@ prior_macro_definition:
   severity: note
   text: previous definition was here
 
-token_concatenation_failed:
-  severity: error
-  text: concatenation produces %q0 which is not a valid preprocessing token
-
 va_opt_starts_with_concat:
   severity: error
   text: __VA_OPT__ replacement tokens cannot begin with %q{##}

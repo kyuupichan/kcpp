@@ -1,0 +1,17 @@
+---
+# Copyright (c) 2025, Neil Booth.
+#
+# All rights reserved.
+#
+
+#
+# Preprocessor diagnostics
+#
+
+invalid_charset:
+  severity: error
+  text: "%q0 encoding cannot be used for type %q1 with width %2 bits"
+
+token_concatenation_failed:
+  severity: error
+  text: concatenation produces %q0 which is not a valid preprocessing token

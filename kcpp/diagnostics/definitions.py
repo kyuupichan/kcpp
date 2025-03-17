@@ -69,6 +69,7 @@ class DID(IntEnum):
     incomplete_UCN_as_tokens = auto()
     integer_overflow = auto()
     integer_too_large = auto()
+    invalid_charset = auto()
     invalid_digit = auto()
     invalid_directive = auto()
     invalid_numeric_suffix = auto()
@@ -373,6 +374,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'integer value is too large for any integer type',
+    ),
+    DID.invalid_charset: DiagnosticDefinition(
+        DID.invalid_charset,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        '%q0 encoding cannot be used for type %q1 with width %2 bits',
     ),
     DID.invalid_digit: DiagnosticDefinition(
         DID.invalid_digit,

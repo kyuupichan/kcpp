@@ -16,6 +16,7 @@ from .definitions import (
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine',
     'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
+    'location_command_line',
 ]
 
 
@@ -29,6 +30,11 @@ class BufferPosition(IntEnum):
     WITHIN_LINE = 0
     END_OF_LINE = 1
     END_OF_SOURCE = 2
+
+
+# Locations for diagnostics with a special meaning.
+location_command_line = -1
+location_none = 0
 
 
 @dataclass(slots=True)
@@ -155,7 +161,7 @@ class Diagnostic:
         ranges = []
         diags = []
 
-        if self.loc != 0:
+        if self.loc > location_none:
             ranges.append(TokenRange(self.loc, self.loc))
 
         for arg in self.arguments:
@@ -251,13 +257,15 @@ class DiagnosticEngine:
             severity_enum = diagnostic_definitions[did].severity
             text = self.translations.diagnostic_text(did)
             text_parts = []
+            # There needn't be a source location - for example, diagnostics with no
+            # severity, or those for command-line errors.
             if source_ranges:
                 main_highlight = highlights[0]
-                severity_did, hint = self.severity_map[severity_enum]
                 text_parts.append((self.location_text(main_highlight.start) + ': ', 'path'))
+            # Add the severity text unless it is none
+            if severity_enum != DiagnosticSeverity.none:
+                severity_did, hint = self.severity_map[severity_enum]
                 text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
-            else:
-                assert severity_enum == DiagnosticSeverity.none
             text_parts.extend(self.substitute_arguments(text, substitution_args))
             return DiagnosticContext(highlights, text_parts)
 
