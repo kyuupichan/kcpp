@@ -178,6 +178,13 @@ class Lexer(TokenSource):
         self.clean = False
         return replacement_char, cursor + size
 
+    def read_logical_char(self, cursor):
+        '''Read a logical character, after skipping escaped newlines.'''
+        c, cursor = self.read_logical_byte(cursor)
+        if c >= 0x80:
+            c, cursor = self.read_char(cursor - 1)
+        return c, cursor
+
     def get_token(self, token):
         cursor = self.cursor
         if cursor == 0:
@@ -673,11 +680,8 @@ class Lexer(TokenSource):
                 c, cursor = self.read_logical_byte(cursor - 1)
                 if c == 92:
                     # An escape sequence or UCN; we do not check syntax.  We want to skip
-                    # the next logical character, but be careful as it might begin with
-                    # another escaped newline.
-                    c, cursor = self.read_logical_byte(cursor)
-                    if c >= 0x80:
-                        c, cursor = self.read_char(cursor - 1)
+                    # the next logical character
+                    c, cursor = self.read_logical_char(cursor)
                     continue
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1)
