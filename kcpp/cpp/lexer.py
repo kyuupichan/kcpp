@@ -672,8 +672,12 @@ class Lexer(TokenSource):
                 # Handle escaped newlines
                 c, cursor = self.read_logical_byte(cursor - 1)
                 if c == 92:
-                    # An escape sequence or UCN.  We do not check syntax here.
+                    # An escape sequence or UCN; we do not check syntax.  We want to skip
+                    # the next logical character, but be careful as it might begin with
+                    # another escaped newline.
                     c, cursor = self.read_logical_byte(cursor)
+                    if c >= 0x80:
+                        c, cursor = self.read_char(cursor - 1)
                     continue
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1)
