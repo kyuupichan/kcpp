@@ -4,7 +4,6 @@
 #
 '''Interpretation of character, string and numeric literals.'''
 
-from codecs import getincrementalencoder
 from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum
@@ -13,11 +12,11 @@ from struct import Struct
 from ..diagnostics import DID, SpellingRange, Diagnostic
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
-    codepoint_to_hex, REPLACEMENT_CHAR,
+    codepoint_to_hex,
 )
 
 from .basic import (
-    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Encoding, Unicode, IdentifierInfo,
+    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Charset, Encoding, IdentifierInfo,
     IntegerKind, RealKind, Token, value_width
 )
 
@@ -119,39 +118,33 @@ class ElaboratedEncoding:
     # If the encoding is little-endian
     is_little_endian: bool
     # The execution character set
-    charset: str
-    # A stateful function that encodes a character into bytes for charset
-    encoder: any
+    charset: Charset
     # A function that packs an unsigned value into bytes of the correct endianness
     pack: any
-    # The replacement character for this encoding
-    replacement_char: int
 
     @classmethod
     def for_encoding_and_interpreter(cls, encoding, interpreter):
+        # FIXME: pre-calculate these
         target = interpreter.pp.target
         is_little_endian = target.is_little_endian
         basic = encoding.basic_encoding()
         if basic == Encoding.NONE:
-            charset = target.narrow_encoding
+            charset = target.narrow_charset
         elif basic == Encoding.WIDE:
-            charset = target.wide_encoding
+            charset = target.wide_charset
         elif basic == Encoding.UTF_8:
-            charset = 'UTF-8'
+            charset = Charset.from_name('UTF-8')
         elif basic == Encoding.UTF_16:
-            charset = 'UTF-16LE' if is_little_endian else 'UTF-16BE'
+            charset = Charset.from_name('UTF-16LE' if is_little_endian else 'UTF-16BE')
         elif basic == Encoding.UTF_32:
-            charset = 'UTF-32LE' if is_little_endian else 'UTF-32BE'
+            charset = Charset.from_name('UTF-32LE' if is_little_endian else 'UTF-32BE')
         else:
             raise RuntimeError('unimplemented encoding')
 
         kind = encoding.integer_kind()
         char_size = target.integer_width(kind) // 8
-        encoder = get_encoder(charset)
         pack = packing_struct(char_size, is_little_endian).pack
-        replacement_char = REPLACEMENT_CHAR if Unicode.is_unicode(charset) else 63  # '?'
-
-        return cls(encoding, kind, is_little_endian, charset, encoder, pack, replacement_char)
+        return cls(encoding, kind, is_little_endian, charset, pack)
 
 
 def packing_struct(octets, is_little_endian):
@@ -161,10 +154,6 @@ def packing_struct(octets, is_little_endian):
         return struct_le_H if is_little_endian else struct_be_H
     assert octets == 4
     return struct_le_L if is_little_endian else struct_be_L
-
-
-def get_encoder(codec):
-    return getincrementalencoder(codec)().encode
 
 
 class LiteralInterpreter:
@@ -660,7 +649,8 @@ class LiteralInterpreter:
             is_erroneous = is_erroneous or token_erroneous
 
         # Revert to initial shift state, and append a NUL byte to the string.
-        encoded.extend(elab_encoding.encoder('', final=True) + elab_encoding.encoder('\0'))
+        encoder = elab_encoding.charset.encoder
+        encoded.extend(encoder('', final=True) + encoder('\0'))
 
         char_kind = IntegerKind.error if is_erroneous else elab_encoding.char_kind
         return StringLiteral(encoded, char_kind, common_ud_suffix)
@@ -675,6 +665,7 @@ class LiteralInterpreter:
         char_width = self.pp.target.integer_width(encoding.char_kind)
         mask = (1 << char_width) - 1
         is_erroneous = False
+        encoder = encoding.charset.encoder
         while cursor < state.limit:
             # Erroneous characters or values are returned as -1
             start = cursor
@@ -704,7 +695,10 @@ class LiteralInterpreter:
                         cp = -1
                 # Replace erroneous values.
                 if cp == -1:
-                    cp = encoding.replacement_char if not require_single_code_unit else 63  # '?'
+                    if require_single_code_unit:
+                        cp = 63  # '?'
+                    else:
+                        cp = encoding.charset.replacement_char
                 # Convert the character into the execution character set.  This can fail
                 # (if the character is not available).  It can result in 1 or more
                 # encoded codepoints in the execution character set.
@@ -713,16 +707,16 @@ class LiteralInterpreter:
                 # literal’s associated character encoding or if it cannot be encoded as a
                 # single code unit, then the program is ill-formed.
                 try:
-                    encoded_part = encoding.encoder(chr(cp))
+                    encoded_part = encoder(chr(cp))
                 except UnicodeError:
-                    args = [printable_char(cp), encoding.charset]
+                    args = [printable_char(cp), encoding.charset.name]
                     state.diag_char_range(DID.character_does_not_exist, start, cursor, args)
-                    encoded_part = encoding.encoder('?')
+                    encoded_part = encoder('?')
 
                 if require_single_code_unit and len(encoded_part) > char_width // 8:
-                    args = [printable_char(cp), encoding.char_kind.name, encoding.charset]
+                    args = [printable_char(cp), encoding.char_kind.name, encoding.charset.name]
                     state.diag_char_range(DID.character_not_single_code_unit, start, cursor, args)
-                    encoded_part = encoding.encoder('?')
+                    encoded_part = encoder('?')
 
             encoded.extend(encoded_part)
             # Emit a diagnostic and clear state for next character

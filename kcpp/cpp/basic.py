@@ -10,11 +10,16 @@ Should not import other cpp modules.
 
 from abc import ABC, abstractmethod
 from bisect import bisect_left
+from codecs import getincrementalencoder
 from dataclasses import dataclass
 from enum import IntEnum, auto
 from itertools import accumulate
+from typing import ClassVar
 
-from ..unicode import utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex
+
+from ..unicode import (
+    utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex, REPLACEMENT_CHAR,
+)
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
@@ -252,25 +257,31 @@ class Encoding(IntEnum):
         return self.basic_integer_kinds[self.basic_encoding()]
 
 
-class Unicode:
-    charsets = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be', 'utf16le', 'utf8', 'cp65001'}
+@dataclass(slots=True)
+class Charset:
+    name: str
+    is_unicode: bool
+    replacement_char: int
+    encoder: any
+
+    unicode_charsets: ClassVar[set] = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be',
+                                       'utf16le', 'utf8', 'cp65001'}
 
     @classmethod
-    def is_unicode(cls, charset):
-        '''Return True if charset looks like a Unicode charset.'''
-        return charset.replace('_', '').replace('-', '').lower() in cls.charsets
+    def from_name(cls, name):
+        '''Construct a Charset object from a charset name.  Raises LookupError if the
+        charset name is not recognized.'''
+        encoder = getincrementalencoder(name)().encode
+        encoder('\0')  # Skip any BOM
+        is_unicode = name.replace('_', '').replace('-', '').lower() in cls.unicode_charsets
+        replacement_char = REPLACEMENT_CHAR if is_unicode else 63  # '?'
+        return cls(name, is_unicode, replacement_char, encoder)
 
-    @classmethod
-    def get_fixed_width(cls, charset, default):
-        '''If charset is a Unicode charset and has a fixed-width encoding return that width.
-        Otherwise return default.
+    def encoding_unit_size(self):
+        '''Returns the length of encoding units of the character set in bytes.  Each character is
+        encoded into one or more units of this size.
         '''
-        if cls.is_unicode(charset):
-            if '32' in charset:
-                return 32
-            if '16' in charset:
-                return 16
-        return default
+        return len(self.encoder('\0'))
 
 
 Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKind.char8_t,
@@ -316,26 +327,29 @@ class TargetMachine:
     char16_t_kind: IntegerKind
     char32_t_kind: IntegerKind
 
-    # Functions that convert characters into the execution character set
-    narrow_encoding: str
-    wide_encoding: str
+    narrow_charset: Charset
+    wide_charset: Charset
 
     @classmethod
     def default(cls):
         # e.g. Apple-Silicon
         return cls(True, 8, 16, 32, 64, 64, IntegerKind.schar,
                    IntegerKind.ulong, IntegerKind.int, IntegerKind.ushort, IntegerKind.uint,
-                   'UTF-8', 'UTF-32LE')
+                   Charset.from_name('UTF-8'), Charset.from_name('UTF-32LE'))
 
     def configure(self, command_line, environ):
-        narrow = command_line.exec_charset
-        if narrow:
-            self.narrow_encoding = narrow
-            self.char_width = Unicode.get_fixed_width(narrow, self.char_width)
-        wide = command_line.wide_exec_charset
-        if wide:
-            self.wide_encoding = wide
-            self.wchar_t_width = Unicode.get_fixed_width(wide, self.wchar_t_width)
+        def set_charset(attrib, charset_name, integer_kind):
+            if charset_name:
+                charset = Charset.from_name(charset_name)
+                encoding_unit_size = charset.encoding_unit_size()
+                unit_width = self.integer_width(integer_kind)
+                if encoding_unit_size * 8 != unit_width:
+                    raise RuntimeError(f'{charset_name} encoding cannot be used for type '
+                                       f"'{integer_kind.name}' with width {unit_width} bits")
+                setattr(self, attrib, charset)
+
+        set_charset('narrow_charset', command_line.exec_charset, IntegerKind.char)
+        set_charset('wide_charset', command_line.wide_exec_charset, IntegerKind.wchar_t)
 
     def pp_arithmetic_width(self):
         return self.long_long_width
