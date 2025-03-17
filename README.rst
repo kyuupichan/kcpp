@@ -153,6 +153,6 @@ above) are most welcome.
 ChangeLog
 =========
 
-0.0.1  2025-03-16
+0.1  2025-03-16
 
 Initial release.  Quite incomplete but progress from here should be rapid.

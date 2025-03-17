@@ -7,7 +7,7 @@ name = 'kcpp'
 dynamic = ['version']
 keywords = ['preprocessor', 'C++', 'C']
 readme = 'README.rst'
-requires-python = '>=3.8'
+requires-python = '>=3.10'
 dependencies = []
 description = 'A preprocessor for C++23 writen in Python, implemented as a library'
 authors = [{name = 'Neil Booth', email = 'kyuupichan@pm.me'}]
@@ -19,7 +19,7 @@ classifiers = [
   'Intended Audience :: Developers',
   'License :: OSI Approved :: MIT License',
   'Operating System :: OS Independent',
-  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.10",
   'Environment :: Console',
   "Topic :: Software Development :: Compilers",
   "Topic :: Software Development :: Libraries :: Python Modules",

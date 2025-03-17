@@ -18,7 +18,6 @@ version = find_version(os.path.join(tld, 'kcpp', '__init__.py'))
 
 setuptools.setup(
     version=version,
-    python_requires='>=3.8',
     packages=['kcpp'],
     download_url=('https://github.com/kyuupichan/kcpp/archive/{version}.tar.gz'),
 )
