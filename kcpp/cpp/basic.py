@@ -252,6 +252,27 @@ class Encoding(IntEnum):
         return self.basic_integer_kinds[self.basic_encoding()]
 
 
+class Unicode:
+    charsets = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be', 'utf16le', 'utf8', 'cp65001'}
+
+    @classmethod
+    def is_unicode(cls, charset):
+        '''Return True if charset looks like a Unicode charset.'''
+        return charset.replace('_', '').replace('-', '').lower() in cls.charsets
+
+    @classmethod
+    def get_fixed_width(cls, charset, default):
+        '''If charset is a Unicode charset and has a fixed-width encoding return that width.
+        Otherwise return default.
+        '''
+        if cls.is_unicode(charset):
+            if '32' in charset:
+                return 32
+            if '16' in charset:
+                return 16
+        return default
+
+
 Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKind.char8_t,
                                 IntegerKind.char16_t, IntegerKind.char32_t]
 
@@ -310,15 +331,11 @@ class TargetMachine:
         narrow = command_line.exec_charset
         if narrow:
             self.narrow_encoding = narrow
-            width = Encoding.fixed_width_unicode(encoding)
-            if width:
-                self.char_width = width
+            self.char_width = Unicode.get_fixed_width(narrow, self.char_width)
         wide = command_line.wide_exec_charset
         if wide:
-            self.wide_encoding = encoding
-            width = Encoding.fixed_width_unicode(encoding)
-            if width:
-                self.wchar_t_width = width
+            self.wide_encoding = wide
+            self.wchar_t_width = Unicode.get_fixed_width(wide, self.wchar_t_width)
 
     def pp_arithmetic_width(self):
         return self.long_long_width

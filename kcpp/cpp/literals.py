@@ -17,8 +17,8 @@ from ..unicode import (
 )
 
 from .basic import (
-    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Encoding, IdentifierInfo, IntegerKind, RealKind,
-    Token, value_width
+    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Encoding, Unicode, IdentifierInfo,
+    IntegerKind, RealKind, Token, value_width
 )
 
 
@@ -102,8 +102,6 @@ struct_le_H = Struct('<H')
 struct_be_L = Struct('>L')
 struct_be_H = Struct('>H')
 structB = Struct('B')
-unicode_charsets = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be', 'utf16le',
-                    'utf8', 'cp65001'}
 
 
 class NumericEscapeKind(IntEnum):
@@ -129,10 +127,6 @@ class ElaboratedEncoding:
     # The replacement character for this encoding
     replacement_char: int
 
-    def replacement_char(self):
-        '''Return the replacement character.'''
-        return REPLACEMENT_CHAR if self.is_unicode else 63  # '?'
-
     @classmethod
     def for_encoding_and_interpreter(cls, encoding, interpreter):
         target = interpreter.pp.target
@@ -155,7 +149,7 @@ class ElaboratedEncoding:
         char_size = target.integer_width(kind) // 8
         encoder = get_encoder(charset)
         pack = packing_struct(char_size, is_little_endian).pack
-        replacement_char = REPLACEMENT_CHAR if is_unicode(charset) else 63  # '?'
+        replacement_char = REPLACEMENT_CHAR if Unicode.is_unicode(charset) else 63  # '?'
 
         return cls(encoding, kind, is_little_endian, charset, encoder, pack, replacement_char)
 
@@ -171,19 +165,6 @@ def packing_struct(octets, is_little_endian):
 
 def get_encoder(codec):
     return getincrementalencoder(codec)().encode
-
-
-def is_unicode(charset):
-    return charset.replace('_', '').replace('-', '').lower() in unicode_charsets
-
-
-def fixed_width_unicode(charset):
-    if Encoding.is_unicode(charset):
-        if '32' in charset:
-            return 32
-        if '16' in charset:
-            return 16
-    return 0
 
 
 class LiteralInterpreter:
