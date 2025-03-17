@@ -16,7 +16,7 @@ from .definitions import (
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine',
     'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
-    'location_command_line',
+    'location_command_line', 'location_none',
 ]
 
 
@@ -48,7 +48,8 @@ class ElaboratedLocation:
     column_offset: int
     # Line number in the buffer (1-based)
     line_number: int
-    # The buffer containing the location
+    # The buffer containing the location.  None for diagnostics with special locations
+    # (location_command_line, location_none).
     buffer: object
 
     def buffer_position(self):
@@ -161,9 +162,7 @@ class Diagnostic:
         ranges = []
         diags = []
 
-        if self.loc > location_none:
-            ranges.append(TokenRange(self.loc, self.loc))
-
+        ranges.append(TokenRange(self.loc, self.loc))
         for arg in self.arguments:
             if isinstance(arg, (str, int)):
                 args.append(arg)
@@ -217,6 +216,13 @@ class DiagnosticEngine:
                 consumer.emit(elaborated_diagnostic)
 
     def location_text(self, elaborated_loc):
+        '''Return the location text for the elaborated location.  This is empty for a diagnostic
+        with no location, something like '<command line>: ' for command-line errors, and
+        otherwise something like '"file_name": line 25: " for file locations.
+        '''
+        if elaborated_loc.loc == location_command_line:
+            return 'kcpp'
+
         arguments = [elaborated_loc.buffer.name, str(elaborated_loc.line_number),
                      str(elaborated_loc.column_offset + 1)]
 
@@ -257,11 +263,11 @@ class DiagnosticEngine:
             severity_enum = diagnostic_definitions[did].severity
             text = self.translations.diagnostic_text(did)
             text_parts = []
-            # There needn't be a source location - for example, diagnostics with no
-            # severity, or those for command-line errors.
-            if source_ranges:
-                main_highlight = highlights[0]
+            main_highlight = highlights[0]
+            if main_highlight.start.loc != location_none:
                 text_parts.append((self.location_text(main_highlight.start) + ': ', 'path'))
+            if main_highlight.start.buffer is None:
+                highlights = []
             # Add the severity text unless it is none
             if severity_enum != DiagnosticSeverity.none:
                 severity_did, hint = self.severity_map[severity_enum]

@@ -11,7 +11,7 @@ from functools import partial
 
 from ..diagnostics import (
     DID, ElaboratedLocation, ElaboratedRange, BufferRange, SpellingRange, TokenRange, Diagnostic,
-    DiagnosticEngine, location_command_line,
+    DiagnosticEngine, location_command_line, location_none,
 )
 
 from .basic import (
@@ -707,10 +707,12 @@ class Preprocessor:
         '''Convert a location to a (line_offset, line number, column) tuple.
         The offset can range up to and including the buffer size.
         '''
+        if loc <= location_none:
+            return ElaboratedLocation(loc, 0, 0, 0, None)
         buffer_loc = self.locator.buffer_containing_loc(loc)
-        line_offset, line_number, column_offset = buffer_loc.buffer.offset_to_coords(
-            buffer_loc.offset)
-        return ElaboratedLocation(loc, line_offset, column_offset, line_number, buffer_loc.buffer)
+        buffer = buffer_loc.buffer
+        line_offset, line_number, column_offset = buffer.offset_to_coords(buffer_loc.offset)
+        return ElaboratedLocation(loc, line_offset, column_offset, line_number, buffer)
 
     def elaborated_range(self, source_range):
         if isinstance(source_range, SpellingRange):
@@ -736,8 +738,9 @@ class Preprocessor:
                 end = start
             else:
                 end = self.elaborated_location(source_range.end)
-            token_end = source_range.end + self.token_length(end.loc)
-            end = self.elaborated_location(token_end)
+            if source_range.start > location_none:
+                token_end = source_range.end + self.token_length(end.loc)
+                end = self.elaborated_location(token_end)
         else:
             raise RuntimeError(f'unhandled source range {source_range}')
 
