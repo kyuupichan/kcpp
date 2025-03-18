@@ -750,4 +750,10 @@ class Preprocessor:
         '''Calculate the context stack for a diagnostic with the given source ranges
         to highlight.'''
         highlights = [self.elaborated_range(source_range) for source_range in source_ranges]
+        # In general, an elaborated range can cross buffers.  However, for the main
+        # highlight this is not true.  It should always be either a single token, or a
+        # range within a token.  Perform this sanity check.
+        if highlights:
+            assert highlights[0].start.buffer is highlights[0].end.buffer
+
         return [(did, substitution_args, highlights)]

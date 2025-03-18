@@ -12,7 +12,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate
 
-from .diagnostic import DiagnosticConsumer
+from .diagnostic import DiagnosticConsumer, ElaboratedLocation
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )
@@ -109,26 +109,39 @@ class UnicodeTerminal(DiagnosticConsumer):
             yield from self.show_highlighted_source(context.highlights)
 
     def show_highlighted_source(self, highlights):
-        '''Generate one or more source lines.  For each line comes with highlights indicating the
-        part of the line at issue.
+        '''The first highlight lies in a single buffer and is the "centre" of the diagnostic where
+        the caret is shown.  This function generates a sequence of text lines:
+
+             printable source line 1
+             highlights for line 1
+             printable source line 2
+             highlights for line 2
+             ....
+
+        The source lines are precisely those needed to show all of the first highlight.
+        Other highlights appear only to the extent the intersect the first highlight's
+        source lines.
         '''
         def line_margins(line_number):
+            '''Return the text margin to show at the beginning of the line.'''
             margin = f'{line_number:5d}'
             return margin + ' | ', ' ' * len(margin) + ' | '
 
-        main_highlight = highlights[0]
-        for line_number, line in enumerate(self.source_lines(main_highlight),
-                                           start=main_highlight.start.line_number):
+        main = highlights[0]
+        lines = self.source_lines(main.start, main.end)
+        for line_number, line in enumerate(lines, start=main.start.line_number):
             margins = line_margins(line_number)
             room = self.terminal_width - 1 - len(margins[0])
-            texts = self.source_and_highlight_lines(line, highlights, room)
+            texts = line.source_and_highlight_lines(highlights, room, self.enhance_text)
             for margin, text in zip(margins, texts):
                 yield margin + text
 
-    def source_lines(self, erange):
-        '''Return a SourceLine object for each line in the elaborated range.'''
-        start, end = erange.start, erange.end
-        # Sanity checks.
+    def source_lines(self, start: ElaboratedLocation, end: ElaboratedLocation):
+        '''Return a list of SourceLine objects, one for each line between start and end inclusive.
+        Each contains printable text, with replacements for unprintable characters and bad
+        encodings, and tabs have been replaced with spaces.
+        '''
+        # The range must be in a single buffer.
         assert start.buffer is end.buffer
         # Equality applies for zero-width end-of-source indicators
         assert (start.line_number, start.column_offset) <= (end.line_number, end.column_offset)
@@ -136,83 +149,33 @@ class UnicodeTerminal(DiagnosticConsumer):
         return [SourceLine.from_buffer(start.buffer, line_number, self.tabstop)
                 for line_number in range(start.line_number, end.line_number + 1)]
 
-    def source_and_highlight_lines(self, line, highlights, room):
-        '''Return a (source_line, highlight_line) pair of strings for the SourceLine
-        object passed in with the given highlights.'''
-        col_ranges = line.convert_eranges_to_column_ranges(highlights)
-
-        # Must show the caret location
-        if col_ranges[0][0] != col_ranges[0][1]:
-            required_column = col_ranges[0][0]
-        else:
-            required_column = min(col_range[0] for col_range in col_ranges)
-
-        # Truncate the line if necessary
-        removed_chars, line = line.truncate(room, required_column)
-
-        # Collect highlight ranges in terms of column offset ranges
-        char_ranges = []
-        for n, (highlight, (start, end)) in enumerate(zip(highlights, col_ranges)):
-            if start == -1:
-                continue
-            start -= removed_chars
-            end -= removed_chars
-            # Special handling of caret range first character, for the caret
-            if n == 0:
-                if highlight.start.line_number == line.line_number:
-                    char_ranges.append(((start, start + 1), 'caret'))
-                    if start + 1 < end:
-                        char_ranges.append(((start + 1, end), 'locus'))
-                else:
-                    char_ranges.append(((start, end), 'locus'))
-            else:
-                char_ranges.append(((start, end), 'range1' if n == 1 else 'range2'))
-
-        char_ranges = sorted(char_ranges, key=lambda cr: cr[0][0])
-
-        def highlight_char(kind):
-            return '^' if kind == 'caret' else '~'
-
-        def highlight_parts(char_ranges):
-            last_end = 0
-            for (start, end), kind in char_ranges:
-                yield ' ' * (start - last_end)
-                highlight_text = highlight_char(kind) * (end - start)
-                yield self.enhance_text(highlight_text, kind)
-                last_end = end
-
-        def source_line_parts(line):
-            cursor = 0
-            for r in line.replacements:
-                ncursor = sum(line.out_widths[:r])
-                yield line.text[cursor: ncursor]
-                cursor = ncursor + line.out_widths[r]
-                replacement = line.text[ncursor:cursor]
-                yield self.enhance_text(replacement, 'unprintable')
-            yield line.text[cursor:]
-
-        return ''.join(source_line_parts(line)), ''.join(highlight_parts(char_ranges))
-
 
 @dataclass(slots=True)
 class SourceLine:
-    # The source line as printable text.  The text is intended to be printable on a
-    # unicode terminal - unprintable characters are replaced with <U+XXXX> sequences, and
-    # invalid encodings are replaced with <\xAB> hex sequences, and tabs are replaced with
-    # spaces.  The string does not have a terminating newline.
+    '''Encapsulates detailed information about a single line of source code in a buffer.
+
+    from_buffer() takes the raw source line and stores it with replacements for
+    unprintable text so that it can be printed to a unicode-enabled terminal.  Unprintable
+    code points are replaced with <U+XXXX> sequences, and invalid UTF-8 encodings are
+    replaced with <\xAB> hex sequences.  Finally tabs are expanded to spaces based on a
+    tabstop.
+
+    The stored text does not have a terminating newline.
+    '''
+    # See docstring above.
     text: str
     # in_widths and out_widths are byte arrays of the same length.  They hold the width,
-    # in bytes, of each unicode character in the raw source line and in the returned
-    # string.  For example, if a NUL character is the Nth (0-based) character on the
-    # source line, then src_widths[N] will be 1 - the length of the UTF-8 encoding of NUL.
-    # dst_widths[N] will be 8 - as its representation "<U+0000>" is the returned string
-    # occupies 8 columns on a terminal.  This information makes it straight-forward to map
-    # physical source bytes to positions in output text, and vice-versa.
+    # in bytes, of each unicode character in the raw source line and in text.  For
+    # example, if a NUL character is the Nth (0-based) character on the source line, then
+    # src_widths[N] will be 1 - as the UTF-8 encoding of NUL is a single byte.
+    # dst_widths[N] will be 8 because its representation "<U+0000>" in text occupies 8
+    # columns on a terminal.  This representation makes it straight-forward to map physical
+    # source bytes to positions in output text, and vice-versa.
     in_widths: bytearray
     out_widths: bytearray
-    # List of replacements that were made.  This contains unprintable unicode characters
-    # as well as replacements for bad UTF-8 encodings.  It does not contain horizontal tab
-    # replacemenets.  Each is an index into the in_widths / out_widths arrays.
+    # The replacements from_buffer() made in order that they can be output as enhanced
+    # text, in e.g. reverse video.  For that reason this list does not contain \t
+    # replacements.  Each entry is an index into the in_widths / out_widths arrays.
     replacements: list
     # The buffer and line number of this line.
     buffer: 'Buffer'
@@ -303,7 +266,9 @@ class SourceLine:
 
     @classmethod
     def from_buffer(cls, buffer, line_number, tabstop=8):
-        '''Return a SourceLine object for the indicated source line.'''
+        '''Construct a SourceLine object for the indicated source line, replacing tabs and
+        unprintable characeters.
+        '''
         def parts(raw_line, in_widths, out_widths, replacements):
             cursor = 0
             limit = len(raw_line)
@@ -338,3 +303,61 @@ class SourceLine:
         text = ''.join(parts(raw_line, in_widths, out_widths, replacements))
 
         return cls(text, in_widths, out_widths, replacements, buffer, line_number)
+
+    def source_and_highlight_lines(self, highlights, room, enhance_text):
+        '''Return a (source_line, highlight_line) pair of strings.  Each string contains
+        enhancement escape sequqences as specified by enhancement_codes.
+        '''
+        col_ranges = self.convert_eranges_to_column_ranges(highlights)
+
+        # Must show the caret location
+        if col_ranges[0][0] != col_ranges[0][1]:
+            required_column = col_ranges[0][0]
+        else:
+            required_column = min(col_range[0] for col_range in col_ranges)
+
+        # Truncate the line if necessary
+        removed_chars, line = self.truncate(room, required_column)
+
+        # Collect highlight ranges in terms of column offset ranges
+        char_ranges = []
+        for n, (highlight, (start, end)) in enumerate(zip(highlights, col_ranges)):
+            if start == -1:
+                continue
+            start -= removed_chars
+            end -= removed_chars
+            # Special handling of caret range first character, for the caret
+            if n == 0:
+                if highlight.start.line_number == self.line_number:
+                    char_ranges.append(((start, start + 1), 'caret'))
+                    if start + 1 < end:
+                        char_ranges.append(((start + 1, end), 'locus'))
+                else:
+                    char_ranges.append(((start, end), 'locus'))
+            else:
+                char_ranges.append(((start, end), 'range1' if n == 1 else 'range2'))
+
+        char_ranges = sorted(char_ranges, key=lambda cr: cr[0][0])
+
+        def highlight_char(kind):
+            return '^' if kind == 'caret' else '~'
+
+        def highlight_parts(char_ranges):
+            last_end = 0
+            for (start, end), kind in char_ranges:
+                yield ' ' * (start - last_end)
+                highlight_text = highlight_char(kind) * (end - start)
+                yield enhance_text(highlight_text, kind)
+                last_end = end
+
+        def source_line_parts(line):
+            cursor = 0
+            for r in self.replacements:
+                ncursor = sum(self.out_widths[:r])
+                yield self.text[cursor: ncursor]
+                cursor = ncursor + self.out_widths[r]
+                replacement = self.text[ncursor:cursor]
+                yield enhance_text(replacement, 'unprintable')
+            yield self.text[cursor:]
+
+        return ''.join(source_line_parts(line)), ''.join(highlight_parts(char_ranges))
