@@ -779,7 +779,7 @@ class Lexer(TokenSource):
                     break
         elif diagnose:
             cursor = cursor - (c != EOF_CHAR)
-            self.diag_range(DID.expected_open_paren, cursor, cursor + 1)
+            self.diag_range(DID.expected_open_paren, cursor, cursor)
             # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed
             # UTF-8, unlike read_byte().
             while c != EOF_CHAR and c != 10 and c != 13:
