@@ -182,20 +182,20 @@ class Preprocessor:
         return None
 
     def token_spelling(self, loc):
-        buffer_loc = self.locator.buffer_containing_loc(loc)
-        lexer = Lexer(self, buffer_loc.buffer.text, loc - buffer_loc.offset, quiet=True)
-        return lexer.token_spelling(buffer_loc.offset)
+        buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
+        lexer = Lexer(self, buffer.text, loc - offset, quiet=True)
+        return lexer.token_spelling(offset)
 
     def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
         newlines.  The result can be 0, for end-of-source indicator tokens like EOF and EOD.
         '''
-        buffer_loc = self.locator.buffer_containing_loc(loc)
-        lexer = Lexer(self, buffer_loc.buffer.text, loc - buffer_loc.offset, quiet=True)
+        buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
+        lexer = Lexer(self, buffer.text, loc - offset, quiet=True)
         token = Token.create()
-        lexer.cursor = buffer_loc.offset
+        lexer.cursor = offset
         lexer.get_token(token)
-        return lexer.cursor - buffer_loc.offset
+        return lexer.cursor - offset
 
     def directive_names(self):
         return ('include define undef line error warning pragma if ifdef ifndef '
@@ -708,30 +708,27 @@ class Preprocessor:
         The offset can range up to and including the buffer size.
         '''
         if loc <= location_none:
-            return ElaboratedLocation(loc, 0, 0, 0, None)
-        buffer_loc = self.locator.buffer_containing_loc(loc)
-        buffer = buffer_loc.buffer
-        line_offset, line_number, column_offset = buffer.offset_to_coords(buffer_loc.offset)
-        return ElaboratedLocation(loc, line_offset, column_offset, line_number, buffer)
+            return ElaboratedLocation(loc, None)
+        return ElaboratedLocation(loc, self.locator.loc_to_buffer_coords(loc))
 
     def elaborated_range(self, source_range):
         if isinstance(source_range, SpellingRange):
             # Convert the SpellingRange to a BufferRange
             assert source_range.start < source_range.end
             token_loc = source_range.token_loc
-            buffer_loc = self.locator.buffer_containing_loc(token_loc)
-            lexer = Lexer(self, buffer_loc.buffer.text, token_loc - buffer_loc.offset, quiet=True)
+            buffer, offset = self.locator.loc_to_buffer_and_offset(token_loc)
+            lexer = Lexer(self, buffer.text, token_loc - offset, quiet=True)
             token = Token.create()
-            lexer.cursor = buffer_loc.offset
+            lexer.cursor = offset
             lexer.get_token(token)
             offsets = [source_range.start, source_range.end]
-            lexer.utf8_spelling(buffer_loc.offset, lexer.cursor, offsets)
+            lexer.utf8_spelling(offset, lexer.cursor, offsets)
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):
             start = self.elaborated_location(source_range.start)
             end = self.elaborated_location(source_range.end)
-            assert start.buffer is end.buffer
+            assert start.coords.buffer is end.coords.buffer
         elif isinstance(source_range, TokenRange):
             start = self.elaborated_location(source_range.start)
             if source_range.start == source_range.end:
@@ -753,7 +750,7 @@ class Preprocessor:
         # In general, an elaborated range can cross buffers.  However, for the main
         # highlight this is not true.  It should always be either a single token, or a
         # range within a token.  Perform this sanity check.
-        if highlights:
-            assert highlights[0].start.buffer is highlights[0].end.buffer
+        if highlights and highlights[0].start.loc > location_none:
+            assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
 
         return [(did, substitution_args, highlights)]

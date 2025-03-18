@@ -20,7 +20,7 @@ from ..unicode import REPLACEMENT_CHAR
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'TargetMachine', 'Buffer',
+    'IdentifierInfo', 'TargetMachine', 'Buffer', 'BufferPosition', 'BufferCoords',
 ]
 
 
@@ -457,12 +457,9 @@ class Buffer:
 
     def offset_to_coords(self, offset):
         '''Convert an offset in the buffer to a (line_offset, line number, column) tuple.
-        The offset can range up to and including the buffer size.
-
-        Line numbers are 1-based.  Columns are byte offsets from the start of the line and
-        zero-based.  Therefore line_offset + column == offset.'''
+        The offset can range up to and including the buffer size.'''
         line_offset, line_number = self.offset_to_line_info(offset)
-        return (line_offset, line_number, offset - line_offset)
+        return BufferCoords(self, line_number, offset - line_offset, line_offset)
 
     def line_number_to_offset(self, line_number):
         '''Convert a line number to an offset in the buffer.'''
@@ -500,6 +497,40 @@ class Buffer:
             end -= 1
 
         return memoryview(text[start:end])
+
+
+class BufferPosition(IntEnum):
+    '''Describes a position within a buffer.'''
+    WITHIN_LINE = 0
+    END_OF_LINE = 1
+    END_OF_SOURCE = 2
+
+
+@dataclass(slots=True)
+class BufferCoords:
+    '''Represents a location in a buffer as a line number and column offset.'''
+    # The buffer
+    buffer: Buffer
+    # Line number in the buffer (1-based)
+    line_number: int
+    # Byte offset of the location from the start of the line (0-based)
+    column_offset: int
+    # Byte offset of the start of the line in the buffer
+    line_offset: int
+
+    def buffer_offset(self):
+        '''Convert the location as an offset in the buffer.'''
+        return self.line_offset + self.column_offset
+
+    def buffer_position(self):
+        '''Return a BufferPosition describing the location in the buffer.'''
+        text = self.buffer.text
+        offset = self.buffer_offset()
+        if offset == len(text):
+            return BufferPosition.END_OF_SOURCE
+        if text[offset] in {10, 13}:
+            return BufferPosition.END_OF_LINE
+        return BufferPosition.WITHIN_LINE
 
 
 DIGIT_VALUES = {ord(c): ord(c) - 48 for c in '0123456789'}

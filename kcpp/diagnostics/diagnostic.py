@@ -6,8 +6,8 @@
 
 import re
 from dataclasses import dataclass
-from enum import IntEnum
 
+from ..cpp import BufferCoords, BufferPosition
 from .definitions import (
     DID, DiagnosticSeverity, diagnostic_definitions,
 )
@@ -25,13 +25,6 @@ __all__ = [
 # codepoints (logical characters).  Clang seems to give the byte offset and GCC the
 # terminal column.  For now, like Clang, we give the byte offset on the line plus 1.
 
-class BufferPosition(IntEnum):
-    '''Describes a position within a buffer.'''
-    WITHIN_LINE = 0
-    END_OF_LINE = 1
-    END_OF_SOURCE = 2
-
-
 # Locations for diagnostics with a special meaning.
 location_none = -1
 location_command_line = -2
@@ -43,23 +36,9 @@ class ElaboratedLocation:
     '''Detailed informatino about location within a buffer.'''
     # The original location
     loc: int
-    # Byte offset of the start of the line in the buffer containing the location (0-nased)
-    line_offset: int
-    # Byte offset of the location from the start of the line (0-based)
-    column_offset: int
-    # Line number in the buffer (1-based)
-    line_number: int
-    # The buffer containing the location.  None for diagnostics with special locations
+    # The location as coordinates.  None for diagnostics with special locations
     # (location_command_line, location_none).
-    buffer: object
-
-    def buffer_position(self):
-        offset = self.line_offset + self.column_offset
-        if offset == len(self.buffer.text):
-            return BufferPosition.END_OF_SOURCE
-        if self.buffer.text[offset] in {10, 13}:
-            return BufferPosition.END_OF_LINE
-        return BufferPosition.WITHIN_LINE
+    coords: BufferCoords
 
 
 @dataclass(slots=True)
@@ -235,11 +214,11 @@ class DiagnosticEngine:
         if elaborated_loc.loc == location_command_line:
             return 'kcpp'
 
-        arguments = [elaborated_loc.buffer.name, str(elaborated_loc.line_number),
-                     str(elaborated_loc.column_offset + 1)]
+        coords = elaborated_loc.coords
+        arguments = [coords.buffer.name, coords.line_number, coords.column_offset + 1]
 
         if self.worded_locations:
-            pos = elaborated_loc.buffer_position()
+            pos = coords.buffer_position()
             if pos == BufferPosition.END_OF_SOURCE:
                 did = DID.at_file_end
             elif pos == BufferPosition.END_OF_LINE:
@@ -282,7 +261,7 @@ class DiagnosticEngine:
             main_highlight = highlights[0]
             if main_highlight.start.loc != location_none:
                 text_parts.append((self.location_text(main_highlight.start) + ': ', 'path'))
-            if main_highlight.start.buffer is None:
+            if main_highlight.start.coords is None:
                 highlights = []
             # Add the severity text unless it is none
             if severity_enum != DiagnosticSeverity.none:

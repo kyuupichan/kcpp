@@ -12,10 +12,11 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate
 
-from .diagnostic import DiagnosticConsumer, ElaboratedLocation
+from ..cpp import Buffer, BufferCoords
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )
+from .diagnostic import DiagnosticConsumer
 
 
 __all__ = ['UnicodeTerminal']
@@ -127,16 +128,16 @@ class UnicodeTerminal(DiagnosticConsumer):
             margin = f'{line_number:5d}'
             return margin + ' | ', ' ' * len(margin) + ' | '
 
-        main = highlights[0]
-        lines = self.source_lines(main.start, main.end)
-        for line_number, line in enumerate(lines, start=main.start.line_number):
+        start, end = highlights[0].start.coords, highlights[0].end.coords
+        lines = self.source_lines(start, end)
+        for line_number, line in enumerate(lines, start=start.line_number):
             margins = line_margins(line_number)
             room = self.terminal_width - 1 - len(margins[0])
             texts = line.source_and_highlight_lines(highlights, room, self.enhance_text)
             for margin, text in zip(margins, texts):
                 yield margin + text
 
-    def source_lines(self, start: ElaboratedLocation, end: ElaboratedLocation):
+    def source_lines(self, start: BufferCoords, end: BufferCoords):
         '''Return a list of SourceLine objects, one for each line between start and end inclusive.
         Each contains printable text, with replacements for unprintable characters and bad
         encodings, and tabs have been replaced with spaces.
@@ -178,7 +179,7 @@ class SourceLine:
     # replacements.  Each entry is an index into the in_widths / out_widths arrays.
     replacements: list
     # The buffer and line number of this line.
-    buffer: 'Buffer'
+    buffer: Buffer
     line_number: int
 
     def convert_column_offset(self, column_offset):
@@ -210,12 +211,11 @@ class SourceLine:
 
         return text_column
 
-    def convert_to_column_range(self, erange):
-        '''Given an elaborated range, return a (start, end) pair of terminal columns based on
-        where that range intersects this source line.  If it does not intersect this line
-        then end == start == -1, otherwise end >= start.
+    def convert_to_column_range(self, start: BufferCoords, end: BufferCoords):
+        '''Given start and end coordinates, return a (start, end) pair of terminal columns based
+        on where that range intersects this source line.  If it does not intersect this
+        line then end == start == -1, otherwise end >= start.
         '''
-        start, end = erange.start, erange.end
         if start.line_number <= self.line_number <= end.line_number:
             if start.line_number == self.line_number:
                 start = self.convert_column_offset(start.column_offset)
@@ -306,7 +306,8 @@ class SourceLine:
         '''Return a (source_line, highlight_line) pair of strings.  Each string contains
         enhancement escape sequqences as specified by enhancement_codes.
         '''
-        col_ranges = [self.convert_to_column_range(highlight) for highlight in highlights]
+        col_ranges = [self.convert_to_column_range(highlight.start.coords, highlight.end.coords)
+                      for highlight in highlights]
 
         # Must show the caret location
         if col_ranges[0][0] != col_ranges[0][1]:
@@ -326,7 +327,7 @@ class SourceLine:
             end -= removed_chars
             # Special handling of caret range first character, for the caret
             if n == 0:
-                if highlight.start.line_number == self.line_number:
+                if highlight.start.coords.line_number == self.line_number:
                     char_ranges.append(((start, start + 1), 'caret'))
                     if start + 1 < end:
                         char_ranges.append(((start + 1, end), 'locus'))

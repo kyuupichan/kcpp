@@ -10,8 +10,6 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from .basic import Buffer
-
 __all__ = ['Locator']
 
 
@@ -74,20 +72,15 @@ class Locator:
         assert loc - loc_range.first < loc_range.size
         return loc_range
 
-    def buffer_containing_loc(self, loc):
+    def loc_to_buffer_and_offset(self, loc):
         '''Return a triple (buffer, buffer_start_loc, offset).'''
         loc_range = self.lookup_range(loc)
         if loc_range.kind == LocationRangeKind.macro:
             loc = loc_range.extra.spelling_loc(loc - loc_range.first)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind == LocationRangeKind.buffer
-        return BufferLocation(loc_range.extra, loc - loc_range.first)
+        return loc_range.extra, loc - loc_range.first
 
-
-@dataclass(slots=True)
-class BufferLocation:
-    '''Represents a location in a buffer.'''
-    # The buffer
-    buffer: Buffer
-    # The offset of the location in the buffer
-    offset: int
+    def loc_to_buffer_coords(self, loc):
+        buffer, offset = self.loc_to_buffer_and_offset(loc)
+        return buffer.offset_to_coords(offset)
