@@ -8,8 +8,14 @@ terminal.'''
 import argparse
 import os
 import sys
+from bisect import bisect_left
+from dataclasses import dataclass
+from itertools import accumulate
 
 from .diagnostic import DiagnosticConsumer
+from ..unicode import (
+    utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
+)
 
 
 __all__ = ['UnicodeTerminal']
@@ -127,7 +133,7 @@ class UnicodeTerminal(DiagnosticConsumer):
         # Equality applies for zero-width end-of-source indicators
         assert (start.line_number, start.column_offset) <= (end.line_number, end.column_offset)
 
-        return [start.buffer.source_line(line_number, self.tabstop)
+        return [SourceLine.from_buffer(start.buffer, line_number, self.tabstop)
                 for line_number in range(start.line_number, end.line_number + 1)]
 
     def source_and_highlight_lines(self, line, highlights, room):
@@ -186,3 +192,136 @@ class UnicodeTerminal(DiagnosticConsumer):
             yield line.text[cursor:]
 
         return ''.join(source_line_parts(line)), ''.join(highlight_parts(char_ranges))
+
+
+@dataclass(slots=True)
+class SourceLine:
+    # The source line as printable text.  The text is intended to be printable on a
+    # unicode terminal - unprintable characters are replaced with <U+XXXX> sequences, and
+    # invalid encodings are replaced with <\xAB> hex sequences, and tabs are replaced with
+    # spaces.  The string does not have a terminating newline.
+    text: str
+    # in_widths and out_widths are byte arrays of the same length.  They hold the width,
+    # in bytes, of each unicode character in the raw source line and in the returned
+    # string.  For example, if a NUL character is the Nth (0-based) character on the
+    # source line, then src_widths[N] will be 1 - the length of the UTF-8 encoding of NUL.
+    # dst_widths[N] will be 8 - as its representation "<U+0000>" is the returned string
+    # occupies 8 columns on a terminal.  This information makes it straight-forward to map
+    # physical source bytes to positions in output text, and vice-versa.
+    in_widths: bytearray
+    out_widths: bytearray
+    # List of replacements that were made.  This contains unprintable unicode characters
+    # as well as replacements for bad UTF-8 encodings.  It does not contain horizontal tab
+    # replacemenets.  Each is an index into the in_widths / out_widths arrays.
+    replacements: list
+    # The line number of this line
+    line_number: int
+
+    def convert_column_offset(self, column_offset):
+        '''Given a column offset in the physical source line, return the column in the
+        output text line.'''
+        cursor = 0
+        text_column = 0
+        out_widths = self.out_widths
+
+        for n, in_width in enumerate(self.in_widths):
+            if cursor >= column_offset:
+                break
+            cursor += in_width
+            text_column += out_widths[n]
+
+        return text_column
+
+    def convert_eranges_to_column_ranges(self, eranges):
+        '''Given a sequence of elaborated ranges, convert each to a pair (start, end) of output
+        column offsets based on where that range intersects this line.  If it intersects
+        this line then end >= start, otherwise end == start == -1.
+
+        The return value is a list of the same length and order as the input sequence.
+        '''
+        def convert_erange(erange):
+            if erange.start.line_number <= self.line_number <= erange.end.line_number:
+                if erange.start.line_number == self.line_number:
+                    start = self.convert_column_offset(erange.start.column_offset)
+                else:
+                    start = 0
+                if erange.end.line_number == self.line_number:
+                    end = self.convert_column_offset(erange.end.column_offset)
+                else:
+                    end = sum(self.out_widths)
+            else:
+                start = end = -1
+
+            return start, end
+
+        return [convert_erange(erange) for erange in eranges]
+
+    def truncate(self, max_width, required_column):
+        '''Returns (initial output width removed, line).'''
+        line_length = len(self.out_widths)
+        cum_widths = list(accumulate(self.out_widths, initial=0))
+        if cum_widths[-1] <= max_width:
+            return 0, self
+
+        assert 0 <= required_column <= cum_widths[-1]
+
+        # Start with the required column.  Expand the radius until we fail.
+        left = bisect_left(cum_widths, required_column)
+        assert cum_widths[left] == required_column
+
+        radius = 0
+        while True:
+            radius += 1
+            left_end = max(0, left - radius)
+            right_end = min(line_length, (left + 1) + radius)
+            if cum_widths[right_end] - cum_widths[left_end] > max_width:
+                radius -= 1
+                left_end = max(0, left - radius)
+                right_end = min(line_length, (left + 1) + radius)
+                break
+
+        # Return a new source line representing the selected text
+        text = self.text[cum_widths[left_end]: cum_widths[right_end]]
+        in_widths = self.in_widths[left_end: right_end]
+        out_widths = self.out_widths[left_end: right_end]
+        replacements = [r - left_end for r in self.replacements if left_end <= r < right_end]
+        line = SourceLine(text, in_widths, out_widths, replacements, self.line_number)
+        return cum_widths[left_end], line
+
+    @classmethod
+    def from_buffer(cls, buffer, line_number, tabstop=8):
+        '''Return a SourceLine object for the indicated source line.'''
+        def parts(raw_line, in_widths, out_widths, replacements):
+            cursor = 0
+            limit = len(raw_line)
+
+            while cursor < limit:
+                cp, in_width = utf8_cp(raw_line, cursor)
+                if cp < 0:
+                    # Replace the invalid UTF-8 sequence with ASCII text.
+                    out_text = ''.join(f'<{c:02X}>' for c in raw_line[cursor: cursor + in_width])
+                    out_width = len(out_text)
+                    replacements.append(len(in_widths))
+                elif cp == 9:
+                    out_width = tabstop - sum(out_widths) % tabstop
+                    out_text = ' ' * out_width
+                elif is_printable(cp):
+                    out_width = terminal_charwidth(cp)
+                    out_text = chr(cp)
+                else:
+                    out_text = f'<{codepoint_to_hex(cp)}>'
+                    out_width = len(out_text)
+                    replacements.append(len(in_widths))
+
+                in_widths.append(in_width)
+                out_widths.append(out_width)
+                yield out_text
+                cursor += in_width
+
+        raw_line = buffer.line_bytes(line_number)
+        in_widths = bytearray()
+        out_widths = bytearray()
+        replacements = []
+        text = ''.join(parts(raw_line, in_widths, out_widths, replacements))
+
+        return cls(text, in_widths, out_widths, replacements, line_number)
