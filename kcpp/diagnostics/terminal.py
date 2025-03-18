@@ -214,7 +214,8 @@ class SourceLine:
     # as well as replacements for bad UTF-8 encodings.  It does not contain horizontal tab
     # replacemenets.  Each is an index into the in_widths / out_widths arrays.
     replacements: list
-    # The line number of this line
+    # The buffer and line number of this line.
+    buffer: 'Buffer'
     line_number: int
 
     def convert_column_offset(self, column_offset):
@@ -247,20 +248,18 @@ class SourceLine:
         return text_column
 
     def convert_eranges_to_column_ranges(self, eranges):
-        '''Given a sequence of elaborated ranges, convert each to a pair (start, end) of output
-        column offsets based on where that range intersects this line.  If it intersects
-        this line then end >= start, otherwise end == start == -1.
-
-        The return value is a list of the same length and order as the input sequence.
+        '''Given a sequence of elaborated ranges, return a list of (start, end) pairs of terminal
+        columns based on where that range intersects this source line.  If it does not intersect
+        this line then end == start == -1, otherwise end >= start.
         '''
-        def convert_erange(erange):
-            if erange.start.line_number <= self.line_number <= erange.end.line_number:
-                if erange.start.line_number == self.line_number:
-                    start = self.convert_column_offset(erange.start.column_offset)
+        def convert(start, end):
+            if start.line_number <= self.line_number <= end.line_number:
+                if start.line_number == self.line_number:
+                    start = self.convert_column_offset(start.column_offset)
                 else:
                     start = 0
-                if erange.end.line_number == self.line_number:
-                    end = self.convert_column_offset(erange.end.column_offset)
+                if end.line_number == self.line_number:
+                    end = self.convert_column_offset(end.column_offset)
                 else:
                     end = sum(self.out_widths)
             else:
@@ -268,7 +267,7 @@ class SourceLine:
 
             return start, end
 
-        return [convert_erange(erange) for erange in eranges]
+        return [convert(erange.start, erange.end) for erange in eranges]
 
     def truncate(self, max_width, required_column):
         '''Returns (initial output width removed, line).'''
@@ -299,7 +298,7 @@ class SourceLine:
         in_widths = self.in_widths[left_end: right_end]
         out_widths = self.out_widths[left_end: right_end]
         replacements = [r - left_end for r in self.replacements if left_end <= r < right_end]
-        line = SourceLine(text, in_widths, out_widths, replacements, self.line_number)
+        line = SourceLine(text, in_widths, out_widths, replacements, self.buffer, self.line_number)
         return cum_widths[left_end], line
 
     @classmethod
@@ -338,4 +337,4 @@ class SourceLine:
         replacements = []
         text = ''.join(parts(raw_line, in_widths, out_widths, replacements))
 
-        return cls(text, in_widths, out_widths, replacements, line_number)
+        return cls(text, in_widths, out_widths, replacements, buffer, line_number)

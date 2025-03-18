@@ -91,12 +91,14 @@ class SpellingRange:
 
 @dataclass(slots=True)
 class ElaboratedRange:
-    '''A source range where both start and end are elaborated.'''
+    '''A source range where both start and end are instances of ElaboratedLocation.
+    Diagnostics issued by the preprocessor will always have start and end in the same
+    buffer (ignoring the issue of scratch buffers used during macro expansion.  However
+    diagnostics issued by a front end can have their start and end in different buffers
+    owing to #include, so we must not assume start and end lie in the same buffer.
+    '''
     start: ElaboratedLocation
     end: ElaboratedLocation
-
-    def contains(self, line_number):
-        return self.start.line_number <= line_number <= self.end.line_number
 
 
 @dataclass(slots=True)
