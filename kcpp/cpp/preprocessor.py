@@ -749,11 +749,19 @@ class Preprocessor:
     def context_stack(self, did, substitution_args, source_ranges):
         '''Calculate the context stack for a diagnostic with the given source ranges
         to highlight.'''
-        highlights = [self.elaborated_range(source_range) for source_range in source_ranges]
-        # In general, an elaborated range can cross buffers.  However, for the main
-        # highlight this is not true.  It should always be either a single token, or a
-        # range within a token.  Perform this sanity check.
-        if highlights and highlights[0].start.loc > location_none:
-            assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
+        result = []
 
-        return [(did, substitution_args, highlights)]
+        contexts = self.locator.context_stack(source_ranges)
+        for context in contexts:
+            highlights = [self.elaborated_range(source_range)
+                          for source_range in context.source_ranges]
+
+            # In general, an elaborated range can cross buffers.  However, for the main
+            # highlight this is not true.  It should always be either a single token, or a
+            # range within a token.  Perform this sanity check.
+            if highlights[0].start.loc > location_none:
+                assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
+
+            result.append((did, substitution_args, highlights))
+
+        return result

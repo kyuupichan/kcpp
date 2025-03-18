@@ -10,6 +10,8 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
+from ..diagnostics import BufferRange, TokenRange, SpellingRange
+
 __all__ = ['Locator']
 
 
@@ -26,6 +28,11 @@ class LocationRange:
     size: int
     parent: int   # A number > 0, or -1
     extra: any
+
+
+@dataclass(slots=True)
+class LocationContext:
+    source_ranges: list
 
 
 class Locator:
@@ -84,3 +91,41 @@ class Locator:
     def loc_to_buffer_coords(self, loc):
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         return buffer.offset_to_coords(offset)
+
+    def location_stack(self, loc):
+        locations = []
+        while True:
+            loc_range = self.lookup_range(loc)
+            if loc_range.kind == LocationRangeKind.macro:
+                locations.append(loc_range.extra.token_loc(loc - loc_range.first))
+                loc = loc_range.parent
+                continue
+            locations.append(loc)
+            return locations
+
+    def context_stack(self, source_ranges):
+        def is_a_buffer_range(source_range):
+            if isinstance(source_range, BufferRange):
+                return True
+            if isinstance(source_range, TokenRange):
+                assert source_range.start == source_range.end
+                token_loc = source_range.start
+            else:
+                assert isinstance(source_range, SpellingRange)
+                token_loc = source_range.token_loc
+
+            return self.lookup_range(token_loc).kind is LocationRangeKind.buffer
+
+        def lower_token_range(source_range):
+            start = self.location_stack(source_range.start)[-1]
+            end = self.location_stack(source_range.end)[-1]
+            return TokenRange(start, end)
+
+        assert all(isinstance(source_range, TokenRange) for source_range in source_ranges[1:])
+        caret_range = source_ranges[0]
+        if is_a_buffer_range(caret_range):
+            source_ranges[1:] = [lower_token_range(source_range)
+                                 for source_range in source_ranges[1:]]
+            return [LocationContext(source_ranges)]
+
+        raise NotImplementedError
