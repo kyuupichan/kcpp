@@ -28,14 +28,14 @@ class PreprocessedOutput:
                 break
             count += 1
             if token.flags & TokenFlags.BOL:
-                eloc = pp.elaborated_location(token.loc)
-                if eloc.line_number != line_number:
-                    write(b'\n' * (eloc.line_number - line_number))
-                    line_number = eloc.line_number
-                    if eloc.column_offset > 1:
+                coords = pp.elaborated_location(token.loc).coords
+                if coords.line_number != line_number:
+                    write(b'\n' * (coords.line_number - line_number))
+                    line_number = coords.line_number
+                    if coords.column_offset > 1:
                         assert token.flags & TokenFlags.WS
                         # One will be done below for WS flag
-                        write(b' ' * (eloc.column_offset - 1))
+                        write(b' ' * (coords.column_offset - 1))
             if token.flags & TokenFlags.WS:
                 write(b' ')
             write(pp.token_spelling(token.loc))

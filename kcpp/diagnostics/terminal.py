@@ -182,6 +182,17 @@ class SourceLine:
     buffer: Buffer
     line_number: int
 
+    def char_width(self, out_column):
+        '''Return the width of the character at out_column in the string.'''
+        column = 0
+        for char_width in self.out_widths:
+            if column == out_column:
+                return char_width
+            column += char_width
+        # End-of-line.  Return 1 for the caret.
+        assert column == out_column
+        return 1
+
     def convert_column_offset(self, column_offset):
         '''Given a column offset in the physical source line that begins a source character,
         return the byte offset in the output text line that corresponds to that character.
@@ -318,28 +329,31 @@ class SourceLine:
         col_ranges = [self.convert_to_column_range(highlight.start.coords, highlight.end.coords)
                       for highlight in highlights]
 
-        # Must show the caret location
-        if col_ranges[0][0] != col_ranges[0][1]:
-            required_column = col_ranges[0][0]
-        else:
-            required_column = min(col_range[0] for col_range in col_ranges)
+        # For long source lines we display a window of the line only.  Determine which
+        # output column must be in that window.  We ensure the caret is displayed.
+        required_column = col_ranges[0][0]
+        assert required_column != -1
 
         # Truncate the line if necessary
         removed_chars, line = self.truncate(room, required_column)
 
-        # Collect highlight ranges in terms of column offset ranges
+        # Drop highlight ranges that didn't intersect the line, and update their
+        # columns to thosse of the new windowed line.
         char_ranges = []
         for n, (highlight, (start, end)) in enumerate(zip(highlights, col_ranges)):
+            # Drop highlights that don't appear on this line
             if start == -1:
                 continue
             start -= removed_chars
             end -= removed_chars
-            # Special handling of caret range first character, for the caret
+            # Special handling of caret range - the first character (including if wide) gets
+            # the caret, the rest of the range gets the twiddles
             if n == 0:
                 if highlight.start.coords.line_number == self.line_number:
-                    char_ranges.append(((start, start + 1), 'caret'))
-                    if start + 1 < end:
-                        char_ranges.append(((start + 1, end), 'locus'))
+                    caret_end = start + line.char_width(start)
+                    char_ranges.append(((start, caret_end), 'caret'))
+                    if caret_end < end:
+                        char_ranges.append(((caret_end, end), 'locus'))
                 else:
                     char_ranges.append(((start, end), 'locus'))
             else:
