@@ -210,27 +210,25 @@ class SourceLine:
 
         return text_column
 
-    def convert_eranges_to_column_ranges(self, eranges):
-        '''Given a sequence of elaborated ranges, return a list of (start, end) pairs of terminal
-        columns based on where that range intersects this source line.  If it does not intersect
-        this line then end == start == -1, otherwise end >= start.
+    def convert_to_column_range(self, erange):
+        '''Given an elaborated range, return a (start, end) pair of terminal columns based on
+        where that range intersects this source line.  If it does not intersect this line
+        then end == start == -1, otherwise end >= start.
         '''
-        def convert(start, end):
-            if start.line_number <= self.line_number <= end.line_number:
-                if start.line_number == self.line_number:
-                    start = self.convert_column_offset(start.column_offset)
-                else:
-                    start = 0
-                if end.line_number == self.line_number:
-                    end = self.convert_column_offset(end.column_offset)
-                else:
-                    end = sum(self.out_widths)
+        start, end = erange.start, erange.end
+        if start.line_number <= self.line_number <= end.line_number:
+            if start.line_number == self.line_number:
+                start = self.convert_column_offset(start.column_offset)
             else:
-                start = end = -1
+                start = 0
+            if end.line_number == self.line_number:
+                end = self.convert_column_offset(end.column_offset)
+            else:
+                end = sum(self.out_widths)
+        else:
+            start = end = -1
 
-            return start, end
-
-        return [convert(erange.start, erange.end) for erange in eranges]
+        return start, end
 
     def truncate(self, max_width, required_column):
         '''Returns (initial output width removed, line).'''
@@ -308,7 +306,7 @@ class SourceLine:
         '''Return a (source_line, highlight_line) pair of strings.  Each string contains
         enhancement escape sequqences as specified by enhancement_codes.
         '''
-        col_ranges = self.convert_eranges_to_column_ranges(highlights)
+        col_ranges = [self.convert_to_column_range(highlight) for highlight in highlights]
 
         # Must show the caret location
         if col_ranges[0][0] != col_ranges[0][1]:
