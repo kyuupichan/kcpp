@@ -216,15 +216,24 @@ class SourceLine:
         on where that range intersects this source line.  If it does not intersect this
         line then end == start == -1, otherwise end >= start.
         '''
-        if start.line_number <= self.line_number <= end.line_number:
-            if start.line_number == self.line_number:
-                start = self.convert_column_offset(start.column_offset)
+        if start.buffer is self.buffer is end.buffer:
+            if start.line_number <= self.line_number <= end.line_number:
+                if start.line_number <= self.line_number:
+                    start = self.convert_column_offset(start.column_offset)
+                else:
+                    start = 0
+                if end.line_number == self.line_number:
+                    end = self.convert_column_offset(end.column_offset)
+                else:
+                    end = sum(self.out_widths)
             else:
-                start = 0
-            if end.line_number == self.line_number:
-                end = self.convert_column_offset(end.column_offset)
-            else:
-                end = sum(self.out_widths)
+                start = end = -1
+        elif start.buffer is self.buffer and start.line_number == self.line_number:
+            start = self.convert_column_offset(start.column_offset)
+            end = sum(self.out_widths)
+        elif end.buffer is self.buffer and end.line_number == self.line_number:
+            start = 0
+            end = self.convert_column_offset(end.column_offset)
         else:
             start = end = -1
 
