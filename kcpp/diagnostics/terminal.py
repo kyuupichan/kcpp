@@ -218,7 +218,7 @@ class SourceLine:
         '''
         if start.buffer is self.buffer is end.buffer:
             if start.line_number <= self.line_number <= end.line_number:
-                if start.line_number <= self.line_number:
+                if start.line_number == self.line_number:
                     start = self.convert_column_offset(start.column_offset)
                 else:
                     start = 0
