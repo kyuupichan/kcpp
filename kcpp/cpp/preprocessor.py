@@ -685,7 +685,10 @@ class Preprocessor:
         '''Return True if token is a macro name.  If it is not a diagnostic is issued.'''
         if token.kind == TokenKind.IDENTIFIER:
             return True
-        self.diag(DID.macro_name_not_identifier, token.loc)
+        if token.kind == TokenKind.EOD:
+            self.diag(DID.expected_macro_name, token.loc)
+        else:
+            self.diag(DID.macro_name_not_identifier, token.loc)
         return False
 
     def is_defined(self, token):

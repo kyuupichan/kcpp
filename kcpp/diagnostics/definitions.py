@@ -58,6 +58,7 @@ class DID(IntEnum):
     expected_colon = auto()
     expected_comma_in_parameter_list = auto()
     expected_expression = auto()
+    expected_macro_name = auto()
     expected_macro_parameter = auto()
     expected_open_brace = auto()
     expected_open_paren = auto()
@@ -308,6 +309,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'expected an expression',
+    ),
+    DID.expected_macro_name: DiagnosticDefinition(
+        DID.expected_macro_name,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'expected a macro name',
     ),
     DID.expected_macro_parameter: DiagnosticDefinition(
         DID.expected_macro_parameter,

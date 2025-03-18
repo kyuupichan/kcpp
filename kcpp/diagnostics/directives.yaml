@@ -36,6 +36,10 @@ expected_comma_in_parameter_list:
   severity: error
   text: expected %q{,} in macro parameter list
 
+expected_macro_name:
+  severity: error
+  text: expected a macro name
+
 expected_macro_parameter:
   severity: error
   text: expected a macro parameter name
