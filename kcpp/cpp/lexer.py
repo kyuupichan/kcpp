@@ -109,6 +109,11 @@ class Lexer(TokenSource):
             self.pp.diag(did, loc + self.start_loc, args)
 
     def diag_range(self, did, start, end, args=None):
+        '''Diagnose a range of characters.  start and end are byte offsets, and start must not be
+        in the middle of a multibyte character.  end >= start must hold.  If end == start,
+        the single character at that position is diagnosed.  If end is in the middle of a
+        multi-byte character, the diagnosis extends to the end of that character.
+        '''
         if not self.quiet:
             args = args or []
             args.append(BufferRange(start + self.start_loc, end + self.start_loc))
@@ -773,10 +778,12 @@ class Lexer(TokenSource):
                     cursor += len(delimeter)
                     break
         elif diagnose:
-            paren_loc = cursor - (c != EOF_CHAR)
-            self.diag_range(DID.expected_open_paren, paren_loc, paren_loc + 1)
-            # We must not return cursor in the middle of a multibyte character.
-            c, cursor = self.read_char(paren_loc)
+            cursor = cursor - (c != EOF_CHAR)
+            self.diag_range(DID.expected_open_paren, cursor, cursor + 1)
+            # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed
+            # UTF-8, unlike read_byte().
+            while c != EOF_CHAR and c != 10 and c != 13:
+                c, cursor = self.read_char(cursor)
             # Unterminated literals become the error token
             return TokenKind.ERROR, cursor
 
