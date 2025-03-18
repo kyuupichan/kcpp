@@ -20,7 +20,7 @@ from ..unicode import REPLACEMENT_CHAR
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'TargetMachine', 'Buffer', 'BufferLocation',
+    'IdentifierInfo', 'TargetMachine', 'Buffer',
 ]
 
 
@@ -500,15 +500,6 @@ class Buffer:
             end -= 1
 
         return memoryview(text[start:end])
-
-
-@dataclass(slots=True)
-class BufferLocation:
-    '''Represents a location in a buffer.'''
-    # The buffer
-    buffer: Buffer
-    # The offset of the location in the buffer
-    offset: int
 
 
 DIGIT_VALUES = {ord(c): ord(c) - 48 for c in '0123456789'}

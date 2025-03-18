@@ -9,8 +9,8 @@ time of expansion, etc.'''
 from bisect import bisect_right
 from dataclasses import dataclass
 from enum import IntEnum, auto
-from .basic import BufferLocation
 
+from .basic import Buffer
 
 __all__ = ['Locator']
 
@@ -82,3 +82,12 @@ class Locator:
             loc_range = self.lookup_range(loc)
         assert loc_range.kind == LocationRangeKind.buffer
         return BufferLocation(loc_range.extra, loc - loc_range.first)
+
+
+@dataclass(slots=True)
+class BufferLocation:
+    '''Represents a location in a buffer.'''
+    # The buffer
+    buffer: Buffer
+    # The offset of the location in the buffer
+    offset: int
