@@ -6,11 +6,11 @@
 and if so which one, the include stack at the time of that location, the macro stack at the
 time of expansion, etc.'''
 
-from bisect import bisect_right
+from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..diagnostics import BufferRange, TokenRange, SpellingRange
+from ..diagnostics import BufferRange, TokenRange, SpellingRange, location_none
 
 __all__ = ['Locator']
 
@@ -74,9 +74,9 @@ class Locator:
             loc_ranges = self.macro_ranges
         else:
             loc_ranges = self.buffer_ranges
-        n = bisect_right(loc_ranges, loc + 1, key=lambda bl: bl.first) - 1
+        n = bisect_left(loc_ranges, loc + 1, key=lambda lr: lr.first) - 1
         loc_range = loc_ranges[n]
-        assert loc - loc_range.first < loc_range.size
+        assert loc_range.first <= loc < loc_range.first + loc_range.size
         return loc_range
 
     def loc_to_buffer_and_offset(self, loc):
@@ -110,10 +110,11 @@ class Locator:
             if isinstance(source_range, TokenRange):
                 assert source_range.start == source_range.end
                 token_loc = source_range.start
+                if token_loc <= location_none:
+                    return True
             else:
                 assert isinstance(source_range, SpellingRange)
                 token_loc = source_range.token_loc
-
             return self.lookup_range(token_loc).kind is LocationRangeKind.buffer
 
         def lower_token_range(source_range):
@@ -124,8 +125,8 @@ class Locator:
         assert all(isinstance(source_range, TokenRange) for source_range in source_ranges[1:])
         caret_range = source_ranges[0]
         if is_a_buffer_range(caret_range):
-            source_ranges[1:] = [lower_token_range(source_range)
-                                 for source_range in source_ranges[1:]]
+            for n in range(1, len(source_ranges)):
+                source_ranges[n] = lower_token_range(source_ranges[n])
             return [LocationContext(source_ranges)]
 
         raise NotImplementedError
