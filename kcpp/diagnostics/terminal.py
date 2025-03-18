@@ -146,9 +146,15 @@ class UnicodeTerminal(DiagnosticConsumer):
         assert start.buffer is end.buffer
         # Equality applies for zero-width end-of-source indicators
         assert (start.line_number, start.column_offset) <= (end.line_number, end.column_offset)
+        if end.column_offset == 0:
+            assert start.line_number < end.line_number
 
+        # As the range does not include the final character, don't show a line if the
+        # range ends at the first character of a line.  This currently can happen in some
+        # raw string literal diagnostics.
+        range_end = end.line_number + (end.column_offset != 0)
         return [SourceLine.from_buffer(start.buffer, line_number, self.tabstop)
-                for line_number in range(start.line_number, end.line_number + 1)]
+                for line_number in range(start.line_number, range_end)]
 
 
 @dataclass(slots=True)
