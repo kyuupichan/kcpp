@@ -218,17 +218,31 @@ class SourceLine:
     line_number: int
 
     def convert_column_offset(self, column_offset):
-        '''Given a column offset in the physical source line, return the column in the
-        output text line.'''
+        '''Given a column offset in the physical source line that begins a source character,
+        return the byte offset in the output text line that corresponds to that character.
+
+        If the column offset is in the middle of a source multibyte-character sequence, the
+        return value corresponds to the start of the subsequent source character.
+
+        If the column offset is at the source EOL, the return value is the output EOL.
+
+        Sanity: raise ValueError if column_offset is negative or beyong the source EOL.
+        '''
+        if column_offset < 0:
+            raise ValueError
         cursor = 0
         text_column = 0
         out_widths = self.out_widths
 
+        # Advance a source character at a time
         for n, in_width in enumerate(self.in_widths):
             if cursor >= column_offset:
                 break
             cursor += in_width
             text_column += out_widths[n]
+        else:
+            if column_offset > cursor:
+                raise ValueError
 
         return text_column
 
