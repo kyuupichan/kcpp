@@ -81,20 +81,20 @@ class UnicodeTerminal(DiagnosticConsumer):
             return f'\x1b[{code}m{text}\x1b[0;39m'
         return text
 
-    def emit(self, elaborated_diag):
+    def emit(self, elaborated_diagnostic):
         '''Emit a diagnostic.'''
-        self.emit_recursive(elaborated_diag, 0)
+        self.emit_recursive(elaborated_diagnostic, 0)
 
-    def emit_recursive(self, elaborated_diag, indent):
+    def emit_recursive(self, elaborated_diagnostic, indent):
         '''Emit the top-level diagnostic at the given indentation level.  Then emit nested
         diagnostics at an increased indentation level.
         '''
-        for n, context in enumerate(elaborated_diag.contexts):
+        for n, message_context in enumerate(elaborated_diagnostic.message_contexts):
             if n == 1:
                 indent += self.nested_indent
-            for line in self.diagnostic_lines(context):
+            for line in self.diagnostic_lines(message_context):
                 print(f'{" " * indent}{line}', file=self.file)
-        for nested in elaborated_diag.nested_diagnostics:
+        for nested in elaborated_diagnostic.nested_diagnostics:
             self.emit_recursive(nested, indent + self.nested_indent)
 
     def diagnostic_lines(self, context):

@@ -81,14 +81,16 @@ class ElaboratedRange:
 
 
 @dataclass(slots=True)
-class DiagnosticContext:
+class MessageContext:
     '''A diagnostic normally has only one context - the source location it arose from.
     However, if the diagnostic location is part of a macro expansion stack, then there
     is a stack of contexts, one per level of the macro expansion.  The first context
     is that of the macro name that started the macro expansion, and each subsequent context
     arises from nested expansions.
 
-    Each context comes with its own message.'''
+    Each context comes with its own message.  For teminal output, each message context is
+    later further enhanced with lines from the original source code and highlight lines.
+    '''
     # A list of ElaboratedRange objects, one per highlight for this context.
     highlights: list
     # The main diagnostic message.  A list of pairs (text, kind) where text is translated
@@ -107,8 +109,8 @@ class ElaboratedDiagnostic:
     '''A processed diagnostic.'''
     # The diagnostic ID.
     did: int
-    # A list of contexts for this diagnostic; see the docstring of DiagnosticContext.
-    contexts: list
+    # A list of MessageContext objects; see the docstring of MessageContext.
+    message_contexts: list
     # A list of zero or more nested ElaboratedDiagnostics
     nested_diagnostics: list
 
@@ -239,16 +241,16 @@ class DiagnosticEngine:
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
         did, substitution_args, source_ranges, nested = diagnostic.decompose()
-        contexts = self.diagnostic_contexts(did, substitution_args, source_ranges)
+        message_contexts = self.message_contexts(did, substitution_args, source_ranges)
         nested = [self.elaborate(diagnostic) for diagnostic in nested]
-        return ElaboratedDiagnostic(did, contexts, nested)
+        return ElaboratedDiagnostic(did, message_contexts, nested)
 
-    def diagnostic_contexts(self, did, substitution_args, source_ranges):
-        '''Return a (macro) context stack for the source ranges to be highlighted.  The first
-        range in source_ranges is the caret location, subsequent ones are highlight
-        ranges.
+    def message_contexts(self, did, substitution_args, source_ranges):
+        '''Return a message context stack.  first range in source_ranges is the caret location,
+        subsequent ones are highlight ranges.  The main message is formed from the given
+        diagnostic id and substitution args.
         '''
-        def context(did, substitution_args, highlights):
+        def message_context(did, substitution_args, highlights):
             '''Return a DiagnosticContext object.'''
             # Determine the message.  The location is determined by the main highlight,
             # which is the first one in the list.
@@ -269,9 +271,9 @@ class DiagnosticEngine:
                 severity_did, hint = self.severity_map[severity_enum]
                 text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
             text_parts.extend(self.substitute_arguments(text, substitution_args))
-            return DiagnosticContext(highlights, text_parts)
+            return MessageContext(highlights, text_parts)
 
-        return [context(*triple) for triple in
+        return [message_context(*triple) for triple in
                 self.pp.macro_contexts(did, substitution_args, source_ranges)]
 
     def substitute_arguments(self, format_text, arguments):
