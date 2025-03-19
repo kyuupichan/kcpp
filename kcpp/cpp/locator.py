@@ -24,13 +24,11 @@ class LocationRangeKind(IntEnum):
 class LocationRange:
     '''Represents a contiguous location range.'''
     kind: LocationRangeKind
-    first: int
-    size: int
+    # Range is inclusive from start to end.
+    start: int
+    end: int
     parent: int   # A number > 0, or -1
     owner: any
-
-    def end(self):
-        return self.first + self.size
 
 
 @dataclass(slots=True)
@@ -49,38 +47,38 @@ class Locator:
         self.buffer_ranges = []
         self.macro_ranges = []
 
-    def new_buffer_loc(self, parent_loc, buffer_size, extra):
+    def new_buffer_loc(self, parent_loc, buffer_size, buffer):
         assert isinstance(parent_loc, int)
         assert parent_loc > 0 or parent_loc == -1
         buffer_ranges = self.buffer_ranges
         if buffer_ranges:
-            first = buffer_ranges[-1].first + buffer_ranges[-1].size
+            start = buffer_ranges[-1].end + 1
         else:
-            first = self.FIRST_BUFFER_LOC
-        buffer_ranges.append(LocationRange(LocationRangeKind.buffer, first, buffer_size,
-                                           parent_loc, extra))
-        return first
+            start = self.FIRST_BUFFER_LOC
+        buffer_ranges.append(LocationRange(LocationRangeKind.buffer, start,
+                                           start + buffer_size - 1, parent_loc, buffer))
+        return start
 
-    def new_macro_range(self, parent_loc, count, extra):
+    def new_macro_range(self, parent_loc, count, owner):
         assert isinstance(parent_loc, int)
         assert parent_loc > 0
         macro_ranges = self.macro_ranges
         if macro_ranges:
-            first = macro_ranges[-1].first + macro_ranges[-1].size
+            start = macro_ranges[-1].end + 1
         else:
-            first = self.FIRST_MACRO_LOC
-        macro_ranges.append(LocationRange(LocationRangeKind.macro, first, count,
-                                          parent_loc, extra))
-        return first
+            start = self.FIRST_MACRO_LOC
+        macro_ranges.append(LocationRange(LocationRangeKind.macro, start, start + count - 1,
+                                          parent_loc, owner))
+        return start
 
     def lookup_range(self, loc):
         if loc >= self.FIRST_MACRO_LOC:
             loc_ranges = self.macro_ranges
         else:
             loc_ranges = self.buffer_ranges
-        n = bisect_left(loc_ranges, loc + 1, key=lambda lr: lr.first) - 1
+        n = bisect_left(loc_ranges, loc + 1, key=lambda lr: lr.start) - 1
         loc_range = loc_ranges[n]
-        assert loc_range.first <= loc < loc_range.first + loc_range.size
+        assert loc_range.start <= loc <= loc_range.end
         return loc_range
 
     def loc_to_buffer_and_offset(self, loc):
@@ -90,7 +88,7 @@ class Locator:
             loc = loc_range.owner.buffer_loc(loc)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind == LocationRangeKind.buffer
-        return loc_range.owner, loc - loc_range.first
+        return loc_range.owner, loc - loc_range.start
 
     def loc_to_buffer_coords(self, loc):
         buffer, offset = self.loc_to_buffer_and_offset(loc)
@@ -161,9 +159,9 @@ class Locator:
                         break
                 if start_loc is None:
                     if end_loc is not None:
-                        yield token_range(loc_range.first, end_loc)
+                        yield token_range(loc_range.start, end_loc)
                 elif end_loc is None:
-                    yield token_range(start_loc, loc_range.end())
+                    yield token_range(start_loc, loc_range.end)
                 else:
                     yield token_range(start_loc, end_loc)
 
