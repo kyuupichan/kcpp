@@ -343,40 +343,44 @@ class SourceLine:
         # Truncate the line if necessary
         removed_chars, line = self.truncate(room, required_column)
 
-        # Drop highlight ranges that didn't intersect the line, and update their
-        # columns to thosse of the new windowed line.
+        # Drop highlight ranges that didn't intersect the line.  Otherwise add ranges in
+        # priority order in case of overlap and adjust column numbers to account for the
+        # removed characters.
         char_ranges = []
         for n, (highlight, (start, end)) in enumerate(zip(highlights, col_ranges)):
             # Drop highlights that don't appear on this line
             if start == -1:
                 continue
-            start -= removed_chars
-            end -= removed_chars
             # Special handling of caret range - the first character (including if wide) gets
             # the caret, the rest of the range gets the twiddles
             if n == 0:
                 if highlight.start.line_number == self.line_number:
                     caret_end = start + line.char_width(start)
-                    char_ranges.append(((start, caret_end), 'caret'))
-                    if caret_end < end:
-                        char_ranges.append(((caret_end, end), 'locus'))
-                else:
-                    char_ranges.append(((start, end), 'locus'))
+                    char_ranges.append((start, caret_end, 'caret'))
+                char_ranges.append((start, end, 'locus'))
             else:
-                char_ranges.append(((start, end), 'range1' if n == 1 else 'range2'))
-
-        char_ranges = sorted(char_ranges, key=lambda cr: cr[0][0])
+                char_ranges.append((start, end, 'range1' if n == 1 else 'range2'))
 
         def highlight_char(kind):
             return '^' if kind == 'caret' else '~'
 
         def highlight_parts(char_ranges):
-            last_end = 0
-            for (start, end), kind in char_ranges:
-                yield ' ' * (start - last_end)
-                highlight_text = highlight_char(kind) * (end - start)
-                yield enhance_text(highlight_text, kind)
-                last_end = end
+            limit = max(end for start, end, kind in char_ranges)
+            cursor = 0
+            while cursor < limit:
+                next_start = limit
+                for start, end, kind in char_ranges:
+                    end = min(end, next_start)
+                    if start <= cursor < end:
+                        highlight_text = highlight_char(kind) * (end - cursor)
+                        yield enhance_text(highlight_text, kind)
+                        cursor = end
+                        break
+                    elif start > cursor:
+                        next_start = min(next_start, start)
+                else:
+                    yield ' ' * (next_start - cursor)
+                    cursor = next_start
 
         def source_line_parts(line):
             cursor = 0
