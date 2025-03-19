@@ -12,6 +12,7 @@ from ..unicode import (
 from ..diagnostics import BufferRange, DID, location_in_args
 
 from .basic import Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, HEX_DIGIT_VALUES
+from .literals import printable_form
 
 __all__ = ['Lexer']
 
@@ -778,8 +779,13 @@ class Lexer(TokenSource):
                     cursor += len(delimeter)
                     break
         elif diagnose:
-            cursor = cursor - (c != EOF_CHAR)
-            self.diag_range(DID.expected_open_paren, cursor, cursor)
+            bad_loc = cursor - (c != EOF_CHAR)
+            if c == EOF_CHAR:
+                c = 10
+            else:
+                c, cursor = self.read_char(bad_loc)
+            self.diag_range(DID.delimeter_invalid_character, bad_loc, bad_loc,
+                            [printable_form(c)])
             # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed
             # UTF-8, unlike read_byte().
             while c != EOF_CHAR and c != 10 and c != 13:

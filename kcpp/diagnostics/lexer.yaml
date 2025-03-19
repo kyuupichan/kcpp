@@ -37,6 +37,11 @@ delimeter_too_long:
   text: raw string literal delimeter is too long
   group: invalid_pp_token
 
+delimeter_invalid_character:
+  severity: error
+  text: invalid character %q0 in raw string literal delimeter
+  group: invalid_pp_token
+
 identifier_not_NFC:
   severity: error
   text: identifier %q0 is not in Normalization Form C

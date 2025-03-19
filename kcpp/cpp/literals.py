@@ -22,8 +22,8 @@ from .basic import (
 
 
 __all__ = [
-    'LiteralInterpreter',
-    'IntegerLiteral', 'FloatingPointLiteral', 'StringLiteral',
+    'LiteralInterpreter', 'IntegerLiteral', 'FloatingPointLiteral', 'StringLiteral',
+    'printable_form',
 ]
 
 
@@ -90,6 +90,15 @@ class StringLiteral:
             if value & (limit >> 1):
                 value -= limit
         return value
+
+
+def printable_form(cp):
+    '''Like printable_char, except that C escape sequences are used if available.'''
+    if cp < 32:
+        for c, d in SIMPLE_ESCAPES.items():
+            if d == cp:
+                return '\\' + chr(c)
+    return printable_char(cp)
 
 
 #
@@ -759,7 +768,7 @@ class LiteralInterpreter:
             cp, cursor, is_ucn = self.maybe_ucn(state, cursor, cp)
             if not is_ucn:
                 state.diag_char_range(DID.unrecognized_escape_sequence, backslash_loc,
-                                      cursor, ['\\' + printable_char(cp)])
+                                      cursor, ['\\' + printable_form(cp)])
 
         return cp, cursor, kind
 
