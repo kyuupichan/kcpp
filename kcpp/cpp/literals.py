@@ -100,6 +100,7 @@ def printable_form(cp):
                 return '\\' + chr(c)
     return printable_char(cp)
 
+
 #
 # Implementation
 #
