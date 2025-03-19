@@ -64,8 +64,8 @@ class Macro:
         '''Set the parameter count (including any variable argument).'''
         return count << 8
 
-    def token_loc(self, pos):
-        '''Return the location of the token at index pos in replacement_list.'''
+    def buffer_loc(self, pos):
+        '''Return the buffer location of the token at index pos in the replacement_list.'''
         return self.replacement_list[pos].loc
 
 

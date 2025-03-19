@@ -84,7 +84,7 @@ class Locator:
         '''Return a triple (buffer, buffer_start_loc, offset).'''
         loc_range = self.lookup_range(loc)
         if loc_range.kind == LocationRangeKind.macro:
-            loc = loc_range.extra.token_loc(loc - loc_range.first)
+            loc = loc_range.extra.buffer_loc(loc - loc_range.first)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind == LocationRangeKind.buffer
         return loc_range.extra, loc - loc_range.first
@@ -98,7 +98,7 @@ class Locator:
         while True:
             loc_range = self.lookup_range(loc)
             if loc_range.kind == LocationRangeKind.macro:
-                locations.append(loc_range.extra.token_loc(loc - loc_range.first))
+                locations.append(loc_range.extra.buffer_loc(loc - loc_range.first))
                 loc = loc_range.parent
                 continue
             locations.append(loc)
@@ -109,7 +109,7 @@ class Locator:
         while True:
             loc_range = self.lookup_range(loc)
             if loc_range.kind == LocationRangeKind.macro:
-                token_loc = loc_range.extra.token_loc(loc - loc_range.first)
+                token_loc = loc_range.extra.buffer_loc(loc - loc_range.first)
                 stack.append((token_loc, loc_range.extra, loc_range.first,
                               loc_range.first + loc_range.size - 1))
                 loc = loc_range.parent
