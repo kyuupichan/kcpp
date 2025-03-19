@@ -752,7 +752,7 @@ class Preprocessor:
         result = []
 
         contexts = self.locator.context_stack(source_ranges)
-        for context in contexts:
+        for n, context in enumerate(contexts):
             highlights = [self.elaborated_range(source_range)
                           for source_range in context.source_ranges]
 
@@ -762,6 +762,10 @@ class Preprocessor:
             if highlights[0].start.loc > location_none:
                 assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
 
-            result.append((did, substitution_args, highlights))
+            if n >= 1:
+                macro_name = self.token_spelling(context.macro.name_loc).decode()
+                result.append((DID.in_expansion_of_macro, [macro_name], highlights))
+            else:
+                result.append((did, substitution_args, highlights))
 
         return result

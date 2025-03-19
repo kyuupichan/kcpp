@@ -33,6 +33,7 @@ class LocationRange:
 @dataclass(slots=True)
 class LocationContext:
     source_ranges: list
+    macro: any
 
 
 class Locator:
@@ -83,7 +84,7 @@ class Locator:
         '''Return a triple (buffer, buffer_start_loc, offset).'''
         loc_range = self.lookup_range(loc)
         if loc_range.kind == LocationRangeKind.macro:
-            loc = loc_range.extra.spelling_loc(loc - loc_range.first)
+            loc = loc_range.extra.token_loc(loc - loc_range.first)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind == LocationRangeKind.buffer
         return loc_range.extra, loc - loc_range.first
@@ -102,6 +103,29 @@ class Locator:
                 continue
             locations.append(loc)
             return locations
+
+    def locations_and_spans(self, loc):
+        stack = []
+        while True:
+            loc_range = self.lookup_range(loc)
+            if loc_range.kind == LocationRangeKind.macro:
+                token_loc = loc_range.extra.token_loc(loc - loc_range.first)
+                stack.append((token_loc, loc_range.extra, loc_range.first,
+                              loc_range.first + loc_range.size - 1))
+                loc = loc_range.parent
+                continue
+            stack.append((loc, None, -1, -1))
+            return stack
+
+    def locations_only(self, loc):
+        stack = []
+        while True:
+            loc_range = self.lookup_range(loc)
+            stack.append(loc)
+            if loc_range.kind == LocationRangeKind.macro:
+                loc = loc_range.parent
+                continue
+            return stack
 
     def context_stack(self, source_ranges):
         def is_a_buffer_range(source_range):
@@ -122,11 +146,55 @@ class Locator:
             end = self.location_stack(source_range.end)[-1]
             return TokenRange(start, end)
 
+        def intersection(start, end, start_stack, end_stack):
+            start_loc = None
+            end_loc = None
+            for loc in start_stack:
+                if start <= loc <= end:
+                    start_loc = loc
+                    break
+            for loc in end_stack:
+                if start <= loc <= end:
+                    end_loc = loc
+                    break
+            if start_loc is None:
+                if end_loc is None:
+                    return None
+                return TokenRange(start, end_loc)
+            if end_loc is None:
+                return TokenRange(start_loc, end)
+            return TokenRange(start_loc, end_loc)
+
         assert all(isinstance(source_range, TokenRange) for source_range in source_ranges[1:])
         caret_range = source_ranges[0]
         if is_a_buffer_range(caret_range):
             for n in range(1, len(source_ranges)):
                 source_ranges[n] = lower_token_range(source_ranges[n])
-            return [LocationContext(source_ranges)]
+            return [LocationContext(source_ranges, None)]
 
-        raise NotImplementedError
+        # Get the location stack for the start and end of each source range.  The start
+        # and end of a source range can have different depth stacks.
+        start_stacks = [self.locations_only(sr.start) for sr in source_ranges[1:]]
+        end_stacks = [self.locations_only(sr.end) for sr in source_ranges[1:]]
+
+        print('Ranges:', source_ranges[1:])
+        print('SS:', start_stacks)
+        print('ES:', end_stacks)
+
+        contexts = []
+        for loc, macro, span_start, span_end in self.locations_and_spans(caret_range.start):
+            # Start with the caret range for this level
+            context_ranges = [TokenRange(loc, loc)]
+            print('SPAN:', loc, span_start, span_end)
+            # Now figure out where each source range intersects this context level, if any
+            for start_stack, end_stack in zip(start_stacks, end_stacks):
+                if span_start == -1:
+                    if start_stack[-1] != loc:
+                        context_ranges.append(TokenRange(start_stack[-1], end_stack[-1]))
+                else:
+                    context_range = intersection(span_start, span_end, start_stack, end_stack)
+                    if context_range:
+                        context_ranges.append(context_range)
+            contexts.append(LocationContext(context_ranges, macro))
+
+        return reversed(contexts)
