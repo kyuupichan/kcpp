@@ -42,6 +42,7 @@ class DID(IntEnum):
     codepoint_control_character = auto()
     codepoint_invalid = auto()
     codepoint_surrogate = auto()
+    delimeter_invalid_character = auto()
     delimeter_too_long = auto()
     division_by_zero = auto()
     duplicate_macro_parameter = auto()
@@ -213,6 +214,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         '%q0 is a surrogate codepoint',
+    ),
+    DID.delimeter_invalid_character: DiagnosticDefinition(
+        DID.delimeter_invalid_character,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.invalid_pp_token,
+        'invalid character %q0 in raw string literal delimeter',
     ),
     DID.delimeter_too_long: DiagnosticDefinition(
         DID.delimeter_too_long,
