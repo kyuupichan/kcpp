@@ -760,10 +760,12 @@ class Preprocessor:
             contexts = self.locator.diagnostic_contexts(self, context)
 
         for context in contexts:
+            context.caret_range = context.source_ranges[0]
+            source_ranges = context.source_ranges[1:]
             # Remove duplicates
-            source_ranges = context.source_ranges
-            source_ranges = [source_range for n, source_range in enumerate(source_ranges)
-                             if source_range not in source_ranges[:n]]
+            source_ranges = [source_range for source_range in source_ranges
+                             if source_range != context.caret_range]
+            context.caret_range = self.elaborated_range(context.caret_range)
             context.source_ranges = [self.elaborated_range(source_range)
                                      for source_range in source_ranges]
 

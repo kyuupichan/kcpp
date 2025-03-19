@@ -94,6 +94,7 @@ class DiagnosticContext:
     '''
     did: DID
     substitutions: list
+    caret_range: object
     source_ranges: list
 
 
@@ -103,7 +104,9 @@ class MessageContext:
 
     For teminal output, each message context is later further enhanced with lines from the
     original source code and highlight lines before being written out to the terminal.'''
-    # A list of ElaboratedRange objects, one per highlight for this context.
+    # The caret highlight
+    caret_highlight: ElaboratedRange
+    # Additional highlighted ranges - a list of ElaboratedRange objects
     highlights: list
     # The main diagnostic message.  A list of pairs (text, kind) where text is translated
     # text.  kind is formatting information.  It can be 'message' or 'quote', the latter
@@ -172,7 +175,7 @@ class Diagnostic:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
         assert source_ranges
-        return DiagnosticContext(self.did, substitutions, source_ranges), nested_diagnostics
+        return DiagnosticContext(self.did, substitutions, None, source_ranges), nested_diagnostics
 
 
 class DiagnosticEngine:
@@ -266,21 +269,17 @@ class DiagnosticEngine:
                 self.fatal_count += 1
 
         text = self.translations.diagnostic_text(diagnostic_context.did)
-        highlights = diagnostic_context.source_ranges
-        caret_highlight = highlights[0]
+        caret_highlight = diagnostic_context.caret_range
 
         text_parts = []
         if caret_highlight.start.loc != location_none:
             text_parts.append((self.location_text(caret_highlight.start) + ': ', 'path'))
-        # Diagnostics with no location have nothing to highlight
-        if caret_highlight.start.coords is None:
-            highlights = []
         # Add the severity text unless it is none
         if severity_enum != DiagnosticSeverity.none:
             severity_did, hint = self.severity_map[severity_enum]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
-        return MessageContext(highlights, text_parts)
+        return MessageContext(caret_highlight, diagnostic_context.source_ranges, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):

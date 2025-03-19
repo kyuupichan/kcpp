@@ -184,7 +184,7 @@ class Locator:
                     context = orig_context
                 else:
                     did, substitutions = caret_context.loc_range.owner.did_and_substitutions()
-                    context = DiagnosticContext(did, substitutions, source_ranges)
+                    context = DiagnosticContext(did, substitutions, None, source_ranges)
                 contexts.append(context)
             lower_from = 0
 
