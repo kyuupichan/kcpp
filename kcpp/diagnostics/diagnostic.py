@@ -14,7 +14,7 @@ from .definitions import (
 
 
 __all__ = [
-    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine',
+    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine', 'DiagnosticContext',
     'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
     'location_command_line', 'location_none', 'location_in_args',
 ]
@@ -88,7 +88,21 @@ class DiagnosticContext:
     is that of the macro name that started the macro expansion, and each subsequent context
     arises from nested expansions.
 
-    Each context comes with its own message.'''
+    Each context comes with its own diagnostic ID and substitutions.  A DiagnosticContext
+    is then turned into a MessageContext by performing the substitutions in the
+    diagnostic's definition text.
+    '''
+    did: DID
+    substitutions: list
+    source_ranges: list
+
+
+@dataclass(slots=True)
+class MessageContext:
+    '''A MessageContext object is formed from a DiagnosticContext - see its docstring.
+
+    For teminal output, each message context is later further enhanced with lines from the
+    original source code and highlight lines before being written out to the terminal.'''
     # A list of ElaboratedRange objects, one per highlight for this context.
     highlights: list
     # The main diagnostic message.  A list of pairs (text, kind) where text is translated
@@ -107,8 +121,8 @@ class ElaboratedDiagnostic:
     '''A processed diagnostic.'''
     # The diagnostic ID.
     did: int
-    # A list of contexts for this diagnostic; see the docstring of DiagnosticContext.
-    contexts: list
+    # A list of MessageContext objects; see the docstring of MessageContext.
+    message_contexts: list
     # A list of zero or more nested ElaboratedDiagnostics
     nested_diagnostics: list
 
@@ -138,30 +152,27 @@ class Diagnostic:
         return f'Diagnostic(did={self.did!r}, loc={self.loc}, args={self.arguments!r})'
 
     def decompose(self):
-        '''Decompose a diagnostic to its diagnostic ID, format string arguments, source ranges,
-        and nested diagnostics.  Return them as a 4-tuple.
-        '''
-        args = []
-        ranges = []
-        diags = []
+        '''Decompose a diagnostic and return a pair (diagnostic_context, nested_diagnostics).'''
+        substitutions = []
+        source_ranges = []
+        nested_diagnostics = []
 
         if self.loc != location_in_args:
-            ranges.append(TokenRange(self.loc, self.loc))
+            source_ranges.append(TokenRange(self.loc, self.loc))
         for arg in self.arguments:
             if isinstance(arg, (str, int)):
-                args.append(arg)
+                substitutions.append(arg)
             elif isinstance(arg, bytes):
-                args.append(arg.decode())
+                substitutions.append(arg.decode())
             elif isinstance(arg, (TokenRange, SpellingRange, BufferRange)):
-                ranges.append(arg)
+                source_ranges.append(arg)
             elif isinstance(arg, Diagnostic):
-                diags.append(arg)
+                nested_diagnostics.append(arg)
             else:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
-        assert ranges
-
-        return (self.did, args, ranges, diags)
+        assert source_ranges
+        return DiagnosticContext(self.did, substitutions, source_ranges), nested_diagnostics
 
 
 class DiagnosticEngine:
@@ -238,41 +249,38 @@ class DiagnosticEngine:
 
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
-        did, substitution_args, source_ranges, nested = diagnostic.decompose()
-        contexts = self.diagnostic_contexts(did, substitution_args, source_ranges)
-        nested = [self.elaborate(diagnostic) for diagnostic in nested]
-        return ElaboratedDiagnostic(did, contexts, nested)
+        diagnostic_context, nested_diagnostics = diagnostic.decompose()
+        message_contexts = [self.message_context(dc) for
+                            dc in self.pp.diagnostic_contexts(diagnostic_context)]
+        nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
+        return ElaboratedDiagnostic(diagnostic_context.did, message_contexts, nested_diagnostics)
 
-    def diagnostic_contexts(self, did, substitution_args, source_ranges):
-        '''Return a (macro) context stack for the source ranges to be highlighted.  The first
-        range in source_ranges is the caret location, subsequent ones are highlight
-        ranges.
-        '''
-        def context(did, substitution_args, highlights):
-            '''Return a DiagnosticContext object.'''
-            # Determine the message.  The location is determined by the main highlight,
-            # which is the first one in the list.
-            severity_enum = diagnostic_definitions[did].severity
-            if severity_enum >= DiagnosticSeverity.error:
-                self.error_count += 1
-                if severity_enum == DiagnosticSeverity.fatal:
-                    self.fatal_count += 1
-            text = self.translations.diagnostic_text(did)
-            text_parts = []
-            main_highlight = highlights[0]
-            if main_highlight.start.loc != location_none:
-                text_parts.append((self.location_text(main_highlight.start) + ': ', 'path'))
-            if main_highlight.start.coords is None:
-                highlights = []
-            # Add the severity text unless it is none
-            if severity_enum != DiagnosticSeverity.none:
-                severity_did, hint = self.severity_map[severity_enum]
-                text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
-            text_parts.extend(self.substitute_arguments(text, substitution_args))
-            return DiagnosticContext(highlights, text_parts)
+    def message_context(self, diagnostic_context):
+        '''Convert a diagnostic into text (a MessageContext object). '''
+        # Determine the message.  The location is determined by the main highlight,
+        # which is the first one in the list.
+        severity_enum = diagnostic_definitions[diagnostic_context.did].severity
+        if severity_enum >= DiagnosticSeverity.error:
+            self.error_count += 1
+            if severity_enum == DiagnosticSeverity.fatal:
+                self.fatal_count += 1
 
-        return [context(*triple) for triple in
-                self.pp.macro_contexts(did, substitution_args, source_ranges)]
+        text = self.translations.diagnostic_text(diagnostic_context.did)
+        highlights = diagnostic_context.source_ranges
+        caret_highlight = highlights[0]
+
+        text_parts = []
+        if caret_highlight.start.loc != location_none:
+            text_parts.append((self.location_text(caret_highlight.start) + ': ', 'path'))
+        # Diagnostics with no location have nothing to highlight
+        if caret_highlight.start.coords is None:
+            highlights = []
+        # Add the severity text unless it is none
+        if severity_enum != DiagnosticSeverity.none:
+            severity_did, hint = self.severity_map[severity_enum]
+            text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
+        text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
+        return MessageContext(highlights, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):

@@ -10,7 +10,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..diagnostics import BufferRange, TokenRange, SpellingRange, location_none
+from ..diagnostics import BufferRange, TokenRange, SpellingRange, DiagnosticContext
 
 __all__ = ['Locator']
 
@@ -27,12 +27,16 @@ class LocationRange:
     first: int
     size: int
     parent: int   # A number > 0, or -1
-    extra: any
+    owner: any
+
+    def end(self):
+        return self.first + self.size
 
 
 @dataclass(slots=True)
-class LocationContext:
-    source_ranges: list
+class MacroContext:
+    macro_loc: int
+    loc_range: LocationRange
 
 
 class Locator:
@@ -83,50 +87,109 @@ class Locator:
         '''Return a triple (buffer, buffer_start_loc, offset).'''
         loc_range = self.lookup_range(loc)
         if loc_range.kind == LocationRangeKind.macro:
-            loc = loc_range.extra.spelling_loc(loc - loc_range.first)
+            loc = loc_range.owner.buffer_loc(loc)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind == LocationRangeKind.buffer
-        return loc_range.extra, loc - loc_range.first
+        return loc_range.owner, loc - loc_range.first
 
     def loc_to_buffer_coords(self, loc):
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         return buffer.offset_to_coords(offset)
 
-    def location_stack(self, loc):
-        locations = []
+    def macro_contexts(self, loc):
+        contexts = []
         while True:
             loc_range = self.lookup_range(loc)
             if loc_range.kind == LocationRangeKind.macro:
-                locations.append(loc_range.extra.token_loc(loc - loc_range.first))
+                contexts.append(MacroContext(loc, loc_range))
                 loc = loc_range.parent
                 continue
-            locations.append(loc)
-            return locations
+            return contexts
 
-    def context_stack(self, source_ranges):
+    def ultimate_buffer_loc(self, loc):
+        while True:
+            loc_range = self.lookup_range(loc)
+            if loc_range.kind == LocationRangeKind.macro:
+                loc = loc_range.parent
+                continue
+            return loc
+
+    def range_contexts(self, token_range):
+        start_contexts = self.macro_contexts(token_range.start)
+        if token_range.start == token_range.end:
+            end_contexts = start_contexts
+        else:
+            end_contexts = self.macro_contexts(token_range.end)
+        return [start_contexts, end_contexts]
+
+    def diagnostic_contexts(self, pp, orig_context):
         def is_a_buffer_range(source_range):
             if isinstance(source_range, BufferRange):
                 return True
             if isinstance(source_range, TokenRange):
                 assert source_range.start == source_range.end
                 token_loc = source_range.start
-                if token_loc <= location_none:
-                    return True
             else:
                 assert isinstance(source_range, SpellingRange)
                 token_loc = source_range.token_loc
             return self.lookup_range(token_loc).kind is LocationRangeKind.buffer
 
         def lower_token_range(source_range):
-            start = self.location_stack(source_range.start)[-1]
-            end = self.location_stack(source_range.end)[-1]
+            start = self.ultimate_buffer_loc(source_range.start)
+            end = self.ultimate_buffer_loc(source_range.end)
             return TokenRange(start, end)
 
-        assert all(isinstance(source_range, TokenRange) for source_range in source_ranges[1:])
-        caret_range = source_ranges[0]
-        if is_a_buffer_range(caret_range):
-            for n in range(1, len(source_ranges)):
-                source_ranges[n] = lower_token_range(source_ranges[n])
-            return [LocationContext(source_ranges)]
+        def intersections(caret_context, highlight_contexts):
+            def token_range(start, end):
+                return TokenRange(owner.buffer_loc(start), owner.buffer_loc(end))
 
-        raise NotImplementedError
+            loc_range = caret_context.loc_range
+            owner = loc_range.owner
+
+            # Start with the caret range for this context
+            yield token_range(caret_context.macro_loc, caret_context.macro_loc)
+            for start_contexts, end_contexts in highlight_contexts:
+                start_loc = None
+                end_loc = None
+                for context in start_contexts:
+                    if context.loc_range is loc_range:
+                        start_loc = context.macro_loc
+                        break
+                for context in end_contexts:
+                    if context.loc_range is loc_range:
+                        end_loc = context.macro_loc
+                        break
+                if start_loc is None:
+                    if end_loc is not None:
+                        yield token_range(loc_range.first, end_loc)
+                elif end_loc is None:
+                    yield token_range(start_loc, loc_range.end())
+                else:
+                    yield token_range(start_loc, end_loc)
+
+        caret_range = orig_context.source_ranges[0]
+        other_ranges = orig_context.source_ranges[1:]
+        if is_a_buffer_range(caret_range):
+            # Use the original context but replace its source ranges
+            orig_context.source_ranges[1:] = [lower_token_range(source_range)
+                                              for source_range in other_ranges]
+            return [orig_context]
+
+        caret_contexts = self.macro_contexts(caret_range.start)
+        highlight_contexts = [self.range_contexts(source_range) for source_range in other_ranges]
+
+        contexts = []
+        for caret_context in caret_contexts:
+            # Now add an extry for each source range that intersects this context level
+            source_ranges = list(intersections(caret_context, highlight_contexts))
+
+            if caret_context.location_range is None:
+                # Use the original context but replace its source ranges
+                orig_context.source_ranges = source_ranges
+                context = orig_context
+            else:
+                did, substitutions = caret_context.owner.diagnostic_id_and_substitutions()
+                context = DiagnosticContext(did, substitutions, source_ranges)
+            contexts.append(context)
+
+        return reversed(contexts)
