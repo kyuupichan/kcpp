@@ -244,8 +244,9 @@ class DiagnosticEngine:
         return ElaboratedDiagnostic(did, contexts, nested)
 
     def diagnostic_contexts(self, did, substitution_args, source_ranges):
-        '''Return a diagnostic context stack for the source ranges to be highlighted.  The first
-        range is that of the diagnosed location, subsequent ones are highlight ranges.
+        '''Return a (macro) context stack for the source ranges to be highlighted.  The first
+        range in source_ranges is the caret location, subsequent ones are highlight
+        ranges.
         '''
         def context(did, substitution_args, highlights):
             '''Return a DiagnosticContext object.'''
@@ -270,7 +271,8 @@ class DiagnosticEngine:
             text_parts.extend(self.substitute_arguments(text, substitution_args))
             return DiagnosticContext(highlights, text_parts)
 
-        return [context(*t) for t in self.pp.context_stack(did, substitution_args, source_ranges)]
+        return [context(*triple) for triple in
+                self.pp.macro_contexts(did, substitution_args, source_ranges)]
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):
