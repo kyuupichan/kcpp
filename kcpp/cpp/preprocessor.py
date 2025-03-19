@@ -746,30 +746,21 @@ class Preprocessor:
 
         return ElaboratedRange(start, end)
 
-    def macro_contexts(self, did, substitution_args, source_ranges):
-        '''Calculate the macro context stack for a diagnostic with the given source ranges
-        to highlight.'''
+    def diagnostic_contexts(self, context):
+        '''Expand the diagnostic context stack for the given diagnostic context.'''
+        # Apart from the caret range, all ranges must be TokenRange instances
+        assert all(isinstance(source_range, TokenRange)
+                   for source_range in context.source_ranges[1:])
+
         # Special ranges don't have source text, and only a single location code
-        if source_ranges[0].start <= location_none:
-            assert len(source_ranges) == 1
-            highlights = [self.elaborated_range(src_range) for src_range in source_ranges]
-            return [(did, substitution_args, highlights)]
+        if context.source_ranges[0].start <= location_none:
+            assert len(context.source_ranges) == 1
+            contexts = [context]
+        else:
+            contexts = self.locator.diagnostic_contexts(self, context)
 
-        result = []
-        contexts = self.locator.macro_contexts(source_ranges)
-        for n, context in enumerate(contexts):
-            highlights = [self.elaborated_range(source_range)
-                          for source_range in context.source_ranges]
+        for context in contexts:
+            context.source_ranges = [self.elaborated_range(source_range)
+                                     for source_range in context.source_ranges]
 
-            # In general, an elaborated range can cross buffers.  However, for the main
-            # highlight this is not true.  It should always be either a single token, or a
-            # range within a token.  Perform this sanity check.
-            assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
-
-            if n >= 1:
-                macro_name = self.token_spelling(context.macro.name_loc).decode()
-                result.append((DID.in_expansion_of_macro, [macro_name], highlights))
-            else:
-                result.append((did, substitution_args, highlights))
-
-        return result
+        return contexts

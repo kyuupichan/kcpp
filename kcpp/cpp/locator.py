@@ -127,7 +127,7 @@ class Locator:
                 continue
             return stack
 
-    def macro_contexts(self, source_ranges):
+    def diagnostic_contexts(self, pp, context):
         def is_a_buffer_range(source_range):
             if isinstance(source_range, BufferRange):
                 return True
@@ -163,12 +163,11 @@ class Locator:
                 return TokenRange(start_loc, end)
             return TokenRange(start_loc, end_loc)
 
-        assert all(isinstance(source_range, TokenRange) for source_range in source_ranges[1:])
-        caret_range = source_ranges[0]
+        caret_range = context.source_ranges[0]
         if is_a_buffer_range(caret_range):
-            for n in range(1, len(source_ranges)):
-                source_ranges[n] = lower_token_range(source_ranges[n])
-            return [LocationContext(source_ranges, None)]
+            for n in range(1, len(context.source_ranges)):
+                context.source_ranges[n] = lower_token_range(context.source_ranges[n])
+            return [context]
 
         # Get the location stack for the start and end of each source range.  The start
         # and end of a source range can have different depth stacks.
