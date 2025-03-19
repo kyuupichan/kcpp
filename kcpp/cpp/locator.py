@@ -10,7 +10,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..diagnostics import BufferRange, TokenRange, SpellingRange, location_none
+from ..diagnostics import BufferRange, TokenRange, SpellingRange
 
 __all__ = ['Locator']
 
@@ -134,8 +134,6 @@ class Locator:
             if isinstance(source_range, TokenRange):
                 assert source_range.start == source_range.end
                 token_loc = source_range.start
-                if token_loc <= location_none:
-                    return True
             else:
                 assert isinstance(source_range, SpellingRange)
                 token_loc = source_range.token_loc
