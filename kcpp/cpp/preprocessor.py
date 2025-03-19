@@ -756,7 +756,7 @@ class Preprocessor:
             return [(did, substitution_args, highlights)]
 
         result = []
-        contexts = self.locator.context_stack(source_ranges)
+        contexts = self.locator.macro_contexts(source_ranges)
         for n, context in enumerate(contexts):
             highlights = [self.elaborated_range(source_range)
                           for source_range in context.source_ranges]
@@ -764,8 +764,7 @@ class Preprocessor:
             # In general, an elaborated range can cross buffers.  However, for the main
             # highlight this is not true.  It should always be either a single token, or a
             # range within a token.  Perform this sanity check.
-            if highlights[0].start.loc > location_none:
-                assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
+            assert highlights[0].start.coords.buffer is highlights[0].end.coords.buffer
 
             if n >= 1:
                 macro_name = self.token_spelling(context.macro.name_loc).decode()

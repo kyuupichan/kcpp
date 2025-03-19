@@ -127,7 +127,7 @@ class Locator:
                 continue
             return stack
 
-    def context_stack(self, source_ranges):
+    def macro_contexts(self, source_ranges):
         def is_a_buffer_range(source_range):
             if isinstance(source_range, BufferRange):
                 return True
