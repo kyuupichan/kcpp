@@ -143,9 +143,9 @@ class Locator:
 
             loc_range = caret_context.loc_range
             owner = loc_range.owner
-
             # Start with the caret range for this context
-            yield token_range(caret_context.macro_loc, caret_context.macro_loc)
+            caret_range = token_range(caret_context.macro_loc, caret_context.macro_loc)
+            source_ranges = []
             for start_contexts, end_contexts in highlight_contexts:
                 start_loc = None
                 end_loc = None
@@ -159,39 +159,37 @@ class Locator:
                         break
                 if start_loc is None:
                     if end_loc is not None:
-                        yield token_range(loc_range.start, end_loc)
+                        source_ranges.append(token_range(loc_range.start, end_loc))
                 elif end_loc is None:
-                    yield token_range(start_loc, loc_range.end)
+                    source_ranges.append(token_range(start_loc, loc_range.end))
                 else:
-                    yield token_range(start_loc, end_loc)
+                    source_ranges.append(token_range(start_loc, end_loc))
+            return caret_range, source_ranges
 
-        caret_range = orig_context.source_ranges[0]
+        caret_range = orig_context.caret_range
         contexts = []
-        if is_a_buffer_range(caret_range):
-            # Do not lower the caret range
-            lower_from = 1
-        else:
+        if not is_a_buffer_range(caret_range):
             caret_contexts = self.macro_contexts(caret_range.start)
             highlight_contexts = [self.range_contexts(source_range)
-                                  for source_range in orig_context.source_ranges[1:]]
+                                  for source_range in orig_context.source_ranges]
 
             for caret_context in caret_contexts:
                 # Now add an extry for each source range that intersects this context level
-                source_ranges = list(intersections(caret_context, highlight_contexts))
+                caret_range, source_ranges = intersections(caret_context, highlight_contexts)
                 if caret_context.loc_range is None:
                     # Use the original context but replace its source ranges
                     orig_context.source_ranges = source_ranges
                     context = orig_context
                 else:
                     did, substitutions = caret_context.loc_range.owner.did_and_substitutions()
-                    context = DiagnosticContext(did, substitutions, None, source_ranges)
+                    context = DiagnosticContext(did, substitutions, caret_range, source_ranges)
                 contexts.append(context)
-            lower_from = 0
+            # Lower the caret range
+            orig_context.caret_range = lower_token_range(orig_context.caret_range)
 
-        # The final context is the original one with lowered ranges
-        source_ranges = orig_context.source_ranges
-        source_ranges[lower_from:] = [lower_token_range(source_range)
-                                      for source_range in source_ranges[lower_from:]]
+        # Lower the source ranges in the original context and make it the final context
+        orig_context.source_ranges = [lower_token_range(source_range)
+                                      for source_range in orig_context.source_ranges]
         contexts.append(orig_context)
         contexts.reverse()
         return contexts

@@ -750,18 +750,17 @@ class Preprocessor:
         '''Expand the diagnostic context stack for the given diagnostic context.'''
         # Apart from the caret range, all ranges must be TokenRange instances
         assert all(isinstance(source_range, TokenRange)
-                   for source_range in context.source_ranges[1:])
+                   for source_range in context.source_ranges)
 
         # Special ranges don't have source text, and only a single location code
-        if context.source_ranges[0].start <= location_none:
-            assert len(context.source_ranges) == 1
+        if context.caret_range.start <= location_none:
+            assert not context.source_ranges
             contexts = [context]
         else:
             contexts = self.locator.diagnostic_contexts(self, context)
 
         for context in contexts:
-            context.caret_range = context.source_ranges[0]
-            source_ranges = context.source_ranges[1:]
+            source_ranges = context.source_ranges
             # Remove duplicates
             source_ranges = [source_range for source_range in source_ranges
                              if source_range != context.caret_range]

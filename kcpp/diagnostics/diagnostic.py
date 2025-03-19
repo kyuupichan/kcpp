@@ -175,7 +175,8 @@ class Diagnostic:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
         assert source_ranges
-        return DiagnosticContext(self.did, substitutions, None, source_ranges), nested_diagnostics
+        context = DiagnosticContext(self.did, substitutions, source_ranges[0], source_ranges[1:])
+        return context, nested_diagnostics
 
 
 class DiagnosticEngine:
