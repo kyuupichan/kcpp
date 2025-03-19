@@ -105,7 +105,7 @@ class UnicodeTerminal(DiagnosticConsumer):
         # diagnostic severity, that let's the user know what the complaint is.
         yield ''.join(self.enhance_text(*part) for part in context.message_parts)
 
-        if context.caret_highlight.start.coords is not None:
+        if context.caret_highlight.start is not None:
             yield from self.show_highlighted_source(context)
 
     def show_highlighted_source(self, context):
@@ -127,7 +127,7 @@ class UnicodeTerminal(DiagnosticConsumer):
             margin = f'{line_number:5d}'
             return margin + ' | ', ' ' * len(margin) + ' | '
 
-        start, end = context.caret_highlight.start.coords, context.caret_highlight.end.coords
+        start, end = context.caret_highlight.start, context.caret_highlight.end
         lines = self.source_lines(start, end)
         for line_number, line in enumerate(lines, start=start.line_number):
             margins = line_margins(line_number)
@@ -332,7 +332,7 @@ class SourceLine:
         enhancement escape sequqences as specified by enhancement_codes.
         '''
         highlights = [context.caret_highlight] + context.highlights
-        col_ranges = [self.convert_to_column_range(highlight.start.coords, highlight.end.coords)
+        col_ranges = [self.convert_to_column_range(highlight.start, highlight.end)
                       for highlight in highlights]
 
         # For long source lines we display a window of the line only.  Determine which
@@ -355,7 +355,7 @@ class SourceLine:
             # Special handling of caret range - the first character (including if wide) gets
             # the caret, the rest of the range gets the twiddles
             if n == 0:
-                if highlight.start.coords.line_number == self.line_number:
+                if highlight.start.line_number == self.line_number:
                     caret_end = start + line.char_width(start)
                     char_ranges.append(((start, caret_end), 'caret'))
                     if caret_end < end:

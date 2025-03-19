@@ -79,6 +79,15 @@ class ElaboratedRange:
     start: ElaboratedLocation
     end: ElaboratedLocation
 
+    def to_range_coords(self):
+        return RangeCoords(self.start.coords, self.end.coords)
+
+
+@dataclass(slots=True)
+class RangeCoords:
+    start: BufferCoords
+    end: BufferCoords
+
 
 @dataclass(slots=True)
 class DiagnosticContext:
@@ -105,8 +114,8 @@ class MessageContext:
     For teminal output, each message context is later further enhanced with lines from the
     original source code and highlight lines before being written out to the terminal.'''
     # The caret highlight
-    caret_highlight: ElaboratedRange
-    # Additional highlighted ranges - a list of ElaboratedRange objects
+    caret_highlight: RangeCoords
+    # Additional highlighted ranges - a list of RangeCoords objects
     highlights: list
     # The main diagnostic message.  A list of pairs (text, kind) where text is translated
     # text.  kind is formatting information.  It can be 'message' or 'quote', the latter
@@ -280,7 +289,10 @@ class DiagnosticEngine:
             severity_did, hint = self.severity_map[severity_enum]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
-        return MessageContext(caret_highlight, diagnostic_context.source_ranges, text_parts)
+        # Convert ranges to coords
+        highlights = [sr.to_range_coords() for sr in diagnostic_context.source_ranges]
+        caret_highlight = caret_highlight.to_range_coords()
+        return MessageContext(caret_highlight, highlights, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):
