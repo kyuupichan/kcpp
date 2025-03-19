@@ -167,7 +167,10 @@ class Locator:
 
         caret_range = orig_context.source_ranges[0]
         contexts = []
-        if not is_a_buffer_range(caret_range):
+        if is_a_buffer_range(caret_range):
+            # Do not lower the caret range
+            lower_from = 1
+        else:
             caret_contexts = self.macro_contexts(caret_range.start)
             highlight_contexts = [self.range_contexts(source_range)
                                   for source_range in orig_context.source_ranges[1:]]
@@ -183,10 +186,12 @@ class Locator:
                     did, substitutions = caret_context.loc_range.owner.did_and_substitutions()
                     context = DiagnosticContext(did, substitutions, source_ranges)
                 contexts.append(context)
+            lower_from = 0
 
-        # Use the original context but replace its source ranges
-        orig_context.source_ranges = [lower_token_range(source_range)
-                                      for source_range in orig_context.source_ranges]
+        # The final context is the original one with lowered ranges
+        source_ranges = orig_context.source_ranges
+        source_ranges[lower_from:] = [lower_token_range(source_range)
+                                      for source_range in source_ranges[lower_from:]]
         contexts.append(orig_context)
         contexts.reverse()
         return contexts
