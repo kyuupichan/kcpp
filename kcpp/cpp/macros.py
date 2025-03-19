@@ -83,7 +83,7 @@ class ObjectLikeExpansion(TokenSource):
         token_index = loc - self.base_loc
         return self.tokens[token_index].loc
 
-    def diagnostic_id_and_substitutions(self):
+    def did_and_substitutions(self):
         return DID.in_expansion_of_macro, [self.pp.token_spelling(self.macro.name_loc).decode()]
 
     def get_token(self, token):

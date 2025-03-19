@@ -169,27 +169,28 @@ class Locator:
 
         caret_range = orig_context.source_ranges[0]
         other_ranges = orig_context.source_ranges[1:]
-        if is_a_buffer_range(caret_range):
-            # Use the original context but replace its source ranges
-            orig_context.source_ranges[1:] = [lower_token_range(source_range)
-                                              for source_range in other_ranges]
-            return [orig_context]
-
-        caret_contexts = self.macro_contexts(caret_range.start)
-        highlight_contexts = [self.range_contexts(source_range) for source_range in other_ranges]
-
         contexts = []
-        for caret_context in caret_contexts:
-            # Now add an extry for each source range that intersects this context level
-            source_ranges = list(intersections(caret_context, highlight_contexts))
+        if not is_a_buffer_range(caret_range):
+            caret_contexts = self.macro_contexts(caret_range.start)
+            highlight_contexts = [self.range_contexts(source_range)
+                                  for source_range in other_ranges]
 
-            if caret_context.location_range is None:
-                # Use the original context but replace its source ranges
-                orig_context.source_ranges = source_ranges
-                context = orig_context
-            else:
-                did, substitutions = caret_context.owner.diagnostic_id_and_substitutions()
-                context = DiagnosticContext(did, substitutions, source_ranges)
-            contexts.append(context)
+            for caret_context in caret_contexts:
+                # Now add an extry for each source range that intersects this context level
+                source_ranges = list(intersections(caret_context, highlight_contexts))
+                print(source_ranges)
+                if caret_context.loc_range is None:
+                    # Use the original context but replace its source ranges
+                    orig_context.source_ranges = source_ranges
+                    context = orig_context
+                else:
+                    did, substitutions = caret_context.loc_range.owner.did_and_substitutions()
+                    context = DiagnosticContext(did, substitutions, source_ranges)
+                contexts.append(context)
 
-        return reversed(contexts)
+        # Use the original context but replace its source ranges
+        orig_context.source_ranges[1:] = [lower_token_range(source_range)
+                                          for source_range in other_ranges]
+        contexts.append(orig_context)
+        contexts.reverse()
+        return contexts
