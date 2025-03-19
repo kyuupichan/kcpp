@@ -250,41 +250,37 @@ class DiagnosticEngine:
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
         diagnostic_context, nested_diagnostics = diagnostic.decompose()
-        message_contexts = self.message_contexts(diagnostic_context)
+        message_contexts = [self.message_context(dc) for
+                            dc in self.pp.diagnostic_contexts(diagnostic_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
         return ElaboratedDiagnostic(diagnostic_context.did, message_contexts, nested_diagnostics)
 
-    def message_contexts(self, diagnostic_context):
-        '''Return a message context stack.  first range in source_ranges is the caret location,
-        subsequent ones are highlight ranges.  The main message is formed from the given
-        diagnostic id and substitution args.
-        '''
-        def message_context(diagnostic_context):
-            '''Return a DiagnosticContext object.'''
-            # Determine the message.  The location is determined by the main highlight,
-            # which is the first one in the list.
-            did, substitutions, highlights = diagnostic_context.did, diagnostic_context.substitutions, diagnostic_context.source_ranges
-            severity_enum = diagnostic_definitions[did].severity
-            if severity_enum >= DiagnosticSeverity.error:
-                self.error_count += 1
-                if severity_enum == DiagnosticSeverity.fatal:
-                    self.fatal_count += 1
-            text = self.translations.diagnostic_text(did)
-            text_parts = []
-            main_highlight = highlights[0]
-            if main_highlight.start.loc != location_none:
-                text_parts.append((self.location_text(main_highlight.start) + ': ', 'path'))
-            if main_highlight.start.coords is None:
-                highlights = []
-            # Add the severity text unless it is none
-            if severity_enum != DiagnosticSeverity.none:
-                severity_did, hint = self.severity_map[severity_enum]
-                text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
-            text_parts.extend(self.substitute_arguments(text, substitutions))
-            return MessageContext(highlights, text_parts)
+    def message_context(self, diagnostic_context):
+        '''Convert a diagnostic into text (a MessageContext object). '''
+        # Determine the message.  The location is determined by the main highlight,
+        # which is the first one in the list.
+        severity_enum = diagnostic_definitions[diagnostic_context.did].severity
+        if severity_enum >= DiagnosticSeverity.error:
+            self.error_count += 1
+            if severity_enum == DiagnosticSeverity.fatal:
+                self.fatal_count += 1
 
-        return [message_context(diagnostic_context)
-                for diagnostic_context in self.pp.diagnostic_contexts(diagnostic_context)]
+        text = self.translations.diagnostic_text(diagnostic_context.did)
+        highlights = diagnostic_context.source_ranges
+        caret_highlight = highlights[0]
+
+        text_parts = []
+        if caret_highlight.start.loc != location_none:
+            text_parts.append((self.location_text(caret_highlight.start) + ': ', 'path'))
+        # Diagnostics with no location have nothing to highlight
+        if caret_highlight.start.coords is None:
+            highlights = []
+        # Add the severity text unless it is none
+        if severity_enum != DiagnosticSeverity.none:
+            severity_did, hint = self.severity_map[severity_enum]
+            text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
+        text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
+        return MessageContext(highlights, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):
