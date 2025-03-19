@@ -746,11 +746,16 @@ class Preprocessor:
 
         return ElaboratedRange(start, end)
 
-    def context_stack(self, did, substitution_args, source_ranges):
-        '''Calculate the context stack for a diagnostic with the given source ranges
+    def macro_contexts(self, did, substitution_args, source_ranges):
+        '''Calculate the macro context stack for a diagnostic with the given source ranges
         to highlight.'''
-        result = []
+        # Special ranges don't have source text, and only a single location code
+        if source_ranges[0].start <= location_none:
+            assert len(source_ranges) == 1
+            highlights = [self.elaborated_range(src_range) for src_range in source_ranges]
+            return [(did, substitution_args, highlights)]
 
+        result = []
         contexts = self.locator.context_stack(source_ranges)
         for context in contexts:
             highlights = [self.elaborated_range(source_range)
