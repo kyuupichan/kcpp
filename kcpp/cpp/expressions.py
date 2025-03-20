@@ -315,11 +315,11 @@ class ExprParser:
         if lhs.is_unsigned != rhs.is_unsigned:
             # Find the side to convert to unsigned
             side = rhs if lhs.is_unsigned else lhs
+            # Read its value before setting is_unsigned
+            old_value = side.get(self.mask)
             side.is_unsigned = True
-            if side.value < 0:
-                old_value = side.value
-                side.value += self.mask + 1
-                args = [side.loc, f'{old_value:,d}', f'{side.value:,d}']
+            if old_value < 0:
+                args = [side.loc, f'{old_value:,d}', f'{side.get(self.mask):,d}']
                 self.diag(DID.value_changes_sign, op.loc, args)
 
     def evaluate_arithmetic(self, lhs, rhs, op):
