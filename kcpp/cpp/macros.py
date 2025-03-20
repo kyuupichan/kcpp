@@ -107,25 +107,29 @@ class ObjectLikeExpansion(TokenSource):
             if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
                 assert cursor + 1 < len(tokens)
                 self.cursor = cursor + 2
-                self.concatenate_tokens(token, tokens[cursor].loc, tokens[cursor + 1])
+                self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1])
             else:
                 self.cursor = cursor
 
     def concatenate_tokens(self, lhs, concat_loc, rhs):
-        '''Concatenate LHS and RHS, replacing LHS with the result.  RHS must not be
-        touched.  LHS must retain its whitespace flag.  If RHS is STRINGIZE, do that
-        first.'''
-        # FIXME: send the token; it can be faster
+        '''Concatenate LHS and RHS, replacing LHS with the result.  RHS must not be touched.  LHS
+        must retain its whitespace flag.  If RHS is STRINGIZE, do that first.  concat_loc
+        is the macro location of the ## token.  In some ways, for diagnostics, it would be
+        better to be a TokenRange.  But the diagnostic system currently assumes a caret is
+        a single token.
+        '''
+        # FIXME: send the token; it can be faster if the spelling is attached
         lhs_spelling = self.pp.token_spelling(lhs.loc)
         rhs_spelling = self.pp.token_spelling(rhs.loc)
         spelling = lhs_spelling + rhs_spelling
+        # FIXME: should not be quiet
         lexer = Lexer(self.pp, spelling, 0, quiet=True)
         token = Token.create()
         lexer.get_token(token)
-        print(f'All consumed: {lexer.cursor == len(spelling)} {token}')
         if token.kind == TokenKind.EOF or lexer.cursor != len(spelling):
             self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
         else:
-            token.flags &= ~TokenFlags.WS
-            token.flags |= lhs.flags & TokenFlags.WS
-            lhs.set_to(token, concat_loc)    # FIXME: the location
+            # Set the whitespace flag and copy to lhs
+            token.set_ws_flag(lhs.flags & TokenFlags.WS)
+            # Copy the token and create a location for it
+            lhs.set_to(token, self.pp.locator.concatenated_token_loc(spelling, concat_loc))

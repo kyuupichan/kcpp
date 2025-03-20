@@ -16,6 +16,10 @@ in_expansion_of_macro:
   severity: note
   text: in expansion of macro %q0
 
+in_token_concatenation:
+  severity: note
+  text: in result of token concatenation
+
 token_concatenation_failed:
   severity: error
   text: concatenation produces %q0 which is not a valid preprocessing token

@@ -10,20 +10,23 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..diagnostics import BufferRange, TokenRange, SpellingRange, DiagnosticContext
+from ..diagnostics import BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID
+from .basic import ScratchBuffer
+
 
 __all__ = ['Locator']
 
 
-class LocationRangeKind(IntEnum):
+class RangeKind(IntEnum):
     buffer = auto()
     macro = auto()
+    scratch = auto()
 
 
 @dataclass(slots=True)
 class LocationRange:
     '''Represents a contiguous location range.'''
-    kind: LocationRangeKind
+    kind: RangeKind
     # Range is inclusive from start to end.
     start: int
     end: int
@@ -37,6 +40,21 @@ class MacroContext:
     loc_range: LocationRange
 
 
+class TokenConcatenation:
+    '''An instance of this is created per successful concatenation to recall its spelling and
+    give its position in a macro expansion stack.
+    '''
+    def __init__(self, scratch_buffer_loc):
+        self.scratch_buffer_loc = scratch_buffer_loc
+
+    def buffer_loc(self, loc):
+        '''Return the location of the spelling in the scratch buffer.'''
+        return self.scratch_buffer_loc
+
+    def did_and_substitutions(self):
+        return DID.in_token_concatenation, []
+
+
 class Locator:
     '''Manages and supplies token locations.'''
 
@@ -46,8 +64,9 @@ class Locator:
     def __init__(self):
         self.buffer_ranges = []
         self.macro_ranges = []
+        self.scratch_buffer_range = None
 
-    def new_buffer_loc(self, parent_loc, buffer_size, buffer):
+    def new_buffer_range(self, parent_loc, size, buffer, kind):
         assert isinstance(parent_loc, int)
         assert parent_loc > 0 or parent_loc == -1
         buffer_ranges = self.buffer_ranges
@@ -55,9 +74,17 @@ class Locator:
             start = buffer_ranges[-1].end + 1
         else:
             start = self.FIRST_BUFFER_LOC
-        buffer_ranges.append(LocationRange(LocationRangeKind.buffer, start,
-                                           start + buffer_size - 1, parent_loc, buffer))
-        return start
+        buffer_range = LocationRange(kind, start, start + size - 1, parent_loc, buffer)
+        buffer_ranges.append(buffer_range)
+        return buffer_range
+
+    def new_buffer_loc(self, parent_loc, buffer_size, buffer):
+        buffer_range = self.new_buffer_range(parent_loc, buffer_size, buffer, RangeKind.buffer)
+        return buffer_range.start
+
+    def new_scratch_buffer(self, size):
+        buffer = ScratchBuffer(size)
+        self.scratch_buffer_range = self.new_buffer_range(-1, size, buffer, RangeKind.scratch)
 
     def new_macro_range(self, parent_loc, count, owner):
         assert isinstance(parent_loc, int)
@@ -67,9 +94,28 @@ class Locator:
             start = macro_ranges[-1].end + 1
         else:
             start = self.FIRST_MACRO_LOC
-        macro_ranges.append(LocationRange(LocationRangeKind.macro, start, start + count - 1,
+        macro_ranges.append(LocationRange(RangeKind.macro, start, start + count - 1,
                                           parent_loc, owner))
         return start
+
+    def alloc_in_scratch(self, spelling):
+        def alloc_in_current(spelling):
+            if self.scratch_buffer_range:
+                result = self.scratch_buffer_range.owner.add_spelling(spelling)
+                if result != -1:
+                    return self.scratch_buffer_range.start + result
+            return -1
+
+        loc = alloc_in_current(spelling)
+        if loc == -1:
+            self.new_scratch_buffer(max(len(spelling), 1_000))
+            loc = alloc_in_current(spelling)
+            assert loc != -1
+        return loc
+
+    def concatenated_token_loc(self, spelling, parent_loc):
+        owner = TokenConcatenation(self.alloc_in_scratch(spelling))
+        return self.new_macro_range(parent_loc, 1, owner)
 
     def lookup_range(self, loc):
         if loc >= self.FIRST_MACRO_LOC:
@@ -82,12 +128,12 @@ class Locator:
         return loc_range
 
     def loc_to_buffer_and_offset(self, loc):
-        '''Return a triple (buffer, buffer_start_loc, offset).'''
+        '''Return a pair (buffer, offset).'''
         loc_range = self.lookup_range(loc)
-        if loc_range.kind == LocationRangeKind.macro:
+        if loc_range.kind == RangeKind.macro:
             loc = loc_range.owner.buffer_loc(loc)
             loc_range = self.lookup_range(loc)
-        assert loc_range.kind == LocationRangeKind.buffer
+        assert loc_range.kind != RangeKind.macro
         return loc_range.owner, loc - loc_range.start
 
     def loc_to_buffer_coords(self, loc):
@@ -98,7 +144,7 @@ class Locator:
         contexts = []
         while True:
             loc_range = self.lookup_range(loc)
-            if loc_range.kind == LocationRangeKind.macro:
+            if loc_range.kind != RangeKind.buffer:
                 contexts.append(MacroContext(loc, loc_range))
                 loc = loc_range.parent
                 continue
@@ -107,7 +153,7 @@ class Locator:
     def ultimate_buffer_loc(self, loc):
         while True:
             loc_range = self.lookup_range(loc)
-            if loc_range.kind == LocationRangeKind.macro:
+            if loc_range.kind != RangeKind.buffer:
                 loc = loc_range.parent
                 continue
             return loc
@@ -130,7 +176,7 @@ class Locator:
             else:
                 assert isinstance(source_range, SpellingRange)
                 token_loc = source_range.token_loc
-            return self.lookup_range(token_loc).kind is LocationRangeKind.buffer
+            return self.lookup_range(token_loc).kind is RangeKind.buffer
 
         def lower_token_range(source_range):
             start = self.ultimate_buffer_loc(source_range.start)

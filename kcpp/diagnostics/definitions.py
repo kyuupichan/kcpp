@@ -70,6 +70,7 @@ class DID(IntEnum):
     identifier_in_pp_expr = auto()
     identifier_not_NFC = auto()
     in_expansion_of_macro = auto()
+    in_token_concatenation = auto()
     incomplete_UCN_as_tokens = auto()
     integer_overflow = auto()
     integer_too_large = auto()
@@ -383,6 +384,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.note,
         DiagnosticGroup.none,
         'in expansion of macro %q0',
+    ),
+    DID.in_token_concatenation: DiagnosticDefinition(
+        DID.in_token_concatenation,
+        DiagnosticSeverity.note,
+        DiagnosticGroup.none,
+        'in result of token concatenation',
     ),
     DID.incomplete_UCN_as_tokens: DiagnosticDefinition(
         DID.incomplete_UCN_as_tokens,
