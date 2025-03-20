@@ -75,7 +75,7 @@ class ObjectLikeExpansion(TokenSource):
         self.macro = macro
         self.tokens = macro.replacement_list
         self.cursor = 0
-        self.ws = bool(token.flags & TokenFlags.WS)
+        self.macro_token_flags = token.flags
         self.base_loc = pp.locator.new_macro_range(token.loc, len(self.tokens), self)
 
     def buffer_loc(self, loc):
@@ -95,28 +95,28 @@ class ObjectLikeExpansion(TokenSource):
             self.pp.pop_source(token)
         else:
             token.set_to(tokens[cursor], self.base_loc + cursor)
-            # Handle whitespace of first token.  Also disable the macro.
+            # Copy spacing flags of the invocation token.  Also disable the macro.
             if cursor == 0:
+                token.copy_spacing_flags_from(self.macro_token_flags)
                 self.macro.disable()
-                if self.ws:
-                    token.flags |= TokenFlags.WS
-                else:
-                    token.flags &= ~TokenFlags.WS
             cursor += 1
 
             if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
                 assert cursor + 1 < len(tokens)
-                self.cursor = cursor + 2
-                self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1])
-            else:
-                self.cursor = cursor
+                if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
+                    cursor += 2
+                else:
+                    cursor += 1
+
+            self.cursor = cursor
 
     def concatenate_tokens(self, lhs, concat_loc, rhs):
-        '''Concatenate LHS and RHS, replacing LHS with the result.  RHS must not be touched.  LHS
-        must retain its whitespace flag.  If RHS is STRINGIZE, do that first.  concat_loc
-        is the macro location of the ## token.  In some ways, for diagnostics, it would be
-        better to be a TokenRange.  But the diagnostic system currently assumes a caret is
-        a single token.
+        '''Concatenate LHS and RHS; RHS must not be modified.  Return True on success and replace
+        LHS with the result, except LHS must retain its WS and BOL flags.  Return False on
+        failure and leave LHS and RHS unmodified.
+
+        If RHS is STRINGIZE, do that first.  concat_loc is the macro location of the ## or
+        %:%: token.
         '''
         # FIXME: send the token; it can be faster if the spelling is attached
         lhs_spelling = self.pp.token_spelling(lhs.loc)
@@ -128,8 +128,10 @@ class ObjectLikeExpansion(TokenSource):
         lexer.get_token(token)
         if token.kind == TokenKind.EOF or lexer.cursor != len(spelling):
             self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
-        else:
-            # Set the whitespace flag and copy to lhs
-            token.set_ws_flag(lhs.flags & TokenFlags.WS)
-            # Copy the token and create a location for it
-            lhs.set_to(token, self.pp.locator.concatenated_token_loc(spelling, concat_loc))
+            return False
+
+        # Preserve the spacing flags
+        token.copy_spacing_flags_from(lhs.flags)
+        # Copy the token and create a location for it
+        lhs.set_to(token, self.pp.locator.concatenated_token_loc(spelling, concat_loc))
+        return True

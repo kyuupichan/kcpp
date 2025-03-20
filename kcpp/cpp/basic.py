@@ -65,6 +65,11 @@ class Token:
         self.loc = loc
         self.extra = src.extra
 
+    def copy_spacing_flags_from(self, flags):
+        mask = TokenFlags.WS | TokenFlags.BOL
+        self.flags &= ~mask
+        self.flags |= flags & mask
+
     def disable(self):
         self.flags |= TokenFlags.NO_EXPANSION
 
@@ -73,12 +78,6 @@ class Token:
 
     def is_literal(self):
         return self.kind in TokenKind.literal_kinds
-
-    def set_ws_flag(self, ws):
-        if ws:
-            self.flags |= TokenFlags.WS
-        else:
-            self.flags &= ~TokenFlags.WS
 
     def repr(self):
         from kcpp.cpp.preprocessor import IdentifierInfo
