@@ -22,4 +22,4 @@ in_token_concatenation:
 
 token_concatenation_failed:
   severity: error
-  text: concatenation produces %q0 which is not a valid preprocessing token
+  text: token concatenation produces %q0 which is not a valid token

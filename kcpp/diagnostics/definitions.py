@@ -599,7 +599,7 @@ diagnostic_definitions = {
         DID.token_concatenation_failed,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'concatenation produces %q0 which is not a valid preprocessing token',
+        'token concatenation produces %q0 which is not a valid token',
     ),
     DID.unrecognized_escape_sequence: DiagnosticDefinition(
         DID.unrecognized_escape_sequence,
