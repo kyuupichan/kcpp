@@ -410,12 +410,12 @@ class ExprParser:
             self.diag(DID.shift_count_too_large, op.loc, [rhs.loc])
             lhs.is_erroneous = True
         elif op.kind == TokenKind.LSHIFT:
+            # A masked logical bit-shift where the resulting bit-pattern is then
+            # interpreted (in C++23).  In C, and earlier C++, the behaviour is more
+            # subtle.
             value = lhs.value << rhs_value
             if not lhs.is_unsigned:
-                # This operation is well-defined in C++23, as the unique value in the type
-                # of the result congruent to lhs * pow(2, rhs) - this is essentially a
-                # logical bit-shift and interpreting the resulting pattern.  The operation
-                # is undefined in C if lhs.value < 0 or if lhs * pow(2, rhs) cannot be
+                # Undefined in C if lhs.value < 0 or if lhs * pow(2, rhs) cannot be
                 # represented in the result's type.  We take the C++ value, but warn in
                 # cases where it is undefined in C.
                 if lhs_value < 0:
