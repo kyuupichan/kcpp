@@ -17,7 +17,7 @@ from .literals import LiteralInterpreter
 @dataclass(slots=True)
 class ExprValue:
     '''Represents the value of an expression.  It is held as a positive number representing
-    the bit-pattern on a # 2's complement machine.
+    the bit-pattern on a 2's complement machine.
     '''
     value: int
     is_unsigned: bool
@@ -63,28 +63,36 @@ class BOP(IntEnum):
 
 
 @dataclass(slots=True)
-class ParserState:
-    token: Token
-    context_stack: list
-
-
-@dataclass(slots=True)
-class Info:
+class ContextMetadata:
+    '''Static metadata about a grammatical context; see docstring for Context.'''
     want_kind: TokenKind
     did: DID
     open_punc: str
 
 
+# Context metadata applicable to pp expressions.
+ContextMetadata.kinds = {
+    TokenKind.QUESTION_MARK: ContextMetadata(TokenKind.COLON, DID.expected_colon, '?'),
+    TokenKind.PAREN_OPEN: ContextMetadata(TokenKind.PAREN_CLOSE, DID.expected_close_paren, '('),
+}
+
+
 @dataclass(slots=True)
 class Context:
+    '''A simple data structure used to aid parser recovery from syntax errors.  A context is
+    generally a grammatic construct that, once entered, expects a later token to usually
+    complete it.  For exanple, after '(' there must eventually be a ')'.  Similarly after
+    '?' at some point we expect a ':' ,
+    '''
     start_loc: int
-    info: Info
+    metadata: ContextMetadata
 
 
-context_infos = {
-    TokenKind.QUESTION_MARK: Info(TokenKind.COLON, DID.expected_colon, '?'),
-    TokenKind.PAREN_OPEN: Info(TokenKind.PAREN_CLOSE, DID.expected_close_paren, '('),
-}
+@dataclass(slots=True)
+class ParserState:
+    '''Parser state.  Separate from the parser so it is stateless and reusable.'''
+    token: Token
+    context_stack: list
 
 
 class ExprParser:
@@ -117,30 +125,37 @@ class ExprParser:
         return token
 
     def enter_context(self, state, kind, loc):
-        state.context_stack.append(Context(loc, context_infos[kind]))
+        '''Enter a grammatical context.'''
+        state.context_stack.append(Context(loc, ContextMetadata.kinds[kind]))
 
     def leave_context(self, state):
+        '''Leave a grammatical context.  Diagnoses if the next token is not of the expected
+        kind.'''
         token = self.get_token(state)
         context = state.context_stack[-1]
-        if token.kind != context.info.want_kind:
-            note = Diagnostic(DID.prior_match, context.start_loc, [context.info.open_punc])
-            self.diag(context.info.did, token.loc, [note])
+        if token.kind != context.metadata.want_kind:
+            note = Diagnostic(DID.prior_match, context.start_loc, [context.metadata.open_punc])
+            self.diag(context.metadata.did, token.loc, [note])
             token = self.recover(state, token)
-            if token.kind == context.info.want_kind:
+            if token.kind == context.metadata.want_kind:
                 state.token = None
         state.context_stack.pop()
         return token
 
     def recover(self, state, token):
+        '''Attempt to recover from a grammatical error in a smart way.  The goal is to not have a
+        cascade of errors owing to this error, but also to continue parsing as early as
+        possible so other genuine issues are still diagnosed.
+        '''
         state.token = token
-        stopping_tokens = {context.info.want_kind for context in state.context_stack}
+        stopping_tokens = {context.metadata.want_kind for context in state.context_stack}
         stopping_tokens.add(TokenKind.EOD)
         while True:
             token = self.get_token(state)
             if token.kind in stopping_tokens:
                 state.token = token
                 return token
-            if token.kind in context_infos:
+            if token.kind in ContextMetadata.kinds:
                 # Recurse
                 self.enter_context(state, token.kind, token.loc)
                 self.recover(state, None)
