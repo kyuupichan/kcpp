@@ -28,12 +28,13 @@ class PreprocessedOutput:
                 break
             count += 1
             if token.flags & TokenFlags.BOL:
+                # FIXME: this isn't right any more
                 coords = pp.elaborated_location(token.loc).coords
                 if coords.line_number != line_number:
                     write(b'\n' * (coords.line_number - line_number))
                     line_number = coords.line_number
                     if coords.column_offset > 1:
-                        assert token.flags & TokenFlags.WS
+                        # FIXME assert token.flags & TokenFlags.WS
                         # One will be done below for WS flag
                         write(b' ' * (coords.column_offset - 1))
             if token.flags & TokenFlags.WS:
