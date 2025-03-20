@@ -70,13 +70,12 @@ Goals
 I want this project to be a standards-conforming and efficient (to the extent possible in
 Python) preprocessor that provides extremely high quality diagnostics and is retargetable
 (in the compiler sense).  The code should be clean and easy to understand - good examples
-to compare with other projects are kcpp's diagnostics subsystem, and expression parser and
-evaluator.
+are kcpp's diagnostics subsystem, and expression parser and evaluator.
 
 Equally, it should be seen as a "reference implementation" that can be easily transcoded
-to a clean and efficient C or C++ implementation by any reasonable programmer of those
-languages.  Such an implementation would, IMO, be at least on a par with the code of Clang
-or GCC and much easier to understand.
+to a clean and efficient C or C++ implementation by a decent programmer of those
+languages.  Such an implementation should be on at least on a par with the code of Clang
+or GCC for performance and quality, but shorter and easier to understand.
 
 Some design choices I have made (such as treating source files as binary rather than as
 Python Unicode strings, and not using Python's built-in Unicode support) are because those
