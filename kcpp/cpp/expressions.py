@@ -34,12 +34,10 @@ class ExprValue:
         '''Store the value from a Python int.  Returns True on overflow.'''
         if value < 0:
             value = -value - 1
-            overflow = value > mask
             self.value = mask - (value & mask)
         else:
-            overflow = value > (mask >> 1)
             self.value = value & mask
-        return not self.is_unsigned and overflow
+        return not self.is_unsigned and value > (mask >> 1)
 
     def set_boolean(self, value):
         self.value = int(value)
