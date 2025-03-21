@@ -109,7 +109,6 @@ class Preprocessor:
         self.expr_parser = ExprParser(self)
         # Token sources.
         self.sources = []
-        self.diags = []
         self.initialize()
 
     @classmethod
