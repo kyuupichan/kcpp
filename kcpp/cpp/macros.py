@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 from ..diagnostics import DID
-from .basic import Token, TokenSource, TokenFlags, TokenKind
+from .basic import Token, TokenSource, TokenKind
 from .lexer import Lexer
 
 __all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion']
