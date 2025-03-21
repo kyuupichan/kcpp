@@ -8,10 +8,10 @@ import argparse
 import os
 import shlex
 
-from .processors import PreprocessedOutput, FrontEnd
-from kcpp.cpp import Preprocessor
-from kcpp.cpp.basic import Environment
+from kcpp.cpp import Preprocessor, Environment
 from kcpp.diagnostics import UnicodeTerminal
+
+from .processors import PreprocessedOutput, FrontEnd
 
 
 __all__ = ['Driver', 'main_cli']
@@ -41,27 +41,13 @@ class Driver:
         environ = os.environ if environ is None else environ
         return Environment(command_line, environ, [])
 
-    def emit_command_line_diagnostics(self, pp, env):
-        for diagnostic in env.diagnostics:
-            pp.emit(diagnostic)
+    def processor(self, env):
+        return FrontEnd() if env.command_line.fe else PreprocessedOutput()
 
-    def run(self, argv=None, environ=None):
+    def run(self, argv=None, environ=None, processor=None):
         env = self.environment(argv, environ)
-
-        if env.command_line.fe:
-            processor = FrontEnd()
-        else:
-            processor = PreprocessedOutput()
-
-        for filename in env.command_line.files:
-            pp = Preprocessor(env)
-            terminal = UnicodeTerminal(pp, env)
-            pp.add_diagnostic_consumer(terminal)
-            self.emit_command_line_diagnostics(pp, env)
-            if not terminal.error_count:
-                pp.push_source_file(filename)
-                processor.run(pp)
-            terminal.emit_error_count()
+        processor = processor or self.processor(env)
+        return [processor.run(source, env) for source in processor.sources(env)]
 
 
 def main_cli():

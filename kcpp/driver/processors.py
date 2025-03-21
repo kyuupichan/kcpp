@@ -5,18 +5,56 @@
 '''Preprocessed output.'''
 
 import sys
+from abc import ABC, abstractmethod
 
-from ..cpp import Token, TokenKind, TokenFlags
+from kcpp.cpp import Token, TokenKind, TokenFlags, Preprocessor
+from kcpp.diagnostics import UnicodeTerminal
 
 
 __all__ = ['PreprocessedOutput']
 
 
-class PreprocessedOutput:
+class ProcessorBase(ABC):
+
+    def __init__(self):
+        pass
+
+    def diagnostic_consumer(self, pp, env):
+        return UnicodeTerminal(pp, env)
+
+    def sources(self, env):
+        return env.command_line.files
+
+    @abstractmethod
+    def process_source(self, source):
+        pass
+
+    def run(self, source, env):
+        pp = Preprocessor(env)
+
+        # Get a diagnostic consumer
+        consumer = self.diagnostic_consumer(pp, env)
+        pp.add_diagnostic_consumer(consumer)
+
+        # Emit diagnostics from processing the command line
+        for diagnostic in env.diagnostics:
+            pp.emit(diagnostic)
+        # Process the source if no error
+        if consumer.error_count:
+            result = None
+        else:
+            result = self.process_source(pp, source)
+        # Emit the error summary
+        consumer.emit_error_count()
+        return result
+
+
+class PreprocessedOutput(ProcessorBase):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def run(self, pp):
+    def process_source(self, pp, source):
         # FIXME: this needs a lot of work; it's currently used for simple debugging.
+        pp.push_source_file(source)
         token = Token.create()
         write = sys.stdout.buffer.write
 
@@ -44,14 +82,16 @@ class PreprocessedOutput:
         write(b'\n')
 
 
-class FrontEnd:
+class FrontEnd(ProcessorBase):
     '''Simulate a compiler front end.  For now, all it does is output consumed tokens, and the
     interpretation of literals.
     '''
 
-    def run(self, pp):
+    def process_source(self, pp, source):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present
         this is used for debugging purposes.'''
+        pp.push_source_file(source)
+
         token = Token.create()
         pp.get_token(token)
         while True:

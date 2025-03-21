@@ -11,7 +11,7 @@ from functools import partial
 
 from ..diagnostics import (
     DID, ElaboratedLocation, ElaboratedRange, BufferRange, SpellingRange, TokenRange, Diagnostic,
-    DiagnosticEngine, location_command_line, location_none,
+    DiagnosticEngine, location_none,
 )
 
 from .basic import (

@@ -5,7 +5,6 @@
 '''The diagnostic subsystem.'''
 
 import re
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ..cpp import BufferCoords, BufferPosition
@@ -190,24 +189,41 @@ class Diagnostic:
         return context, nested_diagnostics
 
 
-class DiagnosticConsumer(ABC):
+class DiagnosticConsumer:
     '''This interface is passed diagnostics emitted by the preprocessor.  It can do what it
     wants with them - simply capture them for later analysis or emission, or pretty-print
     them to stderr.
     '''
-    @abstractmethod
+    def __init__(self):
+        self.error_count = 0
+        self.fatal_count = 0
+
     def emit(self, diagnostic: Diagnostic):
         '''Emit a diagnostic.'''
-        pass
+        # In the base class we simply update the statistics
+        self.update_statistics(diagnostic.did)
+
+    def emit_error_count(self):
+        if self.error_count:
+            self.emit(Diagnostic(DID.errors_generated, location_none, [self.error_count]))
+
+    def update_statistics(self, did):
+        severity_enum = diagnostic_definitions[did].severity
+        if severity_enum >= DiagnosticSeverity.error:
+            self.error_count += 1
+            if severity_enum == DiagnosticSeverity.fatal:
+                self.fatal_count += 1
 
 
 class DiagnosticListener(DiagnosticConsumer):
     '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
 
     def __init__(self):
+        super().__init__()
         self.diagnostics = []
 
     def emit(self, diagnostic):
+        super().emit(diagnostic)
         self.diagnostics.append(diagnostic)
 
 
@@ -223,22 +239,17 @@ class DiagnosticEngine(DiagnosticConsumer):
     }
 
     def __init__(self, pp, env, translations=None):
+        super().__init__()
         self.pp = pp
         # A DiagnosticTranslations object
         self.translations = translations or DiagnosticTranslations({})
         self.worded_locations = True
         self.show_columns = False
-        self.error_count = 0
-        self.fatal_count = 0
 
     @classmethod
     def add_arguments(cls, group):
         '''Add command line arugments to the group.'''
         pass
-
-    def emit_error_count(self):
-        if self.error_count:
-            self.emit(Diagnostic(DID.errors_generated, location_none, [self.error_count]))
 
     def location_text(self, elaborated_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
@@ -283,11 +294,6 @@ class DiagnosticEngine(DiagnosticConsumer):
         # Determine the message.  The location is determined by the main highlight,
         # which is the first one in the list.
         severity_enum = diagnostic_definitions[diagnostic_context.did].severity
-        if severity_enum >= DiagnosticSeverity.error:
-            self.error_count += 1
-            if severity_enum == DiagnosticSeverity.fatal:
-                self.fatal_count += 1
-
         text = self.translations.diagnostic_text(diagnostic_context.did)
         caret_highlight = diagnostic_context.caret_range
 
