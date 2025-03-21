@@ -39,6 +39,9 @@ class UserDefinedSuffix:
     ident: IdentifierInfo
     loc: SpellingRange
 
+    def __repr__(self):
+        return f'UserDefinedSuffix(ident={self.ident.to_text()}, loc={self.loc!r}'
+
 
 @dataclass(slots=True)
 class IntegerLiteral:
