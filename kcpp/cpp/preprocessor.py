@@ -122,13 +122,17 @@ class Preprocessor:
     def configure(self, env):
         def set_charset(attrib, charset_name, integer_kind):
             if charset_name:
-                charset = Charset.from_name(charset_name)
+                try:
+                    charset = Charset.from_name(charset_name)
+                except LookupError:
+                    env.diag(DID.unknown_charset, [charset_name])
+                    return
+
                 encoding_unit_size = charset.encoding_unit_size()
                 unit_width = self.target.integer_width(integer_kind)
                 if encoding_unit_size * 8 != unit_width:
-                    diagnostic = Diagnostic(DID.invalid_charset, location_command_line,
-                                            [charset_name, integer_kind.name, unit_width])
-                    env.diagnostics.append(diagnostic)
+                    env.diag(DID.invalid_charset, [charset_name, integer_kind.name, unit_width])
+                    return
                 setattr(self.target, attrib, charset)
 
         set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
@@ -149,8 +153,9 @@ class Preprocessor:
         self.diagnostic_consumers.append(consumer)
 
     def diag(self, did, loc, args=None):
-        diagnostic = Diagnostic(did, loc, args)
-        self.diags.append(diagnostic)
+        self.emit(Diagnostic(did, loc, args))
+
+    def emit(self, diagnostic):
         for consumer in self.diagnostic_consumers:
             consumer.emit(diagnostic)
 

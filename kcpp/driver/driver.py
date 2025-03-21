@@ -41,6 +41,10 @@ class Driver:
         environ = os.environ if environ is None else environ
         return Environment(command_line, environ, [])
 
+    def emit_command_line_diagnostics(self, pp, env):
+        for diagnostic in env.diagnostics:
+            pp.emit(diagnostic)
+
     def run(self, argv=None, environ=None):
         env = self.environment(argv, environ)
 
@@ -53,8 +57,10 @@ class Driver:
             pp = Preprocessor(env)
             terminal = UnicodeTerminal(pp, env)
             pp.add_diagnostic_consumer(terminal)
-            pp.push_source_file(filename)
-            processor.run(pp)
+            self.emit_command_line_diagnostics(pp, env)
+            if not terminal.error_count:
+                pp.push_source_file(filename)
+                processor.run(pp)
             terminal.emit_error_count()
 
 

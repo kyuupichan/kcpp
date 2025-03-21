@@ -18,9 +18,10 @@ from typing import ClassVar
 
 from ..unicode import REPLACEMENT_CHAR
 
+
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'TargetMachine',
+    'IdentifierInfo', 'TargetMachine', 'Environment',
     'Buffer', 'BufferPosition', 'BufferCoords', 'ScratchBuffer',
 ]
 
@@ -36,6 +37,10 @@ class Environment:
     # responsibility of the creator of the Environment object to pass these diagnostics to
     # a DiagnosticConsumer at the appropriate time.
     diagnostics: list
+
+    def diag(self, did, args):
+        from ..diagnostics import Diagnostic, location_command_line
+        self.diagnostics.append(Diagnostic(did, location_command_line, args))
 
 
 class TokenSource(ABC):

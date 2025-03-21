@@ -106,6 +106,7 @@ class DID(IntEnum):
     string_concatenation_prior = auto()
     string_invalid_in_pp_expression = auto()
     token_concatenation_failed = auto()
+    unknown_charset = auto()
     unrecognized_escape_sequence = auto()
     unrecognized_universal_character_name = auto()
     unterminated_block_comment = auto()
@@ -600,6 +601,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'token concatenation produces %q0 which is not a valid token',
+    ),
+    DID.unknown_charset: DiagnosticDefinition(
+        DID.unknown_charset,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'character set %q0 is not known',
     ),
     DID.unrecognized_escape_sequence: DiagnosticDefinition(
         DID.unrecognized_escape_sequence,
