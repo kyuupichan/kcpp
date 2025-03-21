@@ -447,18 +447,10 @@ class Lexer(TokenSource):
                 if is_escaped_nl:
                     continue
             if c in NL_WS:
-                if self.pp.in_directive:
-                    # Stick on the newline.  Don't bother setting the whitespace flag as
-                    # EOD tokens are never spelt; and it wouldn't be retained on a re-lex.
-                    return TokenKind.EOD, cursor - 1
-                token.flags |= TokenFlags.BOL
-                token.flags &= ~TokenFlags.WS
-                return TokenKind.WS, cursor
+                return self.on_nl_ws(token, cursor)
             # Not sure if it's worth treating this differently...
             if c == EOF_CHAR:
-                token.flags |= TokenFlags.WS
-                # Return WS so the EOF token gets the correct placement
-                return TokenKind.WS, cursor
+                return self.on_eof(token, cursor)
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1, -1)
 
