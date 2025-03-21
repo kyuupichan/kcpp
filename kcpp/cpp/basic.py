@@ -84,9 +84,7 @@ class Token:
     def is_literal(self):
         return self.kind in TokenKind.literal_kinds
 
-    def repr(self):
-        from kcpp.cpp.preprocessor import IdentifierInfo
-
+    def to_text(self):
         def flags_repr():
             flags = self.flags
             if flags == 0:
@@ -101,11 +99,13 @@ class Token:
                         yield name
                         break
 
+        flags = '|'.join(flags_repr())
         extra = self.extra
         if isinstance(extra, IdentifierInfo):
-            extra = extra.spelling
-
-        return [self.kind.name, '|'.join(flags_repr()), self.loc, extra]
+            extra = extra.to_text()
+        elif isinstance(extra, tuple):
+            extra = (extra[0].decode(), extra[1])
+        return f'Token(kind={self.kind.name}, flags={flags}, loc={self.loc}, extra={extra})'
 
 
 class TokenKind(IntEnum):
@@ -312,7 +312,7 @@ Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKi
 class IdentifierInfo:
     '''Ancilliary information about an identifier.'''
     # Spelling (UCNs replaced)
-    spelling: str
+    spelling: bytes
     # Points to the macro definition, if any
     macro: object
     # If this identifier is "special", how so
@@ -322,6 +322,9 @@ class IdentifierInfo:
 
     def __hash__(self):
         return hash(self.spelling)
+
+    def to_text(self):
+        return f'{self.spelling.decode()}'
 
 
 # A dummy used for a lexed identifier when skipping
