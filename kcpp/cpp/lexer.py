@@ -459,6 +459,8 @@ class Lexer(TokenSource):
                 token.flags |= TokenFlags.WS
                 # Return WS so the EOF token gets the correct placement
                 return TokenKind.WS, cursor
+            if c >= 0x80:
+                c, cursor = self.read_char(cursor - 1, -1)
 
     def on_block_comment(self, token, cursor, start):
         # A block comment.
@@ -474,6 +476,8 @@ class Lexer(TokenSource):
                 self.diag_range(DID.unterminated_block_comment, start, end)
                 # Return WS so the EOF token gets the correct placement
                 return TokenKind.WS, cursor
+            if c >= 0x80:
+                c, cursor = self.read_char(cursor - 1, -1)
 
     def on_divide(self, token, cursor):
         # Handle "/ /=" and line and block comments
