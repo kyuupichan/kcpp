@@ -32,11 +32,11 @@ class UnicodeTerminal(DiagnosticEngine):
         'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
     )
 
-    def __init__(self, pp, env, *, translations=None, file=sys.stderr):
+    def __init__(self, pp, env, *, translations=None, file=None):
         '''Diagnostics are written to file, with colour formatting information if
         colours is True.  Sourcefile tabs are space-expanded to the given tabstop.'''
         super().__init__(pp, env, translations=translations)
-        self.file = file
+        self.file = file or sys.stderr
         self.nested_indent = 4
         self.terminal_width = 120
         self.tabstop = env.command_line.tabstop

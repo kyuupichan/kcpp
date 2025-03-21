@@ -11,7 +11,7 @@ from kcpp.cpp import Token, TokenKind, TokenFlags, Preprocessor
 from kcpp.diagnostics import UnicodeTerminal
 
 
-__all__ = ['PreprocessedOutput']
+__all__ = ['PreprocessedOutput', 'ProcessorBase']
 
 
 class ProcessorBase(ABC):
@@ -40,13 +40,10 @@ class ProcessorBase(ABC):
         for diagnostic in env.diagnostics:
             pp.emit(diagnostic)
         # Process the source if no error
-        if consumer.error_count:
-            result = None
-        else:
-            result = self.process_source(pp, source)
+        if not consumer.error_count:
+            self.process_source(pp, source)
         # Emit the error summary
         consumer.emit_error_count()
-        return result
 
 
 class PreprocessedOutput(ProcessorBase):

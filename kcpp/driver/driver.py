@@ -47,7 +47,8 @@ class Driver:
     def run(self, argv=None, environ=None, processor=None):
         env = self.environment(argv, environ)
         processor = processor or self.processor(env)
-        return [processor.run(source, env) for source in processor.sources(env)]
+        for source in processor.sources(env):
+            processor.run(source, env)
 
 
 def main_cli():
