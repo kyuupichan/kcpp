@@ -6,6 +6,7 @@
 
 import argparse
 import os
+import shlex
 
 from .processors import PreprocessedOutput, FrontEnd
 from kcpp.cpp import Preprocessor
@@ -33,6 +34,9 @@ class Driver:
         self.parser = parser
 
     def environment(self, argv=None, environ=None):
+        assert isinstance(argv, (str, list, type(None)))
+        if isinstance(argv, str):
+            argv = shlex.split(argv)
         command_line = self.parser.parse_args(argv)
         environ = os.environ if environ is None else environ
         return Environment(command_line, environ, [])
