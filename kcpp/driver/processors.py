@@ -59,6 +59,7 @@ class PreprocessedOutput(ProcessorBase):
         count = 0
         while True:
             pp.get_token(token)
+            print(token.to_text())
             if token.kind == TokenKind.EOF:
                 break
             count += 1

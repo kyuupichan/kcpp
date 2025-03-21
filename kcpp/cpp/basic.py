@@ -312,6 +312,7 @@ class SpecialKind(IntEnum):
     NOT_SPECIAL = 0
     VA_IDENTIFIER = 1      # These tokens are restricted to limited contexts
     ALT_TOKEN = 2
+    ENCODING_PREFIX = 3
 
 
 @dataclass(slots=True)
@@ -336,13 +337,21 @@ class IdentifierInfo:
         return SpecialKind(self.special & 0xf)
 
     def alt_token_kind(self):
+        assert self.special_kind() == SpecialKind.ALT_TOKEN
         return TokenKind(self.special >> 4)
+
+    def encoding(self):
+        assert self.special_kind() == SpecialKind.ENCODING_PREFIX
+        return Encoding(self.special >> 4)
 
     def set_special(self, kind):
         self.special = kind
 
     def set_alt_token(self, token_kind):
         self.special = (token_kind << 4) + SpecialKind.ALT_TOKEN
+
+    def set_encoding(self, encoding):
+        self.special = (encoding << 4) + SpecialKind.ENCODING_PREFIX
 
 
 # A dummy used for a lexed identifier when skipping

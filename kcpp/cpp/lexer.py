@@ -599,19 +599,18 @@ class Lexer(TokenSource):
         kind, ident, cursor = self.maybe_identifier(token, token.loc)
         assert ident is not None
 
-        if kind == TokenKind.IDENTIFIER:
-            # Is this an encoding prefix to a string or character literal?
-            encoding = self.pp.encoding_prefixes.get(ident.spelling)
-            if encoding is not None:
-                c, ncursor = self.read_logical_byte(cursor)
-                if ident.spelling[-1] == 82:  # 'R'
-                    # There is no such thing as a raw character literal
-                    if c == 34:  # '"'
-                        token.flags |= TokenFlags.encoding_bits(encoding)
-                        return self.raw_string_literal(token, ncursor)
-                elif c == 34 or c == 39:  # '"' and "'"
+        # Is this an encoding prefix to a string or character literal?
+        if kind == TokenKind.IDENTIFIER and ident.special_kind() is SpecialKind.ENCODING_PREFIX:
+            encoding = ident.encoding()
+            c, ncursor = self.read_logical_byte(cursor)
+            if ident.spelling[-1] == 82:  # 'R'
+                # There is no such thing as a raw character literal
+                if c == 34:  # '"'
                     token.flags |= TokenFlags.encoding_bits(encoding)
-                    return self.on_delimited_literal(token, ncursor)
+                    return self.raw_string_literal(token, ncursor)
+            elif c == 34 or c == 39:  # '"' and "'"
+                token.flags |= TokenFlags.encoding_bits(encoding)
+                return self.on_delimited_literal(token, ncursor)
 
         token.extra = ident
         return kind, cursor

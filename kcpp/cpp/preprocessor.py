@@ -50,19 +50,6 @@ class Preprocessor:
     handlers = {}
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
 
-    ENCODING_PREFIXES = {
-        b'': Encoding.NONE,
-        b'L': Encoding.WIDE,
-        b'u8': Encoding.UTF_8,
-        b'u': Encoding.UTF_16,
-        b'U': Encoding.UTF_32,
-        b'R': Encoding.RAW,
-        b'LR': Encoding.WIDE_RAW,
-        b'u8R': Encoding.UTF_8_RAW,
-        b'uR': Encoding.UTF_16_RAW,
-        b'UR': Encoding.UTF_32_RAW,
-    }
-
     def __init__(self, env, *, target=None):
         self.target = target or TargetMachine.default()
         self.configure(env)
@@ -78,7 +65,6 @@ class Preprocessor:
         self.directive_name_loc = None
         self.in_filename = False
         self.in_variadic_macro_definition = False
-        self.encoding_prefixes = Preprocessor.ENCODING_PREFIXES
         self.diagnostic_consumers = []
         # Literal interpreter for a front end
         self.literal_interpreter = LiteralInterpreter(self, False)
@@ -135,6 +121,21 @@ class Preprocessor:
         }
         for spelling, token_kind in alt_tokens.items():
             self.get_identifier(spelling).set_alt_token(token_kind)
+
+        encoding_prefixes = {
+            b'': Encoding.NONE,
+            b'L': Encoding.WIDE,
+            b'u8': Encoding.UTF_8,
+            b'u': Encoding.UTF_16,
+            b'U': Encoding.UTF_32,
+            b'R': Encoding.RAW,
+            b'LR': Encoding.WIDE_RAW,
+            b'u8R': Encoding.UTF_8_RAW,
+            b'uR': Encoding.UTF_16_RAW,
+            b'UR': Encoding.UTF_32_RAW,
+        }
+        for spelling, encoding in encoding_prefixes.items():
+            self.get_identifier(spelling).set_encoding(encoding)
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
