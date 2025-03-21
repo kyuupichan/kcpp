@@ -459,7 +459,7 @@ class Lexer(TokenSource):
         token.flags |= TokenFlags.WS
         end = cursor
         while True:
-            c, cursor = self.read_logical_byte(cursor)
+            c, cursor = read_byte(self.buff, cursor)
             while c == 42:  # '*'
                 c, cursor = self.read_logical_byte(cursor)
                 if c == 47:  # '/'
