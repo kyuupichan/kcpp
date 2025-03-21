@@ -193,7 +193,7 @@ class Preprocessor:
 
     def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
-        newlines.  The result can be 0, for end-of-source indicator tokens like EOF and EOD.
+        newlines.  The result can be 0, for end-of-source indicator EOF.
         '''
         buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
         lexer = Lexer(self, buffer.text, loc - offset, quiet=True)
@@ -257,7 +257,7 @@ class Preprocessor:
                 assert source is self.sources[-1]
                 continue
 
-            if self.skipping and token.kind not in {TokenKind.EOD, TokenKind.EOF}:
+            if self.skipping and token.kind != TokenKind.EOF:
                 continue
 
             if token.kind == TokenKind.IDENTIFIER:
@@ -284,7 +284,7 @@ class Preprocessor:
         self.get_token(token)
 
     def handle_directive(self, lexer, token):
-        '''Handle a directive to and including the EOD token.  We have read the '#' introducing a
+        '''Handle a directive to and including the EOF token.  We have read the '#' introducing a
         directive.'''
         def get_handler(lexer, token):
             # Turn off skipping whilst getting the directive name so that identifier
@@ -301,7 +301,7 @@ class Preprocessor:
                     return self.ignore_directive
                 return self.handlers.get(token.extra.spelling, self.invalid_directive)
             # Ignore the null directive, and unknown directives when skipping.
-            if self.skipping or token.kind == TokenKind.EOD:
+            if self.skipping or token.kind == TokenKind.EOF:
                 return self.ignore_directive
             # Unknown directive.
             return self.invalid_directive
@@ -354,11 +354,11 @@ class Preprocessor:
         else:
             # [cpp.replace 4] There shall be whitespace between the identifier and the
             # replacement list in the definition of an object-like macro.
-            if not token.flags & TokenFlags.WS and token.kind != TokenKind.EOD:
+            if not token.flags & TokenFlags.WS and token.kind != TokenKind.EOF:
                 self.diag(DID.macro_name_whitespace, token.loc)
 
         tokens = macro.replacement_list
-        while token.kind != TokenKind.EOD:
+        while token.kind != TokenKind.EOF:
             tokens.append(copy(token))
             lexer.get_token(token)
 
@@ -393,7 +393,7 @@ class Preprocessor:
                 return tokens[n]
             token = Token.create()
             self.get_token(token)
-            assert token.kind == TokenKind.EOD
+            assert token.kind == TokenKind.EOF
             return token
 
         n = pos + 1
@@ -419,7 +419,7 @@ class Preprocessor:
                 paren_locs.pop()
                 if not paren_locs:
                     return n - pos
-            elif token.kind == TokenKind.EOD:
+            elif token.kind == TokenKind.EOF:
                 while paren_locs:
                     note = Diagnostic(DID.prior_match, paren_locs.pop(), ['('])
                     self.diag(DID.expected_close_paren, token.loc, [note])
@@ -490,9 +490,9 @@ class Preprocessor:
                     break
                 return params, flags | MacroFlags.from_param_count(len(params))
 
-            # EOD is always invalid.  An ellipsis must be followed by ')'.  An identifier
+            # EOF is always invalid.  An ellipsis must be followed by ')'.  An identifier
             # must be followed by ',' or ')'.
-            if token.kind == TokenKind.EOD or prior_kind == TokenKind.ELLIPSIS:
+            if token.kind == TokenKind.EOF or prior_kind == TokenKind.ELLIPSIS:
                 note = Diagnostic(DID.prior_match, paren_loc, ['('])
                 self.diag(DID.expected_close_paren, token.loc, [note])
                 return None, flags
@@ -646,7 +646,7 @@ class Preprocessor:
     def skip_to_eod(self, token, diagnose):
         if diagnose is True:
             self.get_token(token)
-        if token.kind == TokenKind.EOD:
+        if token.kind == TokenKind.EOF:
             return
         if diagnose:
             spelling = self.token_spelling(self.directive_name_loc)
@@ -657,7 +657,7 @@ class Preprocessor:
             if isinstance(lexer, Lexer):
                 break
             self.sources.pop()
-        while token.kind != TokenKind.EOD:
+        while token.kind != TokenKind.EOF:
             lexer.get_token(token)
 
     def invalid_directive(self, lexer, token):
@@ -671,7 +671,7 @@ class Preprocessor:
         text = bytearray()
         while True:
             lexer.get_token(token)
-            if token.kind == TokenKind.EOD:
+            if token.kind == TokenKind.EOF:
                 break
             if token.flags & TokenFlags.WS and text:
                 text.append(32)
@@ -690,7 +690,7 @@ class Preprocessor:
         '''Return True if token is a macro name.  If it is not a diagnostic is issued.'''
         if token.kind == TokenKind.IDENTIFIER:
             return True
-        if token.kind == TokenKind.EOD:
+        if token.kind == TokenKind.EOF:
             self.diag(DID.expected_macro_name, token.loc)
         else:
             self.diag(DID.macro_name_not_identifier, token.loc)

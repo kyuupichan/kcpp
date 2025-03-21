@@ -110,7 +110,6 @@ class Token:
 
 class TokenKind(IntEnum):
     # These are for internal use of the preprocessor and are never returned by pp.get_token()
-    EOD = 0                   # end-of-directive
     WS = 1                    # whitespace
     MACRO_PARAM = 2           # for macro replacement lists; internal use
     STRINGIZE = 3             # stringification operator

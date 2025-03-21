@@ -231,14 +231,14 @@ class Lexer(TokenSource):
     def on_nl_ws(self, token, cursor):
         if self.pp.in_directive:
             # Stick on the newline
-            return TokenKind.EOD, cursor - 1
+            return TokenKind.EOF, cursor - 1
         token.flags &= ~TokenFlags.WS
         token.flags |= TokenFlags.BOL
         return TokenKind.WS, cursor
 
     def on_eof(self, token, cursor):
         if self.pp.in_directive:
-            return TokenKind.EOD, cursor
+            return TokenKind.EOF, cursor
         else:
             # Ask the preprocessor to take tokens from the next source and return that
             # token.  If we're the last source it simply returns, so set the kind to EOF
