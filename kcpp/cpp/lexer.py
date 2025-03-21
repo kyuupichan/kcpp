@@ -11,7 +11,9 @@ from ..unicode import (
 
 from ..diagnostics import BufferRange, DID, location_in_args
 
-from .basic import Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, HEX_DIGIT_VALUES
+from .basic import (
+    Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, SpecialKind, HEX_DIGIT_VALUES
+)
 from .literals import printable_form
 
 __all__ = ['Lexer']
@@ -645,19 +647,21 @@ class Lexer(TokenSource):
 
         kind = TokenKind.IDENTIFIER
         if self.pp.skipping:
-            ident = IdentifierInfo.dummy
-        else:
-            # Canonicalize spelling
-            spelling = self.fast_utf8_spelling(start, cursor)
-            if not is_NFC(spelling):
-                self.diag(DID.identifier_not_NFC, start, [spelling])
+            return kind, IdentifierInfo.dummy, cursor
 
-            ident, did = self.pp.lexed_identifier(spelling)
-            if did:
-                self.diag(did, start, [spelling])
+        spelling = self.fast_utf8_spelling(start, cursor)
+        if not is_NFC(spelling):
+            self.diag(DID.identifier_not_NFC, start, [spelling])
 
-            # Handle alternative tokens.
-            kind = self.pp.alt_tokens.get(ident.spelling, kind)
+        # Handle __VA_ARGS__, alternative tokens, etc.
+        ident = self.pp.get_identifier(spelling)
+        if ident.special:
+            special = ident.special_kind()
+            if special is SpecialKind.VA_IDENTIFIER:
+                if not self.pp.in_variadic_macro_definition:
+                    self.diag(DID.invalid_variadic_identifier_use, start, [spelling])
+            elif special is SpecialKind.ALT_TOKEN:
+                kind = ident.alt_token_kind()
 
         return kind, ident, cursor
 

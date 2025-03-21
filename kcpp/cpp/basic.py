@@ -21,7 +21,7 @@ from ..unicode import REPLACEMENT_CHAR
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'TargetMachine', 'Environment',
+    'IdentifierInfo', 'SpecialKind', 'TargetMachine', 'Environment',
     'Buffer', 'BufferPosition', 'BufferCoords', 'ScratchBuffer',
 ]
 
@@ -308,6 +308,12 @@ Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKi
                                 IntegerKind.char16_t, IntegerKind.char32_t]
 
 
+class SpecialKind(IntEnum):
+    NOT_SPECIAL = 0
+    VA_IDENTIFIER = 1      # These tokens are restricted to limited contexts
+    ALT_TOKEN = 2
+
+
 @dataclass(slots=True)
 class IdentifierInfo:
     '''Ancilliary information about an identifier.'''
@@ -325,6 +331,18 @@ class IdentifierInfo:
 
     def to_text(self):
         return f'{self.spelling.decode()}'
+
+    def special_kind(self):
+        return SpecialKind(self.special & 0xf)
+
+    def alt_token_kind(self):
+        return TokenKind(self.special >> 4)
+
+    def set_special(self, kind):
+        self.special = kind
+
+    def set_alt_token(self, token_kind):
+        self.special = (token_kind << 4) + SpecialKind.ALT_TOKEN
 
 
 # A dummy used for a lexed identifier when skipping

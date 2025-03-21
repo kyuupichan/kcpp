@@ -15,8 +15,8 @@ from ..diagnostics import (
 )
 
 from .basic import (
-    Buffer, IdentifierInfo, Token, TokenKind, TokenFlags, Encoding, TargetMachine, IntegerKind,
-    Charset,
+    Buffer, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
+    TargetMachine, IntegerKind, Charset,
 )
 from .expressions import ExprParser
 from .lexer import Lexer
@@ -26,13 +26,6 @@ from .macros import Macro, MacroFlags, ObjectLikeExpansion
 
 
 __all__ = ['Preprocessor']
-
-
-class Specials(IntEnum):
-    NOT_SPECIAL = 0
-    # These tokens are restricted to limited contexts
-    VA_ARGS = 1
-    VA_OPT = 2
 
 
 class Keywords(IntEnum):
@@ -56,20 +49,6 @@ class Preprocessor:
 
     handlers = {}
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
-
-    ALT_TOKENS = {
-        b'and': TokenKind.LOGICAL_AND,
-        b'or': TokenKind.LOGICAL_OR,
-        b'bitand': TokenKind.BITWISE_AND,
-        b'bitor': TokenKind.BITWISE_OR,
-        b'xor': TokenKind.BITWISE_XOR,
-        b'compl': TokenKind.TILDE,
-        b'and_eq': TokenKind.BITWISE_AND_ASSIGN,
-        b'or_eq': TokenKind.BITWISE_OR_ASSIGN,
-        b'xor_eq': TokenKind.BITWISE_XOR_ASSIGN,
-        b'not': TokenKind.LOGICAL_NOT,
-        b'not_eq': TokenKind.NE,
-    }
 
     ENCODING_PREFIXES = {
         b'': Encoding.NONE,
@@ -99,8 +78,6 @@ class Preprocessor:
         self.directive_name_loc = None
         self.in_filename = False
         self.in_variadic_macro_definition = False
-        # These can be modified by language options
-        self.alt_tokens = Preprocessor.ALT_TOKENS
         self.encoding_prefixes = Preprocessor.ENCODING_PREFIXES
         self.diagnostic_consumers = []
         # Literal interpreter for a front end
@@ -138,12 +115,26 @@ class Preprocessor:
         set_charset('wide_charset', env.command_line.wide_exec_charset, IntegerKind.wchar_t)
 
     def initialize(self):
-        specials = [
-            (b'__VA_ARGS__', Specials.VA_ARGS),
-            (b'__VA_OPT__', Specials.VA_OPT),
-        ]
-        for spelling, kind in specials:
-            self.get_identifier(spelling).special = kind
+        # The variadic macro identifiers
+        for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
+            self.get_identifier(spelling).set_special(SpecialKind.VA_IDENTIFIER)
+
+        # These can be modified by language options
+        alt_tokens = {
+            b'and': TokenKind.LOGICAL_AND,
+            b'or': TokenKind.LOGICAL_OR,
+            b'bitand': TokenKind.BITWISE_AND,
+            b'bitor': TokenKind.BITWISE_OR,
+            b'xor': TokenKind.BITWISE_XOR,
+            b'compl': TokenKind.TILDE,
+            b'and_eq': TokenKind.BITWISE_AND_ASSIGN,
+            b'or_eq': TokenKind.BITWISE_OR_ASSIGN,
+            b'xor_eq': TokenKind.BITWISE_XOR_ASSIGN,
+            b'not': TokenKind.LOGICAL_NOT,
+            b'not_eq': TokenKind.NE,
+        }
+        for spelling, token_kind in alt_tokens.items():
+            self.get_identifier(spelling).set_alt_token(token_kind)
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
@@ -164,15 +155,6 @@ class Preprocessor:
             ident = IdentifierInfo(spelling, None, 0, 0)
             self.identifiers[spelling] = ident
         return ident
-
-    def lexed_identifier(self, spelling):
-        diag = None
-        ident = self.get_identifier(spelling)
-        if ident.special:
-            if ident.special in (Specials.VA_ARGS, Specials.VA_OPT):
-                if not self.in_variadic_macro_definition:
-                    diag = DID.invalid_variadic_identifier_use
-        return ident, diag
 
     def maybe_identifier(self, spelling):
         '''Returns an IdentifierInfo is spelling is the spelling of a valid identifier, otherwise
