@@ -102,7 +102,7 @@ class Preprocessor:
         # These can be modified by language options
         self.alt_tokens = Preprocessor.ALT_TOKENS
         self.encoding_prefixes = Preprocessor.ENCODING_PREFIXES
-        self.diagnostic_engine = DiagnosticEngine(self, env)
+        self.diagnostic_consumers = []
         # Literal interpreter for a front end
         self.literal_interpreter = LiteralInterpreter(self, False)
         # A preprocessing expression parser
@@ -146,12 +146,13 @@ class Preprocessor:
         return self.literal_interpreter.interpret(token)
 
     def add_diagnostic_consumer(self, consumer):
-        self.diagnostic_engine.add_diagnostic_consumer(consumer)
+        self.diagnostic_consumers.append(consumer)
 
     def diag(self, did, loc, args=None):
-        diag = Diagnostic(did, loc, args)
-        self.diags.append(diag)
-        self.diagnostic_engine.emit(diag)
+        diagnostic = Diagnostic(did, loc, args)
+        self.diags.append(diagnostic)
+        for consumer in self.diagnostic_consumers:
+            consumer.emit(diagnostic)
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)

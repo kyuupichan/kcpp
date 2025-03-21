@@ -5,6 +5,7 @@
 '''The diagnostic subsystem.'''
 
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ..cpp import BufferCoords, BufferPosition
@@ -188,7 +189,18 @@ class Diagnostic:
         return context, nested_diagnostics
 
 
-class DiagnosticEngine:
+class DiagnosticConsumer(ABC):
+    '''This interface is passed diagnostics emitted by the preprocessor.  It can do what it
+    wants with them - simply capture them for later analysis or emission, or pretty-print
+    them to stderr.
+    '''
+    @abstractmethod
+    def emit(self, diagnostic: Diagnostic):
+        '''Emit a diagnostic.'''
+        pass
+
+
+class DiagnosticEngine(DiagnosticConsumer):
 
     formatting_code = re.compile('%(([a-z]+)({.+})?)?([0-9]?)')
     severity_map = {
@@ -205,7 +217,6 @@ class DiagnosticEngine:
         self.translations = translations or DiagnosticTranslations({})
         self.worded_locations = True
         self.show_columns = False
-        self.diagnostic_consumers = []
         self.error_count = 0
         self.fatal_count = 0
 
@@ -213,18 +224,6 @@ class DiagnosticEngine:
     def add_arguments(cls, group):
         '''Add command line arugments to the group.'''
         pass
-
-    def add_diagnostic_consumer(self, consumer):
-        self.diagnostic_consumers.append(consumer)
-
-    def emit(self, diagnostics):
-        '''Emit one or more diagnostics.  diagnostics is a single Diagnostic or a list of them.'''
-        if not isinstance(diagnostics, list):
-            diagnostics = [diagnostics]
-        for diagnostic in diagnostics:
-            elaborated_diagnostic = self.elaborate(diagnostic)
-            for consumer in self.diagnostic_consumers:
-                consumer.emit(elaborated_diagnostic)
 
     def emit_error_count(self):
         if self.error_count:
@@ -377,14 +376,3 @@ class DiagnosticTranslations:
 
     def diagnostic_text(self, did):
         return self.texts.get(did, diagnostic_definitions[did].text)
-
-
-class DiagnosticConsumer:
-    '''This interface determines what happens when a diagnostic is emitted by the preprocessor
-    / front-end.  For example, UnicodeTerminal writes text to stderr.
-    '''
-    def __init__(self):
-        pass
-
-    def emit(self, elab_diagnostic):
-        pass

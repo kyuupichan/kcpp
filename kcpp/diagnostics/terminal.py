@@ -16,13 +16,13 @@ from ..cpp import Buffer, BufferCoords
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )
-from .diagnostic import DiagnosticConsumer
+from .diagnostic import Diagnostic, DiagnosticEngine
 
 
 __all__ = ['UnicodeTerminal']
 
 
-class UnicodeTerminal(DiagnosticConsumer):
+class UnicodeTerminal(DiagnosticEngine):
     '''Write formatted diagnostics to stderr, in a way that they should be suitable for
     display on a Unicode-enabled terminal.
     '''
@@ -32,9 +32,10 @@ class UnicodeTerminal(DiagnosticConsumer):
         'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
     )
 
-    def __init__(self, env, *, file=sys.stderr):
+    def __init__(self, pp, env, *, translations=None, file=sys.stderr):
         '''Diagnostics are written to file, with colour formatting information if
         colours is True.  Sourcefile tabs are space-expanded to the given tabstop.'''
+        super().__init__(pp, env, translations=translations)
         self.file = file
         self.nested_indent = 4
         self.terminal_width = 120
@@ -81,9 +82,11 @@ class UnicodeTerminal(DiagnosticConsumer):
             return f'\x1b[{code}m{text}\x1b[0;39m'
         return text
 
-    def emit(self, elaborated_diagnostic):
-        '''Emit a diagnostic.'''
-        self.emit_recursive(elaborated_diagnostic, 0)
+    def emit(self, diagnostic: Diagnostic):
+        '''Called when the preprocessor emits a diagnostic.'''
+        # Elaborate it, and emit it recursively.
+        assert isinstance(diagnostic, Diagnostic)
+        self.emit_recursive(self.elaborate(diagnostic), 0)
 
     def emit_recursive(self, elaborated_diagnostic, indent):
         '''Emit the top-level diagnostic at the given indentation level.  Then emit nested

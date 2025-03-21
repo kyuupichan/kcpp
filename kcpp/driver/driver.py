@@ -39,7 +39,6 @@ class Driver:
 
     def run(self, argv=None, environ=None):
         env = self.environment(argv, environ)
-        terminal = UnicodeTerminal(env)
 
         if env.command_line.fe:
             processor = FrontEnd()
@@ -48,12 +47,11 @@ class Driver:
 
         for filename in env.command_line.files:
             pp = Preprocessor(env)
+            terminal = UnicodeTerminal(pp, env)
             pp.add_diagnostic_consumer(terminal)
-            pp.diagnostic_engine.emit(env.diagnostics)
-            if pp.diagnostic_engine.error_count == 0:
-                pp.push_source_file(filename)
-                processor.run(pp)
-            pp.diagnostic_engine.emit_error_count()
+            pp.push_source_file(filename)
+            processor.run(pp)
+            terminal.emit_error_count()
 
 
 def main_cli():
