@@ -16,6 +16,7 @@ from .definitions import (
 
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine', 'DiagnosticContext',
+    'DiagnosticListener',
     'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
     'location_command_line', 'location_none', 'location_in_args',
 ]
@@ -198,6 +199,16 @@ class DiagnosticConsumer(ABC):
     def emit(self, diagnostic: Diagnostic):
         '''Emit a diagnostic.'''
         pass
+
+
+class DiagnosticListener(DiagnosticConsumer):
+    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
+
+    def __init__(self):
+        self.diagnostics = []
+
+    def emit(self, diagnostic):
+        self.diagnostics.append(diagnostic)
 
 
 class DiagnosticEngine(DiagnosticConsumer):
