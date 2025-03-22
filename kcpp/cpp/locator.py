@@ -10,11 +10,40 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..diagnostics import BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID
-from .basic import Buffer
+from ..diagnostics import (
+    BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
+    RangeCoords,
+)
+from .basic import Buffer, Token, BufferCoords
+from .lexer import Lexer
 
 
 __all__ = ['Locator']
+
+
+@dataclass(slots=True)
+class ElaboratedLocation:
+    '''Detailed informatino about location within a buffer.'''
+    # The original location
+    loc: int
+    # The location as coordinates.  None for diagnostics with special locations
+    # (location_command_line, location_none).
+    coords: BufferCoords
+
+
+@dataclass(slots=True)
+class ElaboratedRange:
+    '''A source range where both start and end are instances of ElaboratedLocation.
+    Diagnostics issued by the preprocessor will always have start and end in the same
+    buffer (ignoring the issue of scratch buffers used during macro expansion.  However
+    diagnostics issued by a front end can have their start and end in different buffers
+    owing to #include, so we must not assume start and end lie in the same buffer.
+    '''
+    start: ElaboratedLocation
+    end: ElaboratedLocation
+
+    def to_range_coords(self):
+        return RangeCoords(self.start.coords, self.end.coords)
 
 
 class RangeKind(IntEnum):
@@ -200,7 +229,7 @@ class Locator:
             end_contexts = self.macro_context_stack(token_range.end)
         return [start_contexts, end_contexts]
 
-    def diagnostic_contexts(self, pp, orig_context):
+    def diagnostic_contexts_core(self, pp, orig_context):
         def requires_a_context_stack(source_range):
             if isinstance(source_range, BufferRange):
                 # A BufferRange can be into a standard or scratch buffer.  We
@@ -273,4 +302,66 @@ class Locator:
                                       for source_range in orig_context.source_ranges]
         contexts.append(orig_context)
         contexts.reverse()
+        return contexts
+
+    def elaborated_location(self, loc):
+        '''Convert a location to a (line_offset, line number, column) tuple.
+        The offset can range up to and including the buffer size.
+        '''
+        if loc <= location_none:
+            return ElaboratedLocation(loc, None)
+        return ElaboratedLocation(loc, self.loc_to_buffer_coords(loc))
+
+    def elaborated_range(self, pp, source_range):
+        if isinstance(source_range, SpellingRange):
+            # Convert the SpellingRange to a BufferRange
+            assert source_range.start < source_range.end
+            token_loc = source_range.token_loc
+            buffer, offset = self.loc_to_buffer_and_offset(token_loc)
+            lexer = Lexer(pp, buffer.text, token_loc - offset)
+            token = Token.create()
+            lexer.cursor = offset
+            prior = pp.set_diagnostic_consumer(None)
+            lexer.get_token(token)
+            offsets = [source_range.start, source_range.end]
+            lexer.utf8_spelling(offset, lexer.cursor, offsets)
+            pp.set_diagnostic_consumer(prior)
+            source_range = BufferRange(offsets[0], offsets[1])
+
+        if isinstance(source_range, BufferRange):
+            start = self.elaborated_location(source_range.start)
+            end = self.elaborated_location(source_range.end)
+            assert start.coords.buffer is end.coords.buffer
+        elif isinstance(source_range, TokenRange):
+            start = self.elaborated_location(source_range.start)
+            if source_range.start == source_range.end:
+                end = start
+            else:
+                end = self.elaborated_location(source_range.end)
+            if source_range.start > location_none:
+                token_end = source_range.end + pp.token_length(end.loc)
+                end = self.elaborated_location(token_end)
+        else:
+            raise RuntimeError(f'unhandled source range {source_range}')
+
+        return ElaboratedRange(start, end)
+
+    def diagnostic_contexts(self, pp, context):
+        '''Expand the diagnostic context stack for the given diagnostic context.'''
+        # Apart from the caret range, all ranges must be TokenRange instances
+        assert all(isinstance(source_range, TokenRange)
+                   for source_range in context.source_ranges)
+
+        # Special ranges don't have source text, and only a single location code
+        if context.caret_range.start <= location_none:
+            assert not context.source_ranges
+            contexts = [context]
+        else:
+            contexts = self.diagnostic_contexts_core(pp, context)
+
+        for context in contexts:
+            context.caret_range = self.elaborated_range(pp, context.caret_range)
+            context.source_ranges = [self.elaborated_range(pp, source_range)
+                                     for source_range in context.source_ranges]
+
         return contexts

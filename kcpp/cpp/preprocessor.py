@@ -9,10 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
 
-from ..diagnostics import (
-    DID, ElaboratedLocation, ElaboratedRange, BufferRange, SpellingRange, TokenRange, Diagnostic,
-    DiagnosticEngine, location_none,
-)
+from ..diagnostics import DID, Diagnostic, DiagnosticEngine
 
 from .basic import (
     Buffer, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
@@ -703,65 +700,3 @@ class Preprocessor:
         is_defined, is_macro_name = self.is_defined(token)
         self.skip_to_eod(token, is_macro_name)
         return not is_defined if negate else bool(is_defined)
-
-    def elaborated_location(self, loc):
-        '''Convert a location to a (line_offset, line number, column) tuple.
-        The offset can range up to and including the buffer size.
-        '''
-        if loc <= location_none:
-            return ElaboratedLocation(loc, None)
-        return ElaboratedLocation(loc, self.locator.loc_to_buffer_coords(loc))
-
-    def elaborated_range(self, source_range):
-        if isinstance(source_range, SpellingRange):
-            # Convert the SpellingRange to a BufferRange
-            assert source_range.start < source_range.end
-            token_loc = source_range.token_loc
-            buffer, offset = self.locator.loc_to_buffer_and_offset(token_loc)
-            lexer = Lexer(self, buffer.text, token_loc - offset)
-            token = Token.create()
-            lexer.cursor = offset
-            prior = self.set_diagnostic_consumer(None)
-            lexer.get_token(token)
-            offsets = [source_range.start, source_range.end]
-            lexer.utf8_spelling(offset, lexer.cursor, offsets)
-            self.set_diagnostic_consumer(prior)
-            source_range = BufferRange(offsets[0], offsets[1])
-
-        if isinstance(source_range, BufferRange):
-            start = self.elaborated_location(source_range.start)
-            end = self.elaborated_location(source_range.end)
-            assert start.coords.buffer is end.coords.buffer
-        elif isinstance(source_range, TokenRange):
-            start = self.elaborated_location(source_range.start)
-            if source_range.start == source_range.end:
-                end = start
-            else:
-                end = self.elaborated_location(source_range.end)
-            if source_range.start > location_none:
-                token_end = source_range.end + self.token_length(end.loc)
-                end = self.elaborated_location(token_end)
-        else:
-            raise RuntimeError(f'unhandled source range {source_range}')
-
-        return ElaboratedRange(start, end)
-
-    def diagnostic_contexts(self, context):
-        '''Expand the diagnostic context stack for the given diagnostic context.'''
-        # Apart from the caret range, all ranges must be TokenRange instances
-        assert all(isinstance(source_range, TokenRange)
-                   for source_range in context.source_ranges)
-
-        # Special ranges don't have source text, and only a single location code
-        if context.caret_range.start <= location_none:
-            assert not context.source_ranges
-            contexts = [context]
-        else:
-            contexts = self.locator.diagnostic_contexts(self, context)
-
-        for context in contexts:
-            context.caret_range = self.elaborated_range(context.caret_range)
-            context.source_ranges = [self.elaborated_range(source_range)
-                                     for source_range in context.source_ranges]
-
-        return contexts

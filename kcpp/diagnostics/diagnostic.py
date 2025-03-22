@@ -16,7 +16,7 @@ from .definitions import (
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine', 'DiagnosticContext',
     'DiagnosticListener',
-    'BufferRange', 'SpellingRange', 'TokenRange', 'ElaboratedLocation', 'ElaboratedRange',
+    'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords',
     'location_command_line', 'location_none', 'location_in_args',
 ]
 
@@ -30,16 +30,6 @@ __all__ = [
 location_none = -1
 location_command_line = -2
 location_in_args = -3
-
-
-@dataclass(slots=True)
-class ElaboratedLocation:
-    '''Detailed informatino about location within a buffer.'''
-    # The original location
-    loc: int
-    # The location as coordinates.  None for diagnostics with special locations
-    # (location_command_line, location_none).
-    coords: BufferCoords
 
 
 @dataclass(slots=True)
@@ -67,21 +57,6 @@ class SpellingRange:
     # Offsets into spelling.  End is not included in the range.
     start: int
     end: int
-
-
-@dataclass(slots=True)
-class ElaboratedRange:
-    '''A source range where both start and end are instances of ElaboratedLocation.
-    Diagnostics issued by the preprocessor will always have start and end in the same
-    buffer (ignoring the issue of scratch buffers used during macro expansion.  However
-    diagnostics issued by a front end can have their start and end in different buffers
-    owing to #include, so we must not assume start and end lie in the same buffer.
-    '''
-    start: ElaboratedLocation
-    end: ElaboratedLocation
-
-    def to_range_coords(self):
-        return RangeCoords(self.start.coords, self.end.coords)
 
 
 @dataclass(slots=True)
@@ -283,9 +258,10 @@ class DiagnosticEngine(DiagnosticConsumer):
 
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
+        locator = self.pp.locator
         diagnostic_context, nested_diagnostics = diagnostic.decompose()
         message_contexts = [self.message_context(dc) for
-                            dc in self.pp.diagnostic_contexts(diagnostic_context)]
+                            dc in locator.diagnostic_contexts(self.pp, diagnostic_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
         return ElaboratedDiagnostic(diagnostic_context.did, message_contexts, nested_diagnostics)
 
