@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 from ..diagnostics import DID
-from .basic import Token, TokenSource, TokenKind
+from .basic import Token, TokenSource, TokenKind, TokenFlags
 from .lexer import Lexer
 
 __all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion']
@@ -131,6 +131,8 @@ class ObjectLikeExpansion(TokenSource):
         dfilter = DiagnosticFilter()
         dfilter.prior = self.pp.set_diagnostic_consumer(dfilter)
         lexer.get_token(token)
+        # Remove the fake BOL flag
+        token.flags &= ~TokenFlags.BOL
         self.pp.set_diagnostic_consumer(dfilter.prior)
 
         if token.kind == TokenKind.EOF or lexer.cursor != len(spelling):

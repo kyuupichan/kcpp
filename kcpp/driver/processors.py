@@ -57,15 +57,15 @@ class PreprocessedOutput(ProcessorBase):
 
         line_number = 1
         count = 0
+        locator = pp.locator
         while True:
             pp.get_token(token)
-            print(token.to_text())
             if token.kind == TokenKind.EOF:
                 break
             count += 1
             if token.flags & TokenFlags.BOL:
                 # FIXME: this isn't right any more
-                coords = pp.elaborated_location(token.loc).coords
+                coords = locator.elaborated_location(token.loc).coords
                 if coords.line_number != line_number:
                     write(b'\n' * (coords.line_number - line_number))
                     line_number = coords.line_number

@@ -71,7 +71,8 @@ class Token:
         self.extra = src.extra
 
     def copy_spacing_flags_from(self, flags):
-        mask = TokenFlags.WS | TokenFlags.BOL
+        # Don't copy BOL for now - otherwise we can treat an initial # as a directive
+        mask = TokenFlags.WS
         self.flags &= ~mask
         self.flags |= flags & mask
 
