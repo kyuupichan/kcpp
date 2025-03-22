@@ -201,15 +201,6 @@ class Locator:
         return loc_range.owner, loc - loc_range.start
 
     def diagnostic_contexts_core(self, orig_context):
-        def caret_range_token_loc(source_range):
-            if isinstance(source_range, BufferRange):
-                # A BufferRange can be into a standard or scratch buffer.
-                return source_range.start
-            if isinstance(source_range, TokenRange):
-                assert source_range.start == source_range.end
-                return source_range.start
-            return source_range.token_loc   # SpellingRange
-
         def to_standard_buffer_loc(loc):
             while True:
                 loc_range = self.lookup_range(loc)
@@ -271,6 +262,15 @@ class Locator:
             return caret_range, source_ranges
 
         def caret_range_contexts(orig_context):
+            def caret_range_token_loc(source_range):
+                if isinstance(source_range, BufferRange):
+                    # A BufferRange can be into a standard or scratch buffer.
+                    return source_range.start
+                if isinstance(source_range, TokenRange):
+                    assert source_range.start == source_range.end
+                    return source_range.start
+                return source_range.token_loc   # SpellingRange
+
             caret_token_loc = caret_range_token_loc(orig_context.caret_range)
             result = macro_context_stack(caret_token_loc)
             if result:
