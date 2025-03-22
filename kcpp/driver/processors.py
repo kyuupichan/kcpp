@@ -34,7 +34,7 @@ class ProcessorBase(ABC):
 
         # Get a diagnostic consumer
         consumer = self.diagnostic_consumer(pp, env)
-        pp.add_diagnostic_consumer(consumer)
+        pp.set_diagnostic_consumer(consumer)
 
         # Emit diagnostics from processing the command line
         for diagnostic in env.diagnostics:

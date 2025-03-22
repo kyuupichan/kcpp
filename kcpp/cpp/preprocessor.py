@@ -65,7 +65,7 @@ class Preprocessor:
         self.directive_name_loc = None
         self.in_filename = False
         self.in_variadic_macro_definition = False
-        self.diagnostic_consumers = []
+        self.diagnostic_consumer = None
         # Literal interpreter for a front end
         self.literal_interpreter = LiteralInterpreter(self, False)
         # A preprocessing expression parser
@@ -140,15 +140,18 @@ class Preprocessor:
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
 
-    def add_diagnostic_consumer(self, consumer):
-        self.diagnostic_consumers.append(consumer)
+    def set_diagnostic_consumer(self, consumer):
+        '''Set the consumer, return the previous one.'''
+        result = self.diagnostic_consumer
+        self.diagnostic_consumer = consumer
+        return result
 
     def diag(self, did, loc, args=None):
         self.emit(Diagnostic(did, loc, args))
 
     def emit(self, diagnostic):
-        for consumer in self.diagnostic_consumers:
-            consumer.emit(diagnostic)
+        if self.diagnostic_consumer:
+            self.diagnostic_consumer.emit(diagnostic)
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)
@@ -161,9 +164,11 @@ class Preprocessor:
         '''Returns an IdentifierInfo is spelling is the spelling of a valid identifier, otherwise
         None.
         '''
-        lexer = Lexer(self, spelling, 1, quiet=True)
+        lexer = Lexer(self, spelling, 1)
         token = Token.create()
+        prior = self.set_diagnostic_consumer(None)
         lexer.get_token(token)
+        self.set_diagnostic_consumer(prior)
         # It must be an identifier and have consumed the entire spelling.
         if token.kind == TokenKind.IDENTIFIER and lexer.cursor == len(spelling):
             return token.extra
@@ -171,18 +176,23 @@ class Preprocessor:
 
     def token_spelling(self, loc):
         buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(self, buffer.text, loc - offset, quiet=True)
-        return lexer.token_spelling(offset)
+        lexer = Lexer(self, buffer.text, loc - offset)
+        prior = self.set_diagnostic_consumer(None)
+        spelling = lexer.token_spelling(offset)
+        self.set_diagnostic_consumer(prior)
+        return spelling
 
     def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
         newlines.  The result can be 0, for end-of-source indicator EOF.
         '''
         buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(self, buffer.text, loc - offset, quiet=True)
+        lexer = Lexer(self, buffer.text, loc - offset)
         token = Token.create()
         lexer.cursor = offset
+        prior = self.set_diagnostic_consumer(None)
         lexer.get_token(token)
+        self.set_diagnostic_consumer(prior)
         return lexer.cursor - offset
 
     def directive_names(self):
@@ -708,12 +718,14 @@ class Preprocessor:
             assert source_range.start < source_range.end
             token_loc = source_range.token_loc
             buffer, offset = self.locator.loc_to_buffer_and_offset(token_loc)
-            lexer = Lexer(self, buffer.text, token_loc - offset, quiet=True)
+            lexer = Lexer(self, buffer.text, token_loc - offset)
             token = Token.create()
             lexer.cursor = offset
+            prior = self.set_diagnostic_consumer(None)
             lexer.get_token(token)
             offsets = [source_range.start, source_range.end]
             lexer.utf8_spelling(offset, lexer.cursor, offsets)
+            self.set_diagnostic_consumer(prior)
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):
