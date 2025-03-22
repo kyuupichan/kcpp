@@ -128,7 +128,8 @@ class Locator:
     FIRST_BUFFER_LOC = 1
     FIRST_MACRO_LOC = 1 << 40
 
-    def __init__(self):
+    def __init__(self, pp):
+        self.pp = pp
         self.buffer_ranges = []
         self.macro_ranges = []
         self.scratch_buffer_range = None
@@ -229,7 +230,7 @@ class Locator:
             end_contexts = self.macro_context_stack(token_range.end)
         return [start_contexts, end_contexts]
 
-    def diagnostic_contexts_core(self, pp, orig_context):
+    def diagnostic_contexts_core(self, orig_context):
         def requires_a_context_stack(source_range):
             if isinstance(source_range, BufferRange):
                 # A BufferRange can be into a standard or scratch buffer.  We
@@ -304,17 +305,17 @@ class Locator:
         contexts.reverse()
         return contexts
 
-    def token_length(self, pp, loc):
+    def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
         newlines.  The result can be 0, for end-of-source indicator EOF.
         '''
         buffer, offset = self.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(pp, buffer.text, loc - offset)
+        lexer = Lexer(self.pp, buffer.text, loc - offset)
         token = Token.create()
         lexer.cursor = offset
-        prior = pp.set_diagnostic_consumer(None)
+        prior = self.pp.set_diagnostic_consumer(None)
         lexer.get_token(token)
-        pp.set_diagnostic_consumer(prior)
+        self.pp.set_diagnostic_consumer(prior)
         return lexer.cursor - offset
 
     def elaborated_location(self, loc):
@@ -325,20 +326,20 @@ class Locator:
             return ElaboratedLocation(loc, None)
         return ElaboratedLocation(loc, self.loc_to_buffer_coords(loc))
 
-    def elaborated_range(self, pp, source_range):
+    def elaborated_range(self, source_range):
         if isinstance(source_range, SpellingRange):
             # Convert the SpellingRange to a BufferRange
             assert source_range.start < source_range.end
             token_loc = source_range.token_loc
             buffer, offset = self.loc_to_buffer_and_offset(token_loc)
-            lexer = Lexer(pp, buffer.text, token_loc - offset)
+            lexer = Lexer(self.pp, buffer.text, token_loc - offset)
             token = Token.create()
             lexer.cursor = offset
-            prior = pp.set_diagnostic_consumer(None)
+            prior = self.pp.set_diagnostic_consumer(None)
             lexer.get_token(token)
             offsets = [source_range.start, source_range.end]
             lexer.utf8_spelling(offset, lexer.cursor, offsets)
-            pp.set_diagnostic_consumer(prior)
+            self.pp.set_diagnostic_consumer(prior)
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):
@@ -352,14 +353,14 @@ class Locator:
             else:
                 end = self.elaborated_location(source_range.end)
             if source_range.start > location_none:
-                token_end = source_range.end + self.token_length(pp, end.loc)
+                token_end = source_range.end + self.token_length(end.loc)
                 end = self.elaborated_location(token_end)
         else:
             raise RuntimeError(f'unhandled source range {source_range}')
 
         return ElaboratedRange(start, end)
 
-    def diagnostic_contexts(self, pp, context):
+    def diagnostic_contexts(self, context):
         '''Expand the diagnostic context stack for the given diagnostic context.'''
         # Apart from the caret range, all ranges must be TokenRange instances
         assert all(isinstance(source_range, TokenRange)
@@ -370,11 +371,11 @@ class Locator:
             assert not context.source_ranges
             contexts = [context]
         else:
-            contexts = self.diagnostic_contexts_core(pp, context)
+            contexts = self.diagnostic_contexts_core(context)
 
         for context in contexts:
-            context.caret_range = self.elaborated_range(pp, context.caret_range)
-            context.source_ranges = [self.elaborated_range(pp, source_range)
+            context.caret_range = self.elaborated_range(context.caret_range)
+            context.source_ranges = [self.elaborated_range(source_range)
                                      for source_range in context.source_ranges]
 
         return contexts

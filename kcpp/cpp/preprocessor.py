@@ -53,7 +53,7 @@ class Preprocessor:
 
         # Internal state.
         self.identifiers = {}
-        self.locator = Locator()
+        self.locator = Locator(self)
         self.expand_macros = True
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}

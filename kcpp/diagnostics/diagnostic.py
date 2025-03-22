@@ -258,10 +258,9 @@ class DiagnosticEngine(DiagnosticConsumer):
 
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
-        locator = self.pp.locator
         diagnostic_context, nested_diagnostics = diagnostic.decompose()
         message_contexts = [self.message_context(dc) for
-                            dc in locator.diagnostic_contexts(self.pp, diagnostic_context)]
+                            dc in self.pp.locator.diagnostic_contexts(diagnostic_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
         return ElaboratedDiagnostic(diagnostic_context.did, message_contexts, nested_diagnostics)
 
