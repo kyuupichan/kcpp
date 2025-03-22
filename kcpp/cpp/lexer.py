@@ -933,7 +933,7 @@ class Lexer(TokenSource):
         Otherwise slowly via self.utf8_spelling().
         '''
         if self.clean:
-            return self.buff[start: end]
+            return bytes(self.buff[start: end])
         return self.utf8_spelling(start, end)
 
     def utf8_spelling(self, start, end, offsets=None):

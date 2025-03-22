@@ -113,9 +113,11 @@ class Locator:
             assert loc != -1
         return loc
 
-    def concatenated_token_loc(self, spelling, parent_loc):
-        owner = TokenConcatenation(self.alloc_in_scratch(spelling))
-        return self.new_macro_range(parent_loc, 1, owner)
+    def concatenated_token(self, spelling, parent_loc):
+        '''Return a (scratch_loc, concatenated_token_loc) pair.'''
+        scratch_loc = self.alloc_in_scratch(spelling)
+        owner = TokenConcatenation(scratch_loc)
+        return scratch_loc, self.new_macro_range(parent_loc, 1, owner)
 
     def lookup_range(self, loc):
         if loc >= self.FIRST_MACRO_LOC:

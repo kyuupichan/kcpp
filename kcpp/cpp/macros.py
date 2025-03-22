@@ -123,32 +123,39 @@ class ObjectLikeExpansion(TokenSource):
         rhs_spelling = self.pp.token_spelling(rhs.loc)
         spelling = lhs_spelling + rhs_spelling
 
-        lexer = Lexer(self.pp, spelling, 0)
+        # Create locations for the new token
+        scratch_loc, new_token_loc = self.pp.locator.concatenated_token(spelling, concat_loc)
+        lexer = Lexer(self.pp, spelling, scratch_loc)
+
         token = Token.create()
-        dfilter = DiagnosticFilter()
+        dfilter = DiagnosticFilter(scratch_loc, new_token_loc)
         dfilter.prior = self.pp.set_diagnostic_consumer(dfilter)
         lexer.get_token(token)
         self.pp.set_diagnostic_consumer(dfilter.prior)
+
         if token.kind == TokenKind.EOF or lexer.cursor != len(spelling):
             self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
             return False
-
-        # Preserve the spacing flags
+        # Preserve the spacing flags and copy the token with its new macro location
         token.copy_spacing_flags_from(lhs.flags)
-        # Copy the token and create a location for it
-        lhs.set_to(token, self.pp.locator.concatenated_token_loc(spelling, concat_loc))
+        lhs.set_to(token, new_token_loc)
         return True
 
 
 class DiagnosticFilter:
     '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
 
-    def __init__(self):
+    def __init__(self, scratch_loc, new_token_loc):
         self.prior = None
+        self.scratch_loc = scratch_loc
+        self.new_token_loc = new_token_loc
 
     def emit(self, diagnostic):
         # These are diagnosed as invalid concatenations
         if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens):
             pass
         else:
+            # Rewrite its location
+            if diagnostic.loc == self.scratch_loc:
+                diagnostic.loc = self.new_token_loc
             self.prior.emit(diagnostic)
