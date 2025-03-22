@@ -200,10 +200,6 @@ class Locator:
         assert loc_range.kind != RangeKind.macro
         return loc_range.owner, loc - loc_range.start
 
-    def loc_to_buffer_coords(self, loc):
-        buffer, offset = self.loc_to_buffer_and_offset(loc)
-        return buffer.offset_to_coords(offset)
-
     def to_standard_buffer_loc(self, loc):
         while True:
             loc_range = self.lookup_range(loc)
@@ -326,12 +322,12 @@ class Locator:
         return lexer.cursor - offset
 
     def elaborated_location(self, loc):
-        '''Convert a location to a (line_offset, line number, column) tuple.
-        The offset can range up to and including the buffer size.
-        '''
+        '''Convert a location to an ElaboratedLocation.'''
         if loc <= location_none:
             return ElaboratedLocation(loc, None)
-        return ElaboratedLocation(loc, self.loc_to_buffer_coords(loc))
+        buffer, offset = self.loc_to_buffer_and_offset(loc)
+        coords = buffer.offset_to_coords(offset)
+        return ElaboratedLocation(loc, coords)
 
     def elaborated_range(self, source_range):
         if isinstance(source_range, SpellingRange):
