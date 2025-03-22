@@ -231,17 +231,14 @@ class Locator:
         return [start_contexts, end_contexts]
 
     def diagnostic_contexts_core(self, orig_context):
-        def requires_a_context_stack(source_range):
+        def caret_range_token_loc(source_range):
             if isinstance(source_range, BufferRange):
-                # A BufferRange can be into a standard or scratch buffer.  We
-                token_loc = source_range.start
-            elif isinstance(source_range, TokenRange):
+                # A BufferRange can be into a standard or scratch buffer.
+                return source_range.start
+            if isinstance(source_range, TokenRange):
                 assert source_range.start == source_range.end
-                token_loc = source_range.start
-            else:
-                assert isinstance(source_range, SpellingRange)
-                token_loc = source_range.token_loc
-            return self.lookup_range(token_loc).kind != RangeKind.buffer
+                return source_range.start
+            return source_range.token_loc   # SpellingRange
 
         def standard_buffer_range(source_range):
             start = self.to_standard_buffer_loc(source_range.start)
@@ -277,10 +274,11 @@ class Locator:
                     source_ranges.append(token_range(start_loc, end_loc))
             return caret_range, source_ranges
 
-        caret_range = orig_context.caret_range
         contexts = []
-        if requires_a_context_stack(caret_range):
-            caret_contexts = self.macro_context_stack(caret_range.start)
+        caret_token_loc = caret_range_token_loc(orig_context.caret_range)
+        # Do we require a context stack?
+        if self.lookup_range(caret_token_loc).kind != RangeKind.buffer:
+            caret_contexts = self.macro_context_stack(caret_token_loc)
             highlight_contexts = [self.range_contexts(source_range)
                                   for source_range in orig_context.source_ranges]
 
@@ -296,7 +294,8 @@ class Locator:
                     context = DiagnosticContext(did, substitutions, caret_range, source_ranges)
                 contexts.append(context)
             # Lower the caret range
-            orig_context.caret_range = standard_buffer_range(orig_context.caret_range)
+            token_loc = self.to_standard_buffer_loc(caret_token_loc)
+            orig_context.caret_range = TokenRange(token_loc, token_loc)
 
         # Lower the source ranges in the original context and make it the final context
         orig_context.source_ranges = [standard_buffer_range(source_range)
