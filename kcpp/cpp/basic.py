@@ -22,7 +22,7 @@ from ..unicode import REPLACEMENT_CHAR
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
     'IdentifierInfo', 'SpecialKind', 'TargetMachine', 'Environment',
-    'Buffer', 'BufferPosition', 'BufferCoords', 'ScratchBuffer',
+    'Buffer', 'BufferPosition', 'BufferCoords',
 ]
 
 
@@ -537,25 +537,6 @@ class Buffer:
             end -= 1
 
         return memoryview(text[start:end])
-
-
-class ScratchBuffer(Buffer):
-
-    def __init__(self, size):
-        super().__init__(bytearray(), name='<scratch>')
-        self.size = size
-
-    def add_spelling(self, spelling):
-        start = len(self.text)
-        if start + len(spelling) + 1 < self.size:
-            # Add the spelling and a newline character (so it appears on its own line in
-            # diagnostics)
-            self.text.extend(spelling)
-            self.text.append(10)
-            # Clear the cached line offsets
-            self._sparse_line_offsets = None
-            return start
-        return -1
 
 
 class BufferPosition(IntEnum):
