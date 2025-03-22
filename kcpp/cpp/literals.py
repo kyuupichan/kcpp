@@ -646,13 +646,13 @@ class LiteralInterpreter:
 
         common_ud_suffix = None
         if ud_suffixes:
-            ctoken, common_ud_suffix = ud_suffixes[-1]
+            token, common_ud_suffix = ud_suffixes[-1]
             bad_tokens = [token for token, ud_suffix in ud_suffixes
                           if ud_suffix != common_ud_suffix]
             if bad_tokens:
                 diagnose_conflict(token, bad_tokens, 1)
                 is_erroneous = True
-            common_ud_suffix = UserDefinedSuffix(common_ud_suffix, spelling_range(ctoken, 1))
+            common_ud_suffix = UserDefinedSuffix(common_ud_suffix, spelling_range(token, 1))
 
         # Now loop through the tokens and encode them.
         elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(common_encoding, self)
