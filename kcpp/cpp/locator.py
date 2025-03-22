@@ -270,11 +270,18 @@ class Locator:
                     source_ranges.append(token_range(start_loc, end_loc))
             return caret_range, source_ranges
 
+        def caret_range_contexts(orig_context):
+            caret_token_loc = caret_range_token_loc(orig_context.caret_range)
+            result = macro_context_stack(caret_token_loc)
+            if result:
+                # Lower the caret range to a standard buffer
+                token_loc = to_standard_buffer_loc(caret_token_loc)
+                orig_context.caret_range = TokenRange(token_loc, token_loc)
+            return result
+
         contexts = []
-        caret_token_loc = caret_range_token_loc(orig_context.caret_range)
-        # Do we require a context stack?
-        if self.lookup_range(caret_token_loc).kind != RangeKind.buffer:
-            caret_contexts = macro_context_stack(caret_token_loc)
+        caret_contexts = caret_range_contexts(orig_context)
+        if caret_contexts:
             highlight_contexts = [range_contexts(source_range)
                                   for source_range in orig_context.source_ranges]
 
@@ -289,9 +296,6 @@ class Locator:
                     did, substitutions = caret_context.loc_range.owner.did_and_substitutions()
                     context = DiagnosticContext(did, substitutions, caret_range, source_ranges)
                 contexts.append(context)
-            # Lower the caret range
-            token_loc = to_standard_buffer_loc(caret_token_loc)
-            orig_context.caret_range = TokenRange(token_loc, token_loc)
 
         # Lower the source ranges in the original context and make it the final context
         orig_context.source_ranges = [standard_buffer_range(source_range)
