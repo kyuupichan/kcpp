@@ -204,16 +204,6 @@ class Locator:
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         return buffer.offset_to_coords(offset)
 
-    def macro_context_stack(self, loc):
-        contexts = []
-        while True:
-            loc_range = self.lookup_range(loc)
-            if loc_range.kind != RangeKind.buffer:
-                contexts.append(MacroContext(loc, loc_range))
-                loc = loc_range.parent_loc(loc)
-                continue
-            return contexts
-
     def to_standard_buffer_loc(self, loc):
         while True:
             loc_range = self.lookup_range(loc)
@@ -221,14 +211,6 @@ class Locator:
                 loc = loc_range.parent_loc(loc)
                 continue
             return loc
-
-    def range_contexts(self, token_range):
-        start_contexts = self.macro_context_stack(token_range.start)
-        if token_range.start == token_range.end:
-            end_contexts = start_contexts
-        else:
-            end_contexts = self.macro_context_stack(token_range.end)
-        return [start_contexts, end_contexts]
 
     def diagnostic_contexts_core(self, orig_context):
         def caret_range_token_loc(source_range):
@@ -244,6 +226,24 @@ class Locator:
             start = self.to_standard_buffer_loc(source_range.start)
             end = self.to_standard_buffer_loc(source_range.end)
             return TokenRange(start, end)
+
+        def macro_context_stack(loc):
+            contexts = []
+            while True:
+                loc_range = self.lookup_range(loc)
+                if loc_range.kind != RangeKind.buffer:
+                    contexts.append(MacroContext(loc, loc_range))
+                    loc = loc_range.parent_loc(loc)
+                    continue
+                return contexts
+
+        def range_contexts(token_range):
+            start_contexts = macro_context_stack(token_range.start)
+            if token_range.start == token_range.end:
+                end_contexts = start_contexts
+            else:
+                end_contexts = macro_context_stack(token_range.end)
+            return [start_contexts, end_contexts]
 
         def intersections(caret_context, highlight_contexts):
             def token_range(start, end):
@@ -278,8 +278,8 @@ class Locator:
         caret_token_loc = caret_range_token_loc(orig_context.caret_range)
         # Do we require a context stack?
         if self.lookup_range(caret_token_loc).kind != RangeKind.buffer:
-            caret_contexts = self.macro_context_stack(caret_token_loc)
-            highlight_contexts = [self.range_contexts(source_range)
+            caret_contexts = macro_context_stack(caret_token_loc)
+            highlight_contexts = [range_contexts(source_range)
                                   for source_range in orig_context.source_ranges]
 
             for caret_context in caret_contexts:
