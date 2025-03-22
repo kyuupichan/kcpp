@@ -305,6 +305,14 @@ class Locator:
         contexts.reverse()
         return contexts
 
+    def token_spelling(self, loc):
+        buffer, offset = self.loc_to_buffer_and_offset(loc)
+        lexer = Lexer(self.pp, buffer.text, loc - offset)
+        prior = self.pp.set_diagnostic_consumer(None)
+        spelling = lexer.token_spelling(offset)
+        self.pp.set_diagnostic_consumer(prior)
+        return spelling
+
     def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
         newlines.  The result can be 0, for end-of-source indicator EOF.

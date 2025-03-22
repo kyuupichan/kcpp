@@ -172,12 +172,7 @@ class Preprocessor:
         return None
 
     def token_spelling(self, loc):
-        buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(self, buffer.text, loc - offset)
-        prior = self.set_diagnostic_consumer(None)
-        spelling = lexer.token_spelling(offset)
-        self.set_diagnostic_consumer(prior)
-        return spelling
+        return self.locator.token_spelling(loc)
 
     def directive_names(self):
         return ('include define undef line error warning pragma if ifdef ifndef '
