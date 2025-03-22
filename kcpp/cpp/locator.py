@@ -304,6 +304,19 @@ class Locator:
         contexts.reverse()
         return contexts
 
+    def token_length(self, pp, loc):
+        '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
+        newlines.  The result can be 0, for end-of-source indicator EOF.
+        '''
+        buffer, offset = self.loc_to_buffer_and_offset(loc)
+        lexer = Lexer(pp, buffer.text, loc - offset)
+        token = Token.create()
+        lexer.cursor = offset
+        prior = pp.set_diagnostic_consumer(None)
+        lexer.get_token(token)
+        pp.set_diagnostic_consumer(prior)
+        return lexer.cursor - offset
+
     def elaborated_location(self, loc):
         '''Convert a location to a (line_offset, line number, column) tuple.
         The offset can range up to and including the buffer size.
@@ -339,7 +352,7 @@ class Locator:
             else:
                 end = self.elaborated_location(source_range.end)
             if source_range.start > location_none:
-                token_end = source_range.end + pp.token_length(end.loc)
+                token_end = source_range.end + self.token_length(pp, end.loc)
                 end = self.elaborated_location(token_end)
         else:
             raise RuntimeError(f'unhandled source range {source_range}')

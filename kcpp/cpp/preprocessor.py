@@ -179,19 +179,6 @@ class Preprocessor:
         self.set_diagnostic_consumer(prior)
         return spelling
 
-    def token_length(self, loc):
-        '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
-        newlines.  The result can be 0, for end-of-source indicator EOF.
-        '''
-        buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(self, buffer.text, loc - offset)
-        token = Token.create()
-        lexer.cursor = offset
-        prior = self.set_diagnostic_consumer(None)
-        lexer.get_token(token)
-        self.set_diagnostic_consumer(prior)
-        return lexer.cursor - offset
-
     def directive_names(self):
         return ('include define undef line error warning pragma if ifdef ifndef '
                 'elif elifdef elifndef else endif').split()
