@@ -200,14 +200,6 @@ class Locator:
         assert loc_range.kind != RangeKind.macro
         return loc_range.owner, loc - loc_range.start
 
-    def to_standard_buffer_loc(self, loc):
-        while True:
-            loc_range = self.lookup_range(loc)
-            if loc_range.kind != RangeKind.buffer:
-                loc = loc_range.parent_loc(loc)
-                continue
-            return loc
-
     def diagnostic_contexts_core(self, orig_context):
         def caret_range_token_loc(source_range):
             if isinstance(source_range, BufferRange):
@@ -218,9 +210,17 @@ class Locator:
                 return source_range.start
             return source_range.token_loc   # SpellingRange
 
+        def to_standard_buffer_loc(loc):
+            while True:
+                loc_range = self.lookup_range(loc)
+                if loc_range.kind != RangeKind.buffer:
+                    loc = loc_range.parent_loc(loc)
+                    continue
+                return loc
+
         def standard_buffer_range(source_range):
-            start = self.to_standard_buffer_loc(source_range.start)
-            end = self.to_standard_buffer_loc(source_range.end)
+            start = to_standard_buffer_loc(source_range.start)
+            end = to_standard_buffer_loc(source_range.end)
             return TokenRange(start, end)
 
         def macro_context_stack(loc):
@@ -290,7 +290,7 @@ class Locator:
                     context = DiagnosticContext(did, substitutions, caret_range, source_ranges)
                 contexts.append(context)
             # Lower the caret range
-            token_loc = self.to_standard_buffer_loc(caret_token_loc)
+            token_loc = to_standard_buffer_loc(caret_token_loc)
             orig_context.caret_range = TokenRange(token_loc, token_loc)
 
         # Lower the source ranges in the original context and make it the final context
