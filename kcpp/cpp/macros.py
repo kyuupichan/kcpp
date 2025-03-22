@@ -122,10 +122,13 @@ class ObjectLikeExpansion(TokenSource):
         lhs_spelling = self.pp.token_spelling(lhs.loc)
         rhs_spelling = self.pp.token_spelling(rhs.loc)
         spelling = lhs_spelling + rhs_spelling
-        # FIXME: should not be quiet
-        lexer = Lexer(self.pp, spelling, 0, quiet=True)
+
+        lexer = Lexer(self.pp, spelling, 0)
         token = Token.create()
+        dfilter = DiagnosticFilter()
+        dfilter.prior = self.pp.set_diagnostic_consumer(dfilter)
         lexer.get_token(token)
+        self.pp.set_diagnostic_consumer(dfilter.prior)
         if token.kind == TokenKind.EOF or lexer.cursor != len(spelling):
             self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
             return False
@@ -135,3 +138,17 @@ class ObjectLikeExpansion(TokenSource):
         # Copy the token and create a location for it
         lhs.set_to(token, self.pp.locator.concatenated_token_loc(spelling, concat_loc))
         return True
+
+
+class DiagnosticFilter:
+    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
+
+    def __init__(self):
+        self.prior = None
+
+    def emit(self, diagnostic):
+        # These are diagnosed as invalid concatenations
+        if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens):
+            pass
+        else:
+            self.prior.emit(diagnostic)
