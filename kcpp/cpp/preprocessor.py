@@ -13,7 +13,7 @@ from ..diagnostics import DID, Diagnostic, DiagnosticEngine
 
 from .basic import (
     Buffer, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
-    TargetMachine, IntegerKind, Charset,
+    TargetMachine, IntegerKind, Charset, BuiltInKind
 )
 from .expressions import ExprParser
 from .lexer import Lexer
@@ -133,6 +133,12 @@ class Preprocessor:
         }
         for spelling, encoding in encoding_prefixes.items():
             self.get_identifier(spelling).set_encoding(encoding)
+
+        # Built-in macros
+        self.get_identifier(b'__DATE__').set_built_in(BuiltInKind.DATE)
+        self.get_identifier(b'__TIME__').set_built_in(BuiltInKind.TIME)
+        self.get_identifier(b'__FILE__').set_built_in(BuiltInKind.FILE)
+        self.get_identifier(b'__LINE__').set_built_in(BuiltInKind.LINE)
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
