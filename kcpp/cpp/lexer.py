@@ -51,7 +51,6 @@ class Lexer(TokenSource):
         self.start_loc = start_loc
         self.cursor = 0
         self.clean = True
-        self.quiet = quiet
 
     def skip_bom(self):
         bom = '\ufeff'.encode()  # b'\xef\xbb\xbf'
@@ -108,8 +107,7 @@ class Lexer(TokenSource):
         Lexer.on_char = on_char
 
     def diag(self, did, loc, args=None):
-        if not self.quiet:
-            self.pp.diag(did, loc + self.start_loc, args)
+        self.pp.diag(did, loc + self.start_loc, args)
 
     def diag_range(self, did, start, end, args=None):
         '''Diagnose a range of characters.  start and end are byte offsets, and start must not be
@@ -117,10 +115,9 @@ class Lexer(TokenSource):
         the single character at that position is diagnosed.  If end is in the middle of a
         multi-byte character, the diagnosis extends to the end of that character.
         '''
-        if not self.quiet:
-            args = args or []
-            args.append(BufferRange(start + self.start_loc, end + self.start_loc))
-            self.pp.diag(did, location_in_args, args)
+        args = args or []
+        args.append(BufferRange(start + self.start_loc, end + self.start_loc))
+        self.pp.diag(did, location_in_args, args)
 
     def read_logical_byte(self, cursor):
         # Return the next byte skipping escaped newlines
@@ -575,7 +572,7 @@ class Lexer(TokenSource):
         # Handle UCNs
         if c == 92:  # '\\'
             # A backslash has been consumed.  A UCN starts / continues the identifier.
-            c, cursor = self.maybe_ucn(cursor, char_loc, is_ident_start)
+            c, cursor = self.maybe_ucn(cursor, char_loc, is_ident_start, False)
             if c == -1:
                 return False, c, char_loc
             self.clean = False
@@ -589,7 +586,7 @@ class Lexer(TokenSource):
             if c == -1:
                 c = REPLACEMENT_CHAR
             else:
-                self.validate_codepoint(c, is_ident_start, char_loc, cursor)
+                self.validate_codepoint(c, is_ident_start, char_loc, cursor, False)
 
         return True, c, cursor
 
@@ -863,7 +860,7 @@ class Lexer(TokenSource):
     # n-char-sequence:
     #    n-char
     #    n-char-sequence n-char
-    def named_character(self, cursor):
+    def named_character(self, cursor, quiet):
         '''Try to lex the portion of a named univeral character after the backslash-N prefix
         has been consumed.
 
@@ -889,14 +886,14 @@ class Lexer(TokenSource):
 
             if c == 125 and name:  # '}'
                 cp = name_to_cp(name)
-                if cp == -1 and not self.pp.skipping:
+                if cp == -1 and not self.pp.skipping and not quiet:
                     self.diag_range(DID.unrecognized_universal_character_name,
                                     name_loc, cursor - 1, [name])
                 return True, cp, cursor
 
         return False, -1, cursor
 
-    def maybe_ucn(self, cursor, escape_loc, is_ident_start):
+    def maybe_ucn(self, cursor, escape_loc, is_ident_start, quiet):
         '''On entry, a backslash has been consumed.  Return a triple (cp, cursor).
 
         If lexically the backslash does not form a UCN, then cp is -1.  If lexically it
@@ -910,7 +907,7 @@ class Lexer(TokenSource):
             cp, cursor = self.hex_ucn(cursor, c == 85)
             is_ucn = cp != -1
         elif c == 78:  # 'N'
-            is_ucn, cp, cursor = self.named_character(cursor)
+            is_ucn, cp, cursor = self.named_character(cursor, quiet)
         else:
             # It didn't begin anything resembling a UCN sequence
             return -1, saved_cursor
@@ -918,12 +915,12 @@ class Lexer(TokenSource):
         if is_ucn:
             # -1 is an unknown named character.
             if cp != -1:
-                cp = self.validate_codepoint(cp, is_ident_start, escape_loc, cursor)
+                cp = self.validate_codepoint(cp, is_ident_start, escape_loc, cursor, quiet)
             if cp == -1:
                 cp = REPLACEMENT_CHAR
         else:
             assert cp == -1
-            if not self.pp.skipping and is_ident_start:
+            if is_ident_start and not quiet and not self.pp.skipping:
                 self.diag_range(DID.incomplete_UCN_as_tokens, escape_loc, cursor)
 
         return cp, cursor
@@ -945,7 +942,8 @@ class Lexer(TokenSource):
     def utf8_spelling(self, start, end, offsets=None):
         '''Return the spelling of the logical characters from [start, end) as valid UTF-8 in a
         bytearray.  Escaped newlines will have been removed.  Invalid UTF-8 is replaced
-        with a replacement character.
+        with a replacement character.  This function must be quiet, i.e., it must not emit
+        diagnostics.
 
         If offsets is a list, then it is an increasing sequence of byte offsets into the
         spelling, which is replaced with the source location of those offsets.
@@ -953,8 +951,6 @@ class Lexer(TokenSource):
         assert 0 <= start < end <= len(self.buff)
 
         result = bytearray()
-        was_quiet = self.quiet
-        self.quiet = True
         buff = self.buff
         offsets = offsets or []
         n = 0
@@ -1012,7 +1008,7 @@ class Lexer(TokenSource):
 
             if cp < 0x80:
                 if cp == 92 and delim is None and rs_limit is None:
-                    cp, cursor = self.maybe_ucn(cursor, cursor - 1, count == 0)
+                    cp, cursor = self.maybe_ucn(cursor, cursor - 1, count == 0, True)
                     if cp == -1:
                         cp = 92
                 if cp < 0x80:
@@ -1037,14 +1033,13 @@ class Lexer(TokenSource):
 
         assert n == len(offsets)
 
-        self.quiet = was_quiet
         return bytes(result)
 
-    def validate_codepoint(self, cp, is_ident_start, start, end):
+    def validate_codepoint(self, cp, is_ident_start, start, end, quiet):
         assert cp != -1
         did = did_for_codepoint(cp, is_ident_start)
         if did:
-            if not self.pp.skipping:
+            if not quiet and not self.pp.skipping:
                 self.diag_range(did, start, end, [codepoint_to_hex(cp)])
             cp = REPLACEMENT_CHAR
         return cp

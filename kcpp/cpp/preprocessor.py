@@ -644,18 +644,16 @@ class Preprocessor:
 
     def diagnostic_directive(self, lexer, token, did):
         '''Handle #error and #warning.'''
-        lexer.quiet = True
         diag_loc = token.loc
         text = bytearray()
         while True:
-            lexer.get_token(token)
+            token = lexer.get_token_quietly()
             if token.kind == TokenKind.EOF:
                 break
             if token.flags & TokenFlags.WS and text:
                 text.append(32)
             text.extend(lexer.fast_utf8_spelling(token.loc - lexer.start_loc, lexer.cursor))
         self.diag(did, diag_loc, [bytes(text)])
-        lexer.quiet = False
 
     def evaluate_pp_expression(self, lexer, token):
         self.expand_macros = True
