@@ -316,10 +316,7 @@ class Locator:
     def token_spelling(self, loc):
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         lexer = Lexer(self.pp, buffer.text, loc - offset)
-        prior = self.pp.set_diagnostic_consumer(None)
-        spelling = lexer.token_spelling(offset)
-        self.pp.set_diagnostic_consumer(prior)
-        return spelling
+        return lexer.token_spelling(offset)
 
     def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
@@ -327,11 +324,8 @@ class Locator:
         '''
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         lexer = Lexer(self.pp, buffer.text, loc - offset)
-        token = Token.create()
         lexer.cursor = offset
-        prior = self.pp.set_diagnostic_consumer(None)
-        lexer.get_token(token)
-        self.pp.set_diagnostic_consumer(prior)
+        lexer.get_token_quietly()
         return lexer.cursor - offset
 
     def elaborated_location(self, loc):
@@ -349,13 +343,10 @@ class Locator:
             token_loc = source_range.token_loc
             buffer, offset = self.loc_to_buffer_and_offset(token_loc)
             lexer = Lexer(self.pp, buffer.text, token_loc - offset)
-            token = Token.create()
             lexer.cursor = offset
-            prior = self.pp.set_diagnostic_consumer(None)
-            lexer.get_token(token)
+            token = lexer.get_token_quietly()
             offsets = [source_range.start, source_range.end]
             lexer.utf8_spelling(offset, lexer.cursor, offsets)
-            self.pp.set_diagnostic_consumer(prior)
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):

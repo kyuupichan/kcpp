@@ -218,6 +218,13 @@ class Lexer(TokenSource):
         token.kind = kind
         self.cursor = cursor
 
+    def get_token_quietly(self):
+        prior = self.pp.set_diagnostic_consumer(None)
+        token = Token.create()
+        self.get_token(token)
+        self.pp.set_diagnostic_consumer(prior)
+        return token
+
     def on_ws(self, token, cursor):
         token.flags |= TokenFlags.WS
         return TokenKind.WS, cursor
@@ -923,8 +930,7 @@ class Lexer(TokenSource):
 
     def token_spelling(self, cursor):
         self.cursor = cursor
-        token = Token.create()
-        self.get_token(token)
+        self.get_token_quietly()
         return self.fast_utf8_spelling(cursor, self.cursor)
 
     def fast_utf8_spelling(self, start, end):
