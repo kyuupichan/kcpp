@@ -4,6 +4,7 @@
 #
 '''Macro expansion handling.'''
 
+from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum
 
@@ -11,7 +12,7 @@ from ..diagnostics import DID
 from .basic import Token, TokenSource, TokenKind, TokenFlags
 from .lexer import Lexer
 
-__all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion']
+__all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion']
 
 
 class MacroFlags(IntEnum):
@@ -25,6 +26,16 @@ class MacroFlags(IntEnum):
     def from_param_count(count):
         '''Return the flag bits to represent the given parameter count.'''
         return count << 8
+
+
+@dataclass(slots=True)
+class MacroArgument:
+    # A list.  The first entry is the list of tokens forming the first argument, the
+    # second entry is the list of tokens forming the second argument, etc.
+    tokens: list
+    # cache of expanded macro arguments, to save expanding arguments twice or more.
+    # Initially None (to distinguish from empty); filled on-demand.
+    expanded_tokens: object
 
 
 @dataclass(slots=True)
@@ -68,10 +79,83 @@ class Macro:
         '''Return the location of the nth token in our replacement list.'''
         return self.replacement_list[token_index].loc
 
+    def macro_name(self, pp):
+        '''Return the macro name (as UTF-8).'''
+        return pp.token_spelling_at_loc(self.name_loc)
 
-class ObjectLikeExpansion(TokenSource):
-    '''A token source that returns tokens from the replacement list of an object-like
-    macro.  Token concatenation via the ## operator is handled transparently.'''
+    def collect_arguments(self, pp, name_token):
+        paren_depth = 0
+        get_token = pp.get_token
+        token = Token.create()
+        arguments = []
+        tokens = []
+
+        param_count = self.param_count()
+        param_count_no_variadic = param_count - bool(self.is_variadic())
+
+        # Eat the opening parenthesis that was already peeked
+        get_token(token)
+        assert token.kind == TokenKind.PAREN_OPEN
+
+        # FIXME: handle newlines as whitespace
+        while True:
+            get_token(token)
+            if paren_depth == 0:
+                if token.kind == TokenKind.PAREN_CLOSE:
+                    # This forms another argument.
+                    arguments.append(MacroArgument(tokens, None))
+                    # Check we have enough
+                    if len(arguments) < param_count_no_variadic:
+                        pp.diag(DID.too_few_macro_arguments, token.loc, [self.macro_name(pp)])
+                        arguments = None
+                        break
+                    # Too many arguments have already been diagnosed at the comma that
+                    # implicitly creates a new argument.  However we have to cover the
+                    # no-comma case of a non-empty argument to a macro taking none.
+                    if param_count_no_variadic == 0:
+                        if self.is_variadic():
+                            # This is fine
+                            pass
+                        elif tokens:
+                            pp.diag(DID.too_many_macro_arguments, token.loc,
+                                    [self.macro_name(pp)])
+                            arguments = None
+                        else:
+                            arguments.pop()
+                    break
+                elif token.kind == TokenKind.COMMA:
+                    # Does this finish an argument?  If so, save it and move on to the
+                    # next one.
+                    if len(arguments) + 1 < self.param_count:
+                        arguments.append(MacroArgument(tokens, None))
+                        tokens = []
+                        continue
+                    # It is impossible to have too many arguments to a variadic macro; the
+                    # comma just becomes part of the current argument
+                    if not self.is_variadic():
+                        pp.diag(DID.too_many_macro_arguments, token.loc,
+                                [self.macro_name(pp)])
+                        arguments = None
+                        break
+
+            if token.kind == TokenKind.EOF:
+                pp.diag(DID.unterminated_argument_list, token.loc, [self.macro_name(pp)])
+                arguments = None
+                break
+
+            tokens.append(copy(token))
+            if token.kind == TokenKind.PAREN_OPEN:
+                paren_depth += 1
+            elif token.kind == TokenKind.PAREN_CLOSE:
+                paren_depth -= 1
+
+        return arguments
+
+
+class MacroExpansionBase(TokenSource):
+    '''A token source that returns tokens from the replacement list of a macro.  Token
+    concatenation via the ## operator is handled transparently.
+    '''
 
     def __init__(self, pp, macro, token):
         assert token.kind == TokenKind.IDENTIFIER
@@ -106,6 +190,11 @@ class ObjectLikeExpansion(TokenSource):
 
             self.cursor = cursor
 
+    def peek_token_kind(self):
+        if self.cursor == len(self.tokens):
+            return TokenKind.PEEK_AGAIN
+        return self.tokens[self.cursor].kind
+
     def concatenate_tokens(self, lhs, concat_loc, rhs):
         '''Concatenate LHS and RHS; RHS must not be modified.  Return True on success and replace
         LHS with the result, except LHS must retain its WS and BOL flags.  Return False on
@@ -137,6 +226,26 @@ class ObjectLikeExpansion(TokenSource):
         token.copy_spacing_flags_from(lhs.flags)
         lhs.set_to(token, token.loc)
         return True
+
+
+class ObjectLikeExpansion(MacroExpansionBase):
+    '''A token source that returns tokens from the replacement list of an object-like macro.
+    Token concatenation via the ## operator is handled transparently.
+    '''
+
+
+class FunctionLikeExpansion(TokenSource):
+    '''A token source that returns tokens from the replacement list of an function-like macro.
+    Token concatenation via the ## operator, and stringizing via the # operator, are
+    handled transparently.
+    '''
+
+    def __init__(self, pp, macro, token, arguments):
+        super().__init__(pp, macro, token)
+        self.arguments = arguments
+
+    def get_token(self, token):
+        super().get_token(token)
 
 
 class DiagnosticFilter:

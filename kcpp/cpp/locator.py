@@ -14,7 +14,7 @@ from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
     RangeCoords,
 )
-from .basic import Buffer, Token, BufferCoords
+from .basic import Buffer
 from .lexer import Lexer
 
 
@@ -55,7 +55,7 @@ class LocationRange:
         if self.kind == RangeKind.scratch:
             return DID.in_token_concatenation, []
         elif self.kind == RangeKind.macro:
-            return DID.in_expansion_of_macro, [pp.token_spelling_at_loc(self.origin.name_loc)]
+            return DID.in_expansion_of_macro, [self.origin.macro_name(pp)]
         assert False
 
 
@@ -312,7 +312,7 @@ class Locator:
             buffer, offset = self.loc_to_buffer_and_offset(token_loc)
             lexer = Lexer(self.pp, buffer.text, token_loc - offset)
             lexer.cursor = offset
-            token = lexer.get_token_quietly()
+            lexer.get_token_quietly()
             offsets = [source_range.start, source_range.end]
             lexer.utf8_spelling(offset, lexer.cursor, offsets)
             source_range = BufferRange(offsets[0], offsets[1])

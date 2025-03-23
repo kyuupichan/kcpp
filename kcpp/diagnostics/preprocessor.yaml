@@ -24,6 +24,18 @@ token_concatenation_failed:
   severity: error
   text: token concatenation produces %q0 which is not a valid token
 
+too_few_macro_arguments:
+  severity: error
+  text: too few arguments passed to macro %q0
+
+too_many_macro_arguments:
+  severity: error
+  text: too many arguments passed to macro %q0
+
 unknown_charset:
   severity: error
   text: unknown character set %q0
+
+unterminated_argument_list:
+  severity: error
+  text: unerminated argument list invoking macro %q0

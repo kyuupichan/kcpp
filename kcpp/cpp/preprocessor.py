@@ -19,7 +19,7 @@ from .expressions import ExprParser
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator
-from .macros import Macro, MacroFlags, ObjectLikeExpansion
+from .macros import Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion
 
 
 __all__ = ['Preprocessor']
@@ -51,24 +51,31 @@ class Preprocessor:
         self.target = target or TargetMachine.default()
         self.configure(env)
 
-        # Internal state.
+        # Helper objects.
         self.identifiers = {}
+        # Tracks locations
         self.locator = Locator(self)
-        self.expand_macros = True
+        # Parses and evaluates preprocessor expressions
+        self.expr_parser = ExprParser(self)
+        # Interprets literals as they would be for a front-end
+        self.literal_interpreter = LiteralInterpreter(self, False)
+        # Diagnostics are sent here
+        self.diagnostic_consumer = None
+        # Directive handlers
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}
-        self.skipping = False
-        self.in_directive = False
+        # Token source stack
+        self.sources = []
+
+        # Internal state
+        self.collecting_arguments = False
         self.directive_name_loc = None
+        self.expand_macros = True
+        self.in_directive = False
         self.in_filename = False
         self.in_variadic_macro_definition = False
-        self.diagnostic_consumer = None
-        # Literal interpreter for a front end
-        self.literal_interpreter = LiteralInterpreter(self, False)
-        # A preprocessing expression parser
-        self.expr_parser = ExprParser(self)
-        # Token sources.
-        self.sources = []
+        self.skipping = False
+
         self.initialize()
 
     @classmethod
@@ -271,11 +278,30 @@ class Preprocessor:
             token.disable()
             return
         if macro.flags & MacroFlags.IS_FUNCTION_LIKE:
-            raise NotImplementedError
+            if self.peek_token_kind() != TokenKind.OPEN_PAREN:
+                return
+            # Collect the arguments.  Macro expansion is disabled whilst doing this.
+            assert not self.collecting_arguments
+            self.collecting_arguments = True
+            self.expand_macros = False
+            arguments = macro.collect_arguments(self, token)
+            self.expand_macros = True
+            self.collecting_arguments = False
+            if not arguments:
+                return
+            source = FunctionLikeExpansion(self, macro, token, arguments)
         else:
             source = ObjectLikeExpansion(self, macro, token)
         self.push_source(source)
         self.get_token(token)
+
+    def peek_token_kind(self):
+        '''Peek the next token without expanding macros, and return its kind.'''
+        for source in reversed(self.sources):
+            kind = source.peek_token_kind()
+            if kind != TokenKind.PEEK_AGAIN:
+                return kind
+        raise RuntimeError('no sources left to peek from')
 
     def handle_directive(self, lexer, token):
         '''Handle a directive to and including the EOF token.  We have read the '#' introducing a
