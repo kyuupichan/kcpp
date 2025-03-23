@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 from ..diagnostics import DID
-from .basic import Token, TokenSource, TokenKind, TokenFlags
+from .basic import Token, TokenKind, TokenFlags
 from .lexer import Lexer
 from .locator import ScratchEntryKind
 
@@ -154,33 +154,8 @@ class Macro:
         return arguments
 
 
-class SimpleTokenList(TokenSource):
-    '''A token source that returns tokens from a list, replacing their location with
-    an offset from a base.'''
-
-    def __init__(self, pp, parent_token, tokens, creator):
-        self.pp = pp
-        self.parent_flags = parent_token.flags
-        self.tokens = tokens
-        self.cursor = 0
-        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(tokens), creator)
-
-    def get_token(self, token):
-        cursor = self.cursor
-        tokens = self.tokens
-        if cursor == len(tokens):
-            self.pp.pop_source_and_get_token(token)
-            self.on_popped()
-        else:
-            token.set_to(tokens[cursor], self.base_loc + cursor)
-            if cursor == 0:
-                # Copy spacing flags of the parent token
-                token.copy_spacing_flags_from(self.parent_flags)
-            self.cursor = cursor + 1
-            self.on_token(token)
-
-    def on_popped(self):
-        pass
+class SimpleTokenList:
+    '''Common functionaliy for various token lists.'''
 
     def peek_token_kind(self):
         if self.cursor == len(self.tokens):
@@ -231,62 +206,122 @@ class ObjectLikeExpansion(SimpleTokenList):
 
     def __init__(self, pp, macro, parent_token):
         assert parent_token.kind == TokenKind.IDENTIFIER
-        super().__init__(pp, parent_token, macro.replacement_list, macro)
+        self.pp = pp
         self.macro = macro
+        self.parent_flags = parent_token.flags
+        self.tokens = macro.replacement_list
+        self.cursor = 0
+        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(self.tokens), macro)
 
-    def on_popped(self):
-        self.macro.enable()
-
-    def on_token(self, token):
-        '''Handle token concatenation.'''
+    def get_token(self, token):
+        '''Get the next replacement list token and handle token concatenation.'''
         cursor = self.cursor
         tokens = self.tokens
+        if cursor == len(tokens):
+            self.pp.pop_source_and_get_token(token)
+            self.macro.enable()
+            return
+
+        token.set_to(tokens[cursor], self.base_loc + cursor)
+        if cursor == 0:
+            # Copy spacing flags of the parent token
+            token.copy_spacing_flags_from(self.parent_flags)
+        cursor += 1
+
         if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
             assert cursor + 1 < len(tokens)
             if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
                 cursor += 2
             else:
                 cursor += 1
-            self.cursor = cursor
+        self.cursor = cursor
 
 
-class FunctionLikeExpansion(ObjectLikeExpansion):
+class FunctionLikeExpansion(SimpleTokenList):
     '''A token source that returns tokens from the replacement list of an function-like macro.
     Token concatenation via the ## operator, and stringizing via the # operator, are
     handled by get_token().
     '''
 
     def __init__(self, pp, macro, parent_token, arguments):
-        super().__init__(pp, macro, parent_token)
+        assert parent_token.kind == TokenKind.IDENTIFIER
+        self.pp = pp
+        self.macro = macro
+        self.parent_flags = parent_token.flags
+        self.tokens = macro.replacement_list
+        self.cursor = 0
+        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(self.tokens), macro)
         self.arguments = arguments
+        assert self.pp.expand_macros
 
-    def on_token(self, token):
+    def get_token(self, token):
         '''Handle argument replacement, stringizing and token concatenation.'''
         cursor = self.cursor
         tokens = self.tokens
+        if cursor == len(tokens):
+            self.pp.pop_source_and_get_token(token)
+            self.macro.enable()
+            return
+
+        token.set_to(tokens[cursor], self.base_loc + cursor)
+        if cursor == 0:
+            # Copy spacing flags of the parent token
+            token.copy_spacing_flags_from(self.parent_flags)
+        cursor += 1
 
         if token.kind == TokenKind.STRINGIZE:
             self.stringize_argument(token, self.tokens[cursor])
             cursor += 1
 
         next_is_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
-        if token.kind == TokenKind.MACRO_PARAM:
-            if next_is_concat:
-                # The unexpanded argument handles the concatenation.
-                self.push_unexpanded_argument(token, UnexpandedArgument.left_of_concat)
-            else:
-                self.push_expanded_argment(token)
-            # Set cursor now before getting the next token - it might be us
-            self.cursor = cursor
-            self.pp.get_token(token)
-        elif next_is_concat:
+        if next_is_concat:
             assert cursor + 1 < len(tokens)
-            if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
+            rhs = tokens[cursor + 1]
+            if token.kind == TokenKind.MACRO_PARAM or rhs.kind == TokenKind.MACRO_PARAM:
+                self.cursor = cursor + 2
+                self.push_unexpanded_arguments(token, tokens[cursor], rhs, self.base_loc + cursor)
+                self.pp.get_token(token)
+            elif self.concatenate_tokens(token, self.base_loc + cursor, rhs):
                 self.cursor = cursor + 2
             else:
                 self.cursor = cursor + 1
         else:
+            # Set cursor before calling get_token - it might come back to us
             self.cursor = cursor
+            if token.kind == TokenKind.MACRO_PARAM:
+                self.push_expanded_argument(token)
+                self.pp.get_token(token)
+
+    def push_unexpanded_arguments(self, lhs, concat_op, rhs, new_concat_loc):
+        '''cursor is a ## operator concatemating at least one macro argument.  Push a new token
+        source formed from the unexpanded arguments of both sides with the ## token.
+        '''
+        def concat_tokens(param_token):
+            argument = self.check_argument(param_token)
+            if argument.tokens:
+                return argument.tokens
+            return [self.placemarker_from_token(param_token)]
+
+        tokens = []
+        if lhs.kind == TokenKind.MACRO_PARAM:
+            tokens.extend(concat_tokens(lhs))
+        else:
+            tokens.append(lhs)
+
+        concat_op = copy(concat_op)
+        concat_op.loc = new_concat_loc
+        tokens.append(concat_op)
+
+        if rhs.kind == TokenKind.MACRO_PARAM:
+            tokens.extend(concat_tokens(rhs))
+        else:
+            rhs = copy(rhs)
+            rhs.loc = new_concat_loc + 1
+            tokens.append(rhs)
+        self.pp.push_source(ConcatenationTokens(self.pp, lhs, tokens))
+
+    def placemarker_from_token(self, token):
+        return Token(TokenKind.PLACEMARKER, token.flags & TokenFlags.WS, token.loc, None)
 
     def push_expanded_argument(self, param_token):
         def collect_expanded_tokens(get_token):
@@ -301,23 +336,18 @@ class FunctionLikeExpansion(ObjectLikeExpansion):
         argument = self.check_argument(param_token)
         tokens = argument.expanded_tokens
         if tokens is None:
-            self.push_unexpanded_argument(self, param_token, UnexpandedArgument.pre_expansion)
+            # Push the unexpanded argument
+            tokens = self.check_argument(param_token).tokens
+            print(tokens)
+            assert self.pp.expand_macros
+            self.pp.push_source(UnexpandedArgument(self.pp, tokens))
             tokens = argument.expanded_tokens = collect_expanded_tokens(self.pp.get_token)
+            print(tokens)
             self.pp.pop_source()
+
         # Only push a source if it's non-empty
         if tokens:
             self.pp.push_source(ExpandedArgument(self.pp, param_token, tokens))
-
-    def push_unexpanded_argument(self, param_token, reason):
-        tokens = self.check_argument(param_token).tokens
-        if not tokens:
-            assert tokens is not None   # MacroArgument.from_tokens() set it to []
-            # Create a placemarker token
-            tokens = [self.placemarker_from_token(param_token)]
-        self.pp.push_source(UnexpandedArgument(self.pp, param_token, tokens, reason))
-
-    def placemarker_from_token(self, token):
-        return Token(TokenKind.PLACEMARKER, token.flags & TokenFlags.WS, token.loc, None)
 
     def check_argument(self, param):
         assert param.kind == TokenKind.MACRO_PARAM
@@ -336,7 +366,7 @@ class FunctionLikeExpansion(ObjectLikeExpansion):
 
         # Build up the spelling of the stringized argument tokens.
         spelling.append(34)    # '"'
-        for n, token in enumerate(self.check_argument(lhs).tokens):
+        for n, token in enumerate(self.check_argument(rhs).tokens):
             if n and token.flags & TokenFlags.WS:
                 spelling.append(32)
             token_spelling = self.pp.token_spelling(token)
@@ -365,48 +395,31 @@ class FunctionLikeExpansion(ObjectLikeExpansion):
         lhs.set_to(token, token.loc)
 
 
-class UnexpandedArgument(TokenSource):
+class UnexpandedArgument(SimpleTokenList):
 
-    pre_expansion = 0
-    left_of_concat = 1
-    right_of_concat = 2
-
-    def __init__(self, pp, param_token, tokens, reason):
+    def __init__(self, pp, tokens):
         assert tokens
         self.pp = pp
-        self.param_token_flags = param_token.flags
         self.tokens = tokens
-        self.reason = reason
         self.cursor = 0
 
     def get_token(self, token):
         tokens = self.tokens
         cursor = self.cursor
 
-        if self.reason == self.pre_expansion:
-            if cursor == len(tokens):
-                # Terminate the collect_expanded_tokens() loop.
-                token.kind = TokenKind.EOF
-            else:
-                # Whitespace of first token is irrelevant;
-                # ExpandedArgument.get_token() deals with it.
-                token.set_to(tokens[cursor], token.loc)
-                self.cursor = cursor + 1
-        else:
-            if cursor == len(tokens) - 1 and self.reason == self.left_of_concat:
-                pass
-            elif cursor == 0 and self.reason == self.right_of_concat:
-                pass
-            else:
-                token.copy_spacing_flags_from(self.param_token_flags)
-                token.set_to(tokens[cursor], token.loc)
-                self.cursor = cursor + 1
+        if cursor == len(tokens):
+            # Terminate the collect_expanded_tokens() loop.
+            token.kind = TokenKind.EOF
+            return
+
+        # Whitespace of first token is irrelevant; ExpandedArgument.get_token() deals with
+        # it.
+        token.set_to(tokens[cursor], tokens[cursor].loc)
+        self.cursor = cursor + 1
 
     def peek_token_kind(self):
         if self.cursor == len(self.tokens):
-            if self.reason == self.pre_expansion:
-                return TokenKind.EOF
-            return TokenKind.PEEK_AGAIN
+            return TokenKind.EOF
         return self.tokens[self.cursor].kind
 
 
@@ -414,7 +427,55 @@ class ExpandedArgument(SimpleTokenList):
 
     def __init__(self, pp, parent_token, tokens):
         assert parent_token.kind == TokenKind.MACRO_PARAM
-        super().__init__(pp, parent_token, tokens, self)
+        self.pp = pp
+        self.parent_flags = parent_token.flags
+        self.tokens = tokens
+        self.cursor = 0
+
+    def get_token(self, token):
+        tokens = self.tokens
+        cursor = self.cursor
+
+        if cursor == len(tokens):
+            self.pp.pop_source_and_get_token(token)
+            return
+
+        token.set_to(tokens[cursor], tokens[cursor].loc)
+        if cursor == 0:
+            # Copy spacing flags of the parent token
+            token.copy_spacing_flags_from(self.parent_flags)
+        self.cursor = cursor + 1
+
+
+class ConcatenationTokens(SimpleTokenList):
+
+    def __init__(self, pp, parent_token, tokens):
+        self.pp = pp
+        self.parent_flags = parent_token.flags
+        self.tokens = tokens
+        self.cursor = 0
+
+    def get_token(self, token):
+        '''Get the next replacement list token and handle token concatenation.'''
+        cursor = self.cursor
+        tokens = self.tokens
+        if cursor == len(tokens):
+            self.pp.pop_source_and_get_token(token)
+            return
+
+        token.set_to(tokens[cursor], tokens[cursor].loc)
+        if cursor == 0:
+            # Copy spacing flags of the parent token
+            token.copy_spacing_flags_from(self.parent_flags)
+        cursor += 1
+
+        if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
+            assert cursor + 1 < len(tokens)
+            if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
+                cursor += 2
+            else:
+                cursor += 1
+        self.cursor = cursor
 
 
 class DiagnosticFilter:
