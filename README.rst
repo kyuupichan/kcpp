@@ -96,6 +96,8 @@ improvements:
 - interpretation of literals
 - expression parsing
 - expression evaluation
+- object-like macro expansion
+- display of macro expansion stack in diagnostics
 - conversion of Unicode character names to codepoints (based on the ideas described by
   cor3ntin at https://cor3ntin.github.io/posts/cp_to_name/, but I implemented some ideas
   of my own to achieve even tighter compaction; see unicode/cp_name_db.py)
@@ -109,7 +111,8 @@ Incomplete or Missing
 The following are missing, or work in progress, but the framework is already in place so
 that adding them is not too much of a stretch:
 
-- macro expansion (this and handling the macro stack in diagnostics is my current focus)
+- functionlike macro expansion
+- predefined macros
 - some directives, particularly #line, include, #pragma
 - preprocessed output (partially done in a trivial way)
 - _Pragma operator
@@ -159,3 +162,7 @@ ChangeLog
 0.1  2025-03-16
 
 Initial release.  Quite incomplete but progress from here should be rapid.
+
+0.2  2025-03-23
+
+Object-like macro expansion, and diagnostics with a macro stack, are implemented.
