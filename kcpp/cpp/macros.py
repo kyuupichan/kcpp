@@ -100,54 +100,51 @@ class Macro:
         # FIXME: handle newlines as whitespace
         while True:
             get_token(token)
-            if paren_depth == 0:
-                if token.kind == TokenKind.PAREN_CLOSE:
-                    # This forms another argument.
-                    arguments.append(MacroArgument(tokens, None))
-                    # Check we have enough
-                    if len(arguments) < param_count_no_variadic:
-                        pp.diag(DID.too_few_macro_arguments, token.loc, [self.macro_name(pp)])
-                        arguments = None
-                        break
-                    # Too many arguments have already been diagnosed at the comma that
-                    # implicitly creates a new argument.  However we have to cover the
-                    # no-comma case of a non-empty argument to a macro taking none.
-                    if param_count_no_variadic == 0:
-                        if self.is_variadic():
-                            # This is fine
-                            pass
-                        elif tokens:
-                            pp.diag(DID.too_many_macro_arguments, token.loc,
-                                    [self.macro_name(pp)])
-                            arguments = None
-                        else:
-                            arguments.pop()
-                    break
-                elif token.kind == TokenKind.COMMA:
-                    # Does this finish an argument?  If so, save it and move on to the
-                    # next one.
-                    if len(arguments) + 1 < param_count_no_variadic:
-                        arguments.append(MacroArgument(tokens, None))
-                        tokens = []
-                        continue
-                    # It is impossible to have too many arguments to a variadic macro; the
-                    # comma just becomes part of the current argument
-                    if not self.is_variadic():
-                        pp.diag(DID.too_many_macro_arguments, token.loc,
-                                [self.macro_name(pp)])
-                        arguments = None
-                        break
 
             if token.kind == TokenKind.EOF:
                 pp.diag(DID.unterminated_argument_list, token.loc, [self.macro_name(pp)])
                 arguments = None
                 break
+            if token.kind == TokenKind.PAREN_CLOSE:
+                if paren_depth == 0:
+                    break
+                paren_depth -= 1
+            elif paren_depth == 0 and arguments is not None:
+                too_many = False
+                if token.kind == TokenKind.COMMA:
+                    # This completes an argument unless we are in the variable arguments.
+                    if len(arguments) + 1 < param_count_no_variadic:
+                        arguments.append(MacroArgument(tokens, None))
+                        tokens = []
+                        continue
+                    # It is impossible to have too many arguments to a variadic macro; the
+                    # comma just becomes part of the current variable argument.
+                    too_many = not self.is_variadic()
+                else:
+                    too_many = param_count == 0
+                if too_many:
+                    pp.diag(DID.too_many_macro_arguments, token.loc, [self.macro_name(pp)])
+                    arguments = None
 
-            tokens.append(copy(token))
             if token.kind == TokenKind.PAREN_OPEN:
                 paren_depth += 1
-            elif token.kind == TokenKind.PAREN_CLOSE:
-                paren_depth -= 1
+
+            # Save the token and continue looking for the ')'.
+            tokens.append(copy(token))
+
+        if arguments is not None:
+            # The ')' completed an argument unless there are no parameters at all.
+            if token.kind == TokenKind.PAREN_CLOSE and param_count:
+                arguments.append(MacroArgument(tokens, None))
+                # Do we have enough arguments?
+                if len(arguments) < param_count:
+                    if len(arguments) < param_count_no_variadic:
+                        pp.diag(DID.too_few_macro_arguments, token.loc, [self.macro_name(pp)])
+                        arguments = None
+                    else:
+                        # Add an empty variable argument if none was given
+                        arguments.append(MacroArgument([], None))
+            assert arguments is None or len(arguments) == param_count
 
         return arguments
 
