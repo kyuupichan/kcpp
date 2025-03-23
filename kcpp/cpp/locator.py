@@ -60,13 +60,28 @@ class LocationRange:
     # Range is inclusive from start to end.
     start: int
     end: int
-    parent: int   # A number > 0, or -1.   FIXME: this should probably go away.
-    owner: any
+    parent: int
+    # buffer: the Buffer object.  scratch: the ScratchBuffer object.  macro: a macro object
+    origin: object
+
+    def buffer_loc(self, loc):
+        assert self.kind != RangeKind.buffer
+        if self.kind == RangeKind.scratch:
+            return loc
+        return self.origin.buffer_loc(loc - self.start)
 
     def parent_loc(self, loc):
+        assert self.kind != RangeKind.buffer
         if self.kind == RangeKind.scratch:
-            return self.owner.parent_loc(loc - self.start)
+            return self.origin.parent_loc(loc - self.start)
         return self.parent
+
+    def did_and_substitutions(self, locator):
+        if self.kind == RangeKind.scratch:
+            return DID.in_token_concatenation, []
+        elif self.kind == RangeKind.macro:
+            return DID.in_expansion_of_macro, [locator.token_spelling(self.origin.name_loc)]
+        assert False
 
 
 @dataclass(slots=True)
@@ -106,20 +121,12 @@ class ScratchBuffer(Buffer):
             return start
         return -1
 
-    def buffer_loc(self, loc):
-        '''Return the location of the spelling in the scratch buffer.  loc is a location, not an
-        offset.  Return it unchanged as it is into this buffer.'''
-        return loc
-
     def parent_loc(self, loc):
         '''Return the parent location (i.e. the location of the ## or # token) of a scratch buffer
-        location.
+        location.  loc is an offset into the scratch buffer.
         '''
         assert 0 <= loc < len(self.text)
         return self.parent_locs[bisect_left(self.offsets, loc + 1) - 1]
-
-    def did_and_substitutions(self):
-        return DID.in_token_concatenation, []
 
 
 class Locator:
@@ -154,8 +161,7 @@ class Locator:
         buffer = ScratchBuffer(size)
         self.scratch_buffer_range = self.new_buffer_range(-1, size, buffer, RangeKind.scratch)
 
-    def new_macro_range(self, parent_loc, count, owner):
-        assert isinstance(parent_loc, int)
+    def new_macro_range(self, parent_loc, count, origin):
         assert parent_loc > 0
         macro_ranges = self.macro_ranges
         if macro_ranges:
@@ -163,13 +169,13 @@ class Locator:
         else:
             start = self.FIRST_MACRO_LOC
         macro_ranges.append(LocationRange(RangeKind.macro, start, start + count - 1,
-                                          parent_loc, owner))
+                                          parent_loc, origin))
         return start
 
     def new_scratch_token(self, spelling, parent_loc):
         def alloc_in_current(spelling):
             if self.scratch_buffer_range:
-                result = self.scratch_buffer_range.owner.add_spelling(spelling, parent_loc)
+                result = self.scratch_buffer_range.origin.add_spelling(spelling, parent_loc)
                 if result != -1:
                     return self.scratch_buffer_range.start + result
             return -1
@@ -192,13 +198,13 @@ class Locator:
         return loc_range
 
     def loc_to_buffer_and_offset(self, loc):
-        '''Return a pair (buffer, offset).'''
+        '''Return a pair (buffer, offset) where buffer is a Buffer or ScratchBuffer instance.'''
         loc_range = self.lookup_range(loc)
         if loc_range.kind == RangeKind.macro:
-            loc = loc_range.owner.buffer_loc(loc)
+            loc = loc_range.buffer_loc(loc)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind != RangeKind.macro
-        return loc_range.owner, loc - loc_range.start
+        return loc_range.origin, loc - loc_range.start
 
     def diagnostic_contexts_core(self, orig_context):
         def to_standard_buffer_loc(loc):
@@ -253,7 +259,7 @@ class Locator:
                 else:
                     ranges.append((start, end))
 
-            buffer_loc = loc_range.owner.buffer_loc
+            buffer_loc = loc_range.buffer_loc
             return [TokenRange(buffer_loc(start), buffer_loc(end)) for start, end in ranges]
 
         def caret_and_loc_ranges(orig_context):
@@ -270,10 +276,10 @@ class Locator:
             result = macro_context_stack(caret_token_loc)
             if result:
                 for n, context in enumerate(result):
-                    buffer_loc = context.loc_range.owner.buffer_loc(context.macro_loc)
+                    buffer_loc = context.loc_range.buffer_loc(context.macro_loc)
                     if n == 0 and isinstance(orig_context.caret_range, SpellingRange):
                         caret_range = SpellingRange(buffer_loc, orig_context.caret_range.start,
-                                                  orig_context.caret_range.end)
+                                                    orig_context.caret_range.end)
                     else:
                         caret_range = TokenRange(buffer_loc, buffer_loc)
                     result[n] = (caret_range, context.loc_range)
@@ -296,7 +302,7 @@ class Locator:
                     orig_context.source_ranges = source_ranges
                     context = orig_context
                 else:
-                    did, substitutions = loc_range.owner.did_and_substitutions()
+                    did, substitutions = loc_range.did_and_substitutions(self)
                     context = DiagnosticContext(did, substitutions, caret_range, source_ranges)
                 contexts.append(context)
 

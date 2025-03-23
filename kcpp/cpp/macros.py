@@ -64,6 +64,10 @@ class Macro:
         '''Set the parameter count (including any variable argument).'''
         return count << 8
 
+    def buffer_loc(self, token_index):
+        '''Return the location of the nth token in our replacement list.'''
+        return self.replacement_list[token_index].loc
+
 
 class ObjectLikeExpansion(TokenSource):
     '''A token source that returns tokens from the replacement list of an object-like
@@ -76,15 +80,7 @@ class ObjectLikeExpansion(TokenSource):
         self.tokens = macro.replacement_list
         self.cursor = 0
         self.macro_token_flags = token.flags
-        self.base_loc = pp.locator.new_macro_range(token.loc, len(self.tokens), self)
-
-    def buffer_loc(self, loc):
-        '''Return the buffer location of the token in our expansion with location loc.'''
-        token_index = loc - self.base_loc
-        return self.tokens[token_index].loc
-
-    def did_and_substitutions(self):
-        return DID.in_expansion_of_macro, [self.pp.token_spelling(self.macro.name_loc).decode()]
+        self.base_loc = pp.locator.new_macro_range(token.loc, len(self.tokens), macro)
 
     def get_token(self, token):
         cursor = self.cursor

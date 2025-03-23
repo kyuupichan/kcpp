@@ -363,7 +363,7 @@ class IdentifierInfo:
 
     def built_in_kind(self):
         assert self.special_kind() == SpecialKind.BUILT_IN
-        return BuiltinKind(self.special >> 4)
+        return BuiltInKind(self.special >> 4)
 
     def set_special(self, kind):
         self.special = kind

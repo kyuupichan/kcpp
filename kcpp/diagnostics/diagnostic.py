@@ -148,10 +148,8 @@ class Diagnostic:
         if self.loc != location_in_args:
             source_ranges.append(TokenRange(self.loc, self.loc))
         for arg in self.arguments:
-            if isinstance(arg, (str, int)):
+            if isinstance(arg, (str, bytes, int)):
                 substitutions.append(arg)
-            elif isinstance(arg, bytes):
-                substitutions.append(arg.decode())
             elif isinstance(arg, (TokenRange, SpellingRange, BufferRange)):
                 source_ranges.append(arg)
             elif isinstance(arg, Diagnostic):
@@ -329,6 +327,9 @@ class DiagnosticEngine(DiagnosticConsumer):
                 argument = None
             else:
                 argument = arguments[int(arg_index)]
+                if isinstance(argument, bytes):
+                    argument = argument.decode()
+
             if func == 'select':
                 return select(func_arg, argument)
             if func == 'plural':
