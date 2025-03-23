@@ -61,6 +61,12 @@ class SpellingRange:
 
 @dataclass(slots=True)
 class RangeCoords:
+    '''A source range where both start and end are instances of BufferCoords.
+    Diagnostics issued by the preprocessor will always have start and end in the same
+    buffer (ignoring the issue of scratch buffers used during macro expansion.  However
+    diagnostics issued by a front end can have their start and end in different buffers
+    owing to #include, so do not assume start and end lie in the same buffer.
+    '''
     start: BufferCoords
     end: BufferCoords
 
@@ -281,10 +287,7 @@ class DiagnosticEngine(DiagnosticConsumer):
             severity_did, hint = self.severity_map[severity_enum]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
-        # Convert ranges to coords
-        highlights = [sr.to_range_coords() for sr in diagnostic_context.source_ranges]
-        caret_highlight = caret_highlight.to_range_coords()
-        return MessageContext(caret_highlight, highlights, text_parts)
+        return MessageContext(caret_highlight, diagnostic_context.source_ranges, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):

@@ -21,21 +21,6 @@ from .lexer import Lexer
 __all__ = ['Locator']
 
 
-@dataclass(slots=True)
-class ElaboratedRange:
-    '''A source range where both start and end are instances of BufferCoords.
-    Diagnostics issued by the preprocessor will always have start and end in the same
-    buffer (ignoring the issue of scratch buffers used during macro expansion.  However
-    diagnostics issued by a front end can have their start and end in different buffers
-    owing to #include, so we must not assume start and end lie in the same buffer.
-    '''
-    start: BufferCoords
-    end: BufferCoords
-
-    def to_range_coords(self):
-        return RangeCoords(self.start, self.end)
-
-
 class RangeKind(IntEnum):
     '''Describes the type of a LocationRange instance.'''
     buffer = auto()     # A normal buffer
@@ -324,7 +309,7 @@ class Locator:
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         return buffer.offset_to_coords(offset)
 
-    def elaborated_range(self, source_range):
+    def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):
             # Convert the SpellingRange to a BufferRange
             assert source_range.start < source_range.end
@@ -355,7 +340,7 @@ class Locator:
         else:
             raise RuntimeError(f'unhandled source range {source_range}')
 
-        return ElaboratedRange(start, end)
+        return RangeCoords(start, end)
 
     def diagnostic_contexts(self, context):
         '''Expand the diagnostic context stack for the given diagnostic context.'''
@@ -371,8 +356,8 @@ class Locator:
             contexts = self.diagnostic_contexts_core(context)
 
         for context in contexts:
-            context.caret_range = self.elaborated_range(context.caret_range)
-            context.source_ranges = [self.elaborated_range(source_range)
+            context.caret_range = self.range_coords(context.caret_range)
+            context.source_ranges = [self.range_coords(source_range)
                                      for source_range in context.source_ranges]
 
         return contexts
