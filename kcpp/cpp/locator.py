@@ -330,8 +330,6 @@ class Locator:
 
     def elaborated_location(self, loc):
         '''Convert a location to an ElaboratedLocation.'''
-        if loc <= location_none:
-            return ElaboratedLocation(loc, None)
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         coords = buffer.offset_to_coords(offset)
         return ElaboratedLocation(loc, coords)
@@ -354,12 +352,14 @@ class Locator:
             end = self.elaborated_location(source_range.end)
             assert start.coords.buffer is end.coords.buffer
         elif isinstance(source_range, TokenRange):
-            start = self.elaborated_location(source_range.start)
-            if source_range.start == source_range.end:
-                end = start
+            if source_range.start <= location_none:
+                start = end = ElaboratedLocation(source_range.start, None)
             else:
-                end = self.elaborated_location(source_range.end)
-            if source_range.start > location_none:
+                start = self.elaborated_location(source_range.start)
+                if source_range.start == source_range.end:
+                    end = start
+                else:
+                    end = self.elaborated_location(source_range.end)
                 token_end = source_range.end + self.token_length(end.loc)
                 end = self.elaborated_location(token_end)
         else:
