@@ -22,28 +22,18 @@ __all__ = ['Locator']
 
 
 @dataclass(slots=True)
-class ElaboratedLocation:
-    '''Detailed informatino about location within a buffer.'''
-    # The original location
-    loc: int
-    # The location as coordinates.  None for diagnostics with special locations
-    # (location_command_line, location_none).
-    coords: BufferCoords
-
-
-@dataclass(slots=True)
 class ElaboratedRange:
-    '''A source range where both start and end are instances of ElaboratedLocation.
+    '''A source range where both start and end are instances of BufferCoords.
     Diagnostics issued by the preprocessor will always have start and end in the same
     buffer (ignoring the issue of scratch buffers used during macro expansion.  However
     diagnostics issued by a front end can have their start and end in different buffers
     owing to #include, so we must not assume start and end lie in the same buffer.
     '''
-    start: ElaboratedLocation
-    end: ElaboratedLocation
+    start: BufferCoords
+    end: BufferCoords
 
     def to_range_coords(self):
-        return RangeCoords(self.start.coords, self.end.coords)
+        return RangeCoords(self.start, self.end)
 
 
 class RangeKind(IntEnum):
@@ -276,13 +266,13 @@ class Locator:
             result = macro_context_stack(caret_token_loc)
             if result:
                 for n, context in enumerate(result):
-                    buffer_loc = context.loc_range.buffer_loc(context.macro_loc)
+                    caret_loc = context.loc_range.buffer_loc(context.macro_loc)
                     if n == 0 and isinstance(orig_context.caret_range, SpellingRange):
-                        caret_range = SpellingRange(buffer_loc, orig_context.caret_range.start,
+                        caret_range = SpellingRange(caret_loc, orig_context.caret_range.start,
                                                     orig_context.caret_range.end)
                     else:
-                        caret_range = TokenRange(buffer_loc, buffer_loc)
-                    result[n] = (caret_range, context.loc_range)
+                        caret_range = TokenRange(caret_loc, caret_loc)
+                    result[n] = (caret_loc, caret_range, context.loc_range)
 
                 # Lower the orig_context caret range to a standard buffer
                 token_loc = to_standard_buffer_loc(caret_token_loc)
@@ -294,7 +284,7 @@ class Locator:
         if caret_ranges:
             highlight_contexts = [range_contexts(source_range)
                                   for source_range in orig_context.source_ranges]
-            for caret_range, loc_range in caret_ranges:
+            for caret_loc, caret_range, loc_range in caret_ranges:
                 # Now add an extry for each source range that intersects this context level
                 source_ranges = intersections(loc_range, highlight_contexts)
                 if loc_range is None:
@@ -303,7 +293,8 @@ class Locator:
                     context = orig_context
                 else:
                     did, substitutions = loc_range.did_and_substitutions(self)
-                    context = DiagnosticContext(did, substitutions, caret_range, source_ranges)
+                    context = DiagnosticContext(did, substitutions, caret_loc,
+                                                caret_range, source_ranges)
                 contexts.append(context)
 
         # Lower the source ranges in the original context and make it the final context
@@ -328,11 +319,10 @@ class Locator:
         lexer.get_token_quietly()
         return lexer.cursor - offset
 
-    def elaborated_location(self, loc):
-        '''Convert a location to an ElaboratedLocation.'''
+    def buffer_coords(self, loc):
+        '''Convert a location to a BufferCoords instance.'''
         buffer, offset = self.loc_to_buffer_and_offset(loc)
-        coords = buffer.offset_to_coords(offset)
-        return ElaboratedLocation(loc, coords)
+        return buffer.offset_to_coords(offset)
 
     def elaborated_range(self, source_range):
         if isinstance(source_range, SpellingRange):
@@ -348,20 +338,20 @@ class Locator:
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):
-            start = self.elaborated_location(source_range.start)
-            end = self.elaborated_location(source_range.end)
-            assert start.coords.buffer is end.coords.buffer
+            start = self.buffer_coords(source_range.start)
+            end = self.buffer_coords(source_range.end)
+            assert start.buffer is end.buffer
         elif isinstance(source_range, TokenRange):
             if source_range.start <= location_none:
-                start = end = ElaboratedLocation(source_range.start, None)
+                start = end = None
             else:
-                start = self.elaborated_location(source_range.start)
+                start = self.buffer_coords(source_range.start)
                 if source_range.start == source_range.end:
                     end = start
                 else:
-                    end = self.elaborated_location(source_range.end)
-                token_end = source_range.end + self.token_length(end.loc)
-                end = self.elaborated_location(token_end)
+                    end = self.buffer_coords(source_range.end)
+                token_end = source_range.end + self.token_length(source_range.end)
+                end = self.buffer_coords(token_end)
         else:
             raise RuntimeError(f'unhandled source range {source_range}')
 
