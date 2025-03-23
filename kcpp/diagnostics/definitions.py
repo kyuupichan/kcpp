@@ -106,9 +106,12 @@ class DID(IntEnum):
     string_concatenation_prior = auto()
     string_invalid_in_pp_expression = auto()
     token_concatenation_failed = auto()
+    too_few_macro_arguments = auto()
+    too_many_macro_arguments = auto()
     unknown_charset = auto()
     unrecognized_escape_sequence = auto()
     unrecognized_universal_character_name = auto()
+    unterminated_argument_list = auto()
     unterminated_block_comment = auto()
     unterminated_literal = auto()
     user_defined_suffix_in_pp_expr = auto()
@@ -602,11 +605,23 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'token concatenation produces %q0 which is not a valid token',
     ),
+    DID.too_few_macro_arguments: DiagnosticDefinition(
+        DID.too_few_macro_arguments,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'too few arguments passed to macro %q0',
+    ),
+    DID.too_many_macro_arguments: DiagnosticDefinition(
+        DID.too_many_macro_arguments,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'too many arguments passed to macro %q0',
+    ),
     DID.unknown_charset: DiagnosticDefinition(
         DID.unknown_charset,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'character set %q0 is not known',
+        'unknown character set %q0',
     ),
     DID.unrecognized_escape_sequence: DiagnosticDefinition(
         DID.unrecognized_escape_sequence,
@@ -619,6 +634,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         '%q0 is not the name of a universal character',
+    ),
+    DID.unterminated_argument_list: DiagnosticDefinition(
+        DID.unterminated_argument_list,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'unerminated argument list invoking macro %q0',
     ),
     DID.unterminated_block_comment: DiagnosticDefinition(
         DID.unterminated_block_comment,

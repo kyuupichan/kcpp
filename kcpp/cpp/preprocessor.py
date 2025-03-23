@@ -278,7 +278,7 @@ class Preprocessor:
             token.disable()
             return
         if macro.flags & MacroFlags.IS_FUNCTION_LIKE:
-            if self.peek_token_kind() != TokenKind.OPEN_PAREN:
+            if self.peek_token_kind() != TokenKind.PAREN_OPEN:
                 return
             # Collect the arguments.  Macro expansion is disabled whilst doing this.
             assert not self.collecting_arguments

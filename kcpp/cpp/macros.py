@@ -68,7 +68,7 @@ class Macro:
 
     def param_count(self):
         '''Return the parameter count (a variable argument is counted).'''
-        return self.flags.value >> 8
+        return self.flags >> 8
 
     @classmethod
     def from_param_count(cls, count):
@@ -126,7 +126,7 @@ class Macro:
                 elif token.kind == TokenKind.COMMA:
                     # Does this finish an argument?  If so, save it and move on to the
                     # next one.
-                    if len(arguments) + 1 < self.param_count:
+                    if len(arguments) + 1 < param_count_no_variadic:
                         arguments.append(MacroArgument(tokens, None))
                         tokens = []
                         continue
@@ -234,7 +234,7 @@ class ObjectLikeExpansion(MacroExpansionBase):
     '''
 
 
-class FunctionLikeExpansion(TokenSource):
+class FunctionLikeExpansion(MacroExpansionBase):
     '''A token source that returns tokens from the replacement list of an function-like macro.
     Token concatenation via the ## operator, and stringizing via the # operator, are
     handled transparently.
