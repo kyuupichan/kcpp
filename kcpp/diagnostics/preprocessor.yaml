@@ -20,6 +20,10 @@ in_token_concatenation:
   severity: note
   text: in result of token concatenation
 
+stringize_failed:
+  severity: error
+  text: stringizing did not produce a valid string literal
+
 token_concatenation_failed:
   severity: error
   text: token concatenation produces %q0 which is not a valid token

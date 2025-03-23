@@ -105,6 +105,7 @@ class DID(IntEnum):
     string_concatenation_conflict = auto()
     string_concatenation_prior = auto()
     string_invalid_in_pp_expression = auto()
+    stringize_failed = auto()
     token_concatenation_failed = auto()
     too_few_macro_arguments = auto()
     too_many_macro_arguments = auto()
@@ -598,6 +599,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'a string cannot appear in a preprocessor expression',
+    ),
+    DID.stringize_failed: DiagnosticDefinition(
+        DID.stringize_failed,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'stringizing did not produce a valid string literal',
     ),
     DID.token_concatenation_failed: DiagnosticDefinition(
         DID.token_concatenation_failed,

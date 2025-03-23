@@ -11,6 +11,7 @@ from enum import IntEnum
 from ..diagnostics import DID
 from .basic import Token, TokenSource, TokenKind, TokenFlags
 from .lexer import Lexer
+from .locator import ScratchEntryKind
 
 __all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion']
 
@@ -193,21 +194,32 @@ class MacroExpansionBase(TokenSource):
         return self.tokens[self.cursor].kind
 
     def concatenate_tokens(self, lhs, concat_loc, rhs):
-        '''Concatenate LHS and RHS; RHS must not be modified.  Return True on success and replace
-        LHS with the result, except LHS must retain its WS and BOL flags.  Return False on
-        failure and leave LHS and RHS unmodified.
+        '''Concatenate lhs and rhs; rhs must not be modified.  Return True on success and replace
+        lhs with the result, except lhs must retain its WS and BOL flags.  Return False on
+        failure and leave lhs and rhs unmodified.
 
-        If RHS is STRINGIZE, do that first.  concat_loc is the macro location of the ## or
-        %:%: token.
+        concat_loc is the macro location of the ## or %:%: token.
         '''
         lhs_spelling = self.pp.token_spelling(lhs)
         rhs_spelling = self.pp.token_spelling(rhs)
         spelling = lhs_spelling + rhs_spelling
 
-        # Get a scratch buffer location for the concatenated token
-        scratch_loc = self.pp.locator.new_scratch_token(spelling, concat_loc)
-        lexer = Lexer(self.pp, spelling, scratch_loc)
+        token, all_consumed = self.lex_from_scratch(spelling, concat_loc,
+                                                    ScratchEntryKind.concatenate)
+        if token.kind == TokenKind.EOF or not all_consumed:
+            self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
+            return False
+        # Preserve the spacing flags and copy the token with its new macro location
+        token.copy_spacing_flags_from(lhs.flags)
+        lhs.set_to(token, token.loc)
+        return True
 
+    def lex_from_scratch(self, spelling, operator_loc, kind):
+        '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
+        all_consumed is True if lexing consumed the whole spelling.'''
+        # Get a scratch buffer location for the new token
+        scratch_loc = self.pp.locator.new_scratch_token(spelling, operator_loc, kind)
+        lexer = Lexer(self.pp, spelling, scratch_loc)
         token = Token.create()
         dfilter = DiagnosticFilter()
         dfilter.prior = self.pp.set_diagnostic_consumer(dfilter)
@@ -215,14 +227,7 @@ class MacroExpansionBase(TokenSource):
         # Remove the fake BOL flag
         token.flags &= ~TokenFlags.BOL
         self.pp.set_diagnostic_consumer(dfilter.prior)
-
-        if token.kind == TokenKind.EOF or lexer.cursor != len(spelling):
-            self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
-            return False
-        # Preserve the spacing flags and copy the token with its new macro location
-        token.copy_spacing_flags_from(lhs.flags)
-        lhs.set_to(token, token.loc)
-        return True
+        return token, lexer.cursor == len(spelling)
 
 
 class ObjectLikeExpansion(MacroExpansionBase):
@@ -243,6 +248,50 @@ class FunctionLikeExpansion(MacroExpansionBase):
 
     def get_token(self, token):
         super().get_token(token)
+
+        if token.kind == TokenKind.STRINGIZE:
+            self.stringize_argument(token, self.tokens[self.cursor])
+            self.cursor += 1
+
+    def stringize_argument(self, lhs, rhs):
+        '''lhs is a copy of the # operator.  rhs is the macro parameter token and must not be
+        modified.
+
+        Convert the argument tokens of rhs to a string and place it in lhs.  If
+        strinization doesn't produce a valid string, set it to an empty string.
+        lhs retains its WS and BOL flags.
+        '''
+        assert 0 <= rhs.extra < len(self.arguments)
+        macro_arg = self.arguments[rhs.extra]
+        spelling = bytearray()
+        spelling.append(34)    # '"'
+        for n, token in enumerate(macro_arg.tokens):
+            if n and token.flags & TokenFlags.WS:
+                spelling.append(32)
+            token_spelling = self.pp.token_spelling(token)
+            if token.kind == TokenKind.STRING_LITERAL or token.kind == TokenKind.CHARACTER_LITERAL:
+                for c in token_spelling:
+                    if c == 34 or c == 92:   # '"' '\\'
+                        spelling.append(92)
+                    spelling.append(c)
+            else:
+                spelling.extend(token_spelling)
+        spelling.append(34)    # '"'
+
+        stringize_loc = lhs.loc
+        token, all_consumed = self.lex_from_scratch(spelling, stringize_loc,
+                                                    ScratchEntryKind.stringize)
+        assert all_consumed
+
+        if token.kind == TokenKind.ERROR:
+            self.pp.diag(DID.stringize_failed, stringize_loc)
+            # Replace with an empty string literal.  FIXME: imitate GCC and Clang?
+            token = Token(TokenKind.STRING_LITERAL, 0, stringize_loc, (b'', None))
+
+        assert token.kind == TokenKind.STRING_LITERAL
+        # Preserve the spacing flags and copy the token with its new macro location
+        token.copy_spacing_flags_from(lhs.flags)
+        lhs.set_to(token, token.loc)
 
 
 class DiagnosticFilter:
