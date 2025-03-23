@@ -12,6 +12,10 @@ invalid_charset:
   severity: error
   text: "%q0 encoding cannot be used for type %q1 with width %2 bits"
 
+in_argument_stringizing:
+  severity: note
+  text: in stringizing of macro argument
+
 in_expansion_of_macro:
   severity: note
   text: in expansion of macro %q0

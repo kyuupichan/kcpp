@@ -69,6 +69,7 @@ class DID(IntEnum):
     hexadecimal_exponent_required = auto()
     identifier_in_pp_expr = auto()
     identifier_not_NFC = auto()
+    in_argument_stringizing = auto()
     in_expansion_of_macro = auto()
     in_token_concatenation = auto()
     incomplete_UCN_as_tokens = auto()
@@ -383,6 +384,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'identifier %q0 is not in Normalization Form C',
+    ),
+    DID.in_argument_stringizing: DiagnosticDefinition(
+        DID.in_argument_stringizing,
+        DiagnosticSeverity.note,
+        DiagnosticGroup.none,
+        'in stringizing of macro argument',
     ),
     DID.in_expansion_of_macro: DiagnosticDefinition(
         DID.in_expansion_of_macro,

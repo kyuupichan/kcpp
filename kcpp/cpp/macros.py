@@ -286,7 +286,7 @@ class FunctionLikeExpansion(MacroExpansionBase):
         if token.kind == TokenKind.ERROR:
             self.pp.diag(DID.stringize_failed, stringize_loc)
             # Replace with an empty string literal.  FIXME: imitate GCC and Clang?
-            token = Token(TokenKind.STRING_LITERAL, 0, stringize_loc, (b'', None))
+            token = Token(TokenKind.STRING_LITERAL, 0, stringize_loc, (b'""', None))
 
         assert token.kind == TokenKind.STRING_LITERAL
         # Preserve the spacing flags and copy the token with its new macro location
@@ -302,7 +302,8 @@ class DiagnosticFilter:
 
     def emit(self, diagnostic):
         # These are diagnosed as invalid concatenations
-        if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens):
+        if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
+                              DID.unterminated_literal):
             pass
         else:
             self.prior.emit(diagnostic)

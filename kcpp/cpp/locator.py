@@ -51,9 +51,13 @@ class LocationRange:
             return self.origin.parent_loc(loc - self.start)
         return self.parent
 
-    def did_and_substitutions(self, pp):
+    def did_and_substitutions(self, pp, loc):
         if self.kind == RangeKind.scratch:
-            return DID.in_token_concatenation, []
+            kind = self.origin.entry_for_loc(loc - self.start).kind
+            if kind == ScratchEntryKind.concatenate:
+                return DID.in_token_concatenation, []
+            else:
+                return DID.in_argument_stringizing, []
         elif self.kind == RangeKind.macro:
             return DID.in_expansion_of_macro, [self.origin.macro_name(pp)]
         assert False
@@ -292,7 +296,7 @@ class Locator:
                     orig_context.source_ranges = source_ranges
                     context = orig_context
                 else:
-                    did, substitutions = loc_range.did_and_substitutions(self.pp)
+                    did, substitutions = loc_range.did_and_substitutions(self.pp, caret_loc)
                     context = DiagnosticContext(did, substitutions, caret_loc,
                                                 caret_range, source_ranges)
                 contexts.append(context)
