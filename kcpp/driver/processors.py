@@ -65,7 +65,7 @@ class PreprocessedOutput(ProcessorBase):
             count += 1
             if token.flags & TokenFlags.BOL:
                 # FIXME: this isn't right any more
-                coords = locator.elaborated_location(token.loc).coords
+                coords = locator.buffer_coords(token.loc)
                 if coords.line_number != line_number:
                     write(b'\n' * (coords.line_number - line_number))
                     line_number = coords.line_number
