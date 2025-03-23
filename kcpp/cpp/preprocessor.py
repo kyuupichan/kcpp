@@ -177,8 +177,24 @@ class Preprocessor:
             return token.extra
         return None
 
-    def token_spelling(self, loc):
-        return self.locator.token_spelling(loc)
+    def token_spelling_at_loc(self, loc):
+        '''Return the spelling of the token at loc.'''
+        buffer, offset = self.locator.loc_to_buffer_and_offset(loc)
+        lexer = Lexer(self, buffer.text, loc - offset)
+        return lexer.token_spelling_at_offset(offset)
+
+    def token_spelling(self, token):
+        '''Return the spelling of a token.  Faster than token_spelling_at_loc(), so is preferable
+        if a token rather than alocation is available.
+        '''
+        assert isinstance(token, Token)
+        if token.kind == TokenKind.IDENTIFIER:
+            return token.extra.spelling
+        if token.is_literal():
+            spelling, _ = token.extra
+            return spelling
+        # FIXME: can spell most (all?) other tokens immediately too
+        return self.token_spelling_at_loc(token.loc)
 
     def directive_names(self):
         return ('include define undef line error warning pragma if ifdef ifndef '
@@ -519,7 +535,7 @@ class Preprocessor:
                 return False
             if lhs_token.flags != rhs_token.flags:
                 return False
-            if self.token_spelling(lhs_token.loc) != self.token_spelling(rhs_token.loc):
+            if self.token_spelling(lhs_token) != self.token_spelling(rhs_token):
                 return False
         return True
 
@@ -563,7 +579,7 @@ class Preprocessor:
 
     def else_section(self, lexer, token, condition):
         if not lexer.if_sections:
-            self.diag(DID.else_without_if, token.loc, [self.token_spelling(token.loc)])
+            self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
             return
 
         section = lexer.if_sections[-1]
@@ -572,7 +588,7 @@ class Preprocessor:
             return
         if section.else_loc != -1:
             self.diag(DID.else_after_else, token.loc, [
-                self.token_spelling(token.loc),
+                self.token_spelling(token),
                 Diagnostic(DID.else_location, section.else_loc),
             ])
             self.skip_to_eod(token, False)
@@ -627,7 +643,7 @@ class Preprocessor:
         if token.kind == TokenKind.EOF:
             return
         if diagnose:
-            spelling = self.token_spelling(self.directive_name_loc)
+            spelling = self.token_spelling_at_loc(self.directive_name_loc)
             self.diag(DID.extra_directive_tokens, token.loc, [spelling])
         # For efficiency, drop out of macro contexts to a lexer
         while True:
@@ -639,7 +655,7 @@ class Preprocessor:
             lexer.get_token(token)
 
     def invalid_directive(self, lexer, token):
-        self.diag(DID.invalid_directive, token.loc, [self.token_spelling(token.loc)])
+        self.diag(DID.invalid_directive, token.loc, [self.token_spelling(token)])
         self.skip_to_eod(token, False)
 
     def diagnostic_directive(self, lexer, token, did):

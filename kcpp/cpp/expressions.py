@@ -307,7 +307,7 @@ class ExprParser:
         elif token.extra == self.true:
             value = 1
         elif is_evaluated:
-            self.diag(DID.identifier_in_pp_expr, token.loc, [self.pp.token_spelling(token.loc)])
+            self.diag(DID.identifier_in_pp_expr, token.loc, [self.pp.token_spelling(token)])
         return ExprValue(value, False, False, TokenRange(token.loc, token.loc))
 
     def evaluate_unary_op(self, rhs, op):
@@ -449,8 +449,7 @@ class ExprParser:
 
     def invalid_op(self, _lhs, _rhs, op):
         '''Diagnose an operator that is invalid in preprocessor expressions.'''
-        args = [self.pp.token_spelling(op.loc)]
-        self.diag(DID.invalid_op_in_pp_expression, op.loc, args)
+        self.diag(DID.invalid_op_in_pp_expression, op.loc, [self.pp.token_spelling(op)])
 
 
 unary_ops = {TokenKind.PLUS, TokenKind.MINUS, TokenKind.TILDE, TokenKind.LOGICAL_NOT}

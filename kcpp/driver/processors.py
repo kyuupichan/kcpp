@@ -75,7 +75,7 @@ class PreprocessedOutput(ProcessorBase):
                         write(b' ' * (coords.column_offset - 1))
             if token.flags & TokenFlags.WS:
                 write(b' ')
-            write(pp.token_spelling(token.loc))
+            write(pp.token_spelling(token))
 
         write(b'\n')
 

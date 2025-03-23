@@ -114,9 +114,8 @@ class ObjectLikeExpansion(TokenSource):
         If RHS is STRINGIZE, do that first.  concat_loc is the macro location of the ## or
         %:%: token.
         '''
-        # FIXME: send the token; it can be faster if the spelling is attached
-        lhs_spelling = self.pp.token_spelling(lhs.loc)
-        rhs_spelling = self.pp.token_spelling(rhs.loc)
+        lhs_spelling = self.pp.token_spelling(lhs)
+        rhs_spelling = self.pp.token_spelling(rhs)
         spelling = lhs_spelling + rhs_spelling
 
         # Get a scratch buffer location for the concatenated token

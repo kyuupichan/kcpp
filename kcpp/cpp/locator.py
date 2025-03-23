@@ -51,11 +51,11 @@ class LocationRange:
             return self.origin.parent_loc(loc - self.start)
         return self.parent
 
-    def did_and_substitutions(self, locator):
+    def did_and_substitutions(self, pp):
         if self.kind == RangeKind.scratch:
             return DID.in_token_concatenation, []
         elif self.kind == RangeKind.macro:
-            return DID.in_expansion_of_macro, [locator.token_spelling(self.origin.name_loc)]
+            return DID.in_expansion_of_macro, [pp.token_spelling_at_loc(self.origin.name_loc)]
         assert False
 
 
@@ -277,7 +277,7 @@ class Locator:
                     orig_context.source_ranges = source_ranges
                     context = orig_context
                 else:
-                    did, substitutions = loc_range.did_and_substitutions(self)
+                    did, substitutions = loc_range.did_and_substitutions(self.pp)
                     context = DiagnosticContext(did, substitutions, caret_loc,
                                                 caret_range, source_ranges)
                 contexts.append(context)
@@ -288,11 +288,6 @@ class Locator:
         contexts.append(orig_context)
         contexts.reverse()
         return contexts
-
-    def token_spelling(self, loc):
-        buffer, offset = self.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(self.pp, buffer.text, loc - offset)
-        return lexer.token_spelling(offset)
 
     def token_length(self, loc):
         '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped

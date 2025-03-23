@@ -925,10 +925,10 @@ class Lexer(TokenSource):
 
         return cp, cursor
 
-    def token_spelling(self, cursor):
-        self.cursor = cursor
+    def token_spelling_at_offset(self, offset):
+        self.cursor = offset
         self.get_token_quietly()
-        return self.fast_utf8_spelling(cursor, self.cursor)
+        return self.fast_utf8_spelling(offset, self.cursor)
 
     def fast_utf8_spelling(self, start, end):
         '''Return the spelling of the token just lexed between start and end as a bytes-like
