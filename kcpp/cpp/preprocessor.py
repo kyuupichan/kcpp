@@ -287,12 +287,11 @@ class Preprocessor:
             arguments = macro.collect_arguments(self, token)
             self.expand_macros = True
             self.collecting_arguments = False
-            if not arguments:
-                return
-            source = FunctionLikeExpansion(self, macro, token, arguments)
+            if arguments:
+                self.push_source(FunctionLikeExpansion(self, macro, token, arguments))
         else:
-            source = ObjectLikeExpansion(self, macro, token)
-        self.push_source(source)
+            self.push_source(ObjectLikeExpansion(self, macro, token))
+        # We get the first token (or the next token if collect_arguments() failed).
         self.get_token(token)
 
     def peek_token_kind(self):
