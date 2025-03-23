@@ -258,7 +258,7 @@ class Lexer(TokenSource):
             # token.  If we're the last source it simply returns, so set the kind to EOF
             # to handle that case.
             token.kind = TokenKind.EOF
-            self.pp.pop_source(token)
+            self.pp.pop_source_and_get_token(token)
             # FIXME: this token's location will be adjusted on return...
             return token.kind, cursor
 
