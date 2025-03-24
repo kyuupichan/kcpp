@@ -49,7 +49,7 @@ def is_printable(c):
     '''Return True if the character can be displayed on a terminal.
 
     For now, this is all those unicode characters with category 'L', 'M', 'N', 'P', 'S',
-    or 'Zs'.
+    or 'Zs'.  In particular, all control characters, including \t, are not printable.
     '''
     return _is_in(is_printable_ranges, c)
 

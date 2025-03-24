@@ -312,7 +312,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             self.macro.enable()
             return
 
-        token.set_to(tokens[cursor], token.loc)
+        token.set_to(tokens[cursor], tokens[cursor].loc)
         if cursor == 0:
             # Copy spacing flags of the parent token
             token.copy_spacing_flags_from(self.parent_flags)

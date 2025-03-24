@@ -7,7 +7,7 @@
 import sys
 from abc import ABC, abstractmethod
 
-from kcpp.cpp import Token, TokenKind, TokenFlags, Preprocessor
+from kcpp.cpp import Token, TokenKind, TokenFlags, Preprocessor, quoted_string
 from kcpp.diagnostics import UnicodeTerminal
 
 
@@ -49,12 +49,16 @@ class ProcessorBase(ABC):
 class PreprocessedOutput(ProcessorBase):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def process_source(self, pp, source):
+    def line_marker(self, filename, line_number):
+        return f'#line {quoted_string(filename)} {line_number}\n'
+
+    def process_source(self, pp, filename):
         # FIXME: this needs a lot of work; it's currently used for simple debugging.
-        pp.push_source_file(source)
+        lexer = pp.push_source_file(filename)
         token = Token.create()
         write = sys.stdout.buffer.write
 
+        write(self.line_marker(filename, 1).encode())
         line_number = 1
         count = 0
         locator = pp.locator
