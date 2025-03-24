@@ -15,7 +15,6 @@ from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
     RangeCoords,
 )
-from .lexer import Lexer
 
 
 __all__ = ['Locator']
@@ -245,7 +244,8 @@ class Locator:
             span = self.lookup_span(loc)
         return span, loc
 
-    def loc_to_buffer_and_offset(self, loc):
+    def spelling_buffer_and_offset(self, loc):
+        '''Return a buffer and offset into it so that the token can be lexed.'''
         buffer_range, loc = self.loc_to_buffer_range(loc)
         return buffer_range.buffer, loc - buffer_range.start
 
@@ -361,16 +361,6 @@ class Locator:
         contexts.reverse()
         return contexts
 
-    def token_length(self, loc):
-        '''The length of the token in bytes in the physical file.  This incldues, e.g., escaped
-        newlines.  The result can be 0, for end-of-source indicator EOF.
-        '''
-        buffer, offset = self.loc_to_buffer_and_offset(loc)
-        lexer = Lexer(self.pp, buffer.text, loc - offset)
-        lexer.cursor = offset
-        lexer.get_token_quietly()
-        return lexer.cursor - offset
-
     def buffer_coords(self, loc):
         '''Convert a location to a BufferCoords instance.'''
         buffer_range, loc = self.loc_to_buffer_range(loc)
@@ -380,17 +370,25 @@ class Locator:
         filename = buffer_range.filename()
         return BufferCoords(buffer, filename, line_number, offset - line_offset, line_offset)
 
+    def token_length(self, loc):
+        '''The length of the token in bytes in the source file.  This incldues, e.g., escaped
+        newlines.  The result can be 0, for end-of-source indicator EOF.
+        '''
+        lexer = self.pp.lexer_at_loc(loc)
+        prior_cursor = lexer.cursor
+        lexer.get_token_quietly()
+        return lexer.cursor - prior_cursor
+
     def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):
             # Convert the SpellingRange to a BufferRange
             assert source_range.start < source_range.end
-            token_loc = source_range.token_loc
-            buffer, offset = self.loc_to_buffer_and_offset(token_loc)
-            lexer = Lexer(self.pp, buffer.text, token_loc - offset)
-            lexer.cursor = offset
+            lexer = self.pp.lexer_at_loc(source_range.token_loc)
+            cursor = lexer.cursor
             lexer.get_token_quietly()
             offsets = [source_range.start, source_range.end]
-            lexer.utf8_spelling(offset, lexer.cursor, offsets)
+            # FIXME: this is ugly, find something better
+            lexer.utf8_spelling(cursor, lexer.cursor, offsets)
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):
