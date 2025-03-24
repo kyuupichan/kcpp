@@ -288,6 +288,7 @@ class Locator:
 
         contexts = []
         caret_ranges = caret_and_loc_ranges(orig_context)
+
         if caret_ranges:
             highlight_contexts = [range_contexts(source_range)
                                   for source_range in orig_context.source_ranges]

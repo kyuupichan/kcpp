@@ -80,10 +80,6 @@ class Macro:
         '''Set the parameter count (including any variable argument).'''
         return count << 8
 
-    def buffer_loc(self, token_index):
-        '''Return the location of the nth token in our replacement list.'''
-        return self.replacement_list[token_index].loc
-
     def macro_name(self, pp):
         '''Return the macro name (as UTF-8).'''
         return pp.token_spelling_at_loc(self.name_loc)
@@ -156,6 +152,20 @@ class Macro:
         return arguments
 
 
+class ObjectLikeLocations:
+
+    def __init__(self, macro, invocation_loc):
+        self.macro = macro
+        self.invocation_loc = invocation_loc
+
+    def buffer_loc(self, token_index):
+        return self.macro.replacement_list[token_index].loc
+
+    def macro_name(self, pp):
+        '''Return the macro name (as UTF-8).'''
+        return pp.token_spelling_at_loc(self.invocation_loc)
+
+
 class SimpleTokenList:
     '''Common functionaliy for various token lists.'''
 
@@ -215,7 +225,8 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.tokens = macro.replacement_list
         self.cursor = 0
-        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(self.tokens), macro)
+        origin = ObjectLikeLocations(macro, parent_token.loc)
+        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(self.tokens), origin)
 
     def get_token(self, token):
         '''Get the next replacement list token and handle token concatenation.'''
