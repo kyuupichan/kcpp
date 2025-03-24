@@ -632,6 +632,8 @@ def quoted_string(s):
     for c in s:
         cp = ord(c)
         if is_printable(cp):
+            if cp == 34 or cp == 92:
+                result += '\\'
             result += c
         else:
             esc = CONTROL_CHARACTER_ESCAPES.get(cp)
