@@ -61,6 +61,47 @@ class LocationRange:
 
 
 @dataclass(slots=True)
+class LineRange:
+    '''Names a range of lines in a source file.  A new BufferRange entry creates an initial
+    instance.  Subsequent entries are created by #line directives.'''
+    start: int           # The first location in this range
+    name: str            # Normally a file name, but can be e.g. <scratch>
+    line_number: int
+
+
+class BufferLocationRange:
+    '''Represents the range of locations used for a source file being processed.  If a source
+    file is processed more than once (for example, if it is included twice), each usage
+    gets its own range.
+
+    An include stack is formed through parent_loc.  This points to the location of the include
+    directive (the actual "include" token) so that an include stack can be produced.
+    '''
+
+    def __init__(self, buffer, start, end, parent_loc, name):
+        assert start <= end
+        self.kind = RangeKind.buffer
+        self.buffer = buffer
+        self.start = start
+        self.end = end
+        self._parent_loc = parent_loc
+        self.line_ranges = [LineRange(start, name, 1)]
+        self.origin = buffer
+
+    def parent_loc(self, loc):
+        assert self.start <= loc <= self.end
+        return -1
+
+    def buffer_loc(self, loc):
+        assert self.start <= loc <= self.end
+        return loc
+
+    def add_line_range(self, start, name, line_number):
+        assert start < self.line_ranges[-1].start < start <= self.end
+        self.line_ranges.append(LineRange(start, name, line_number))
+
+
+@dataclass(slots=True)
 class MacroContext:
     macro_loc: int
     loc_range: LocationRange
@@ -130,23 +171,30 @@ class Locator:
         self.macro_ranges = []
         self.scratch_buffer_range = None
 
-    def new_buffer_range(self, size, buffer, kind):
+    def new_buffer_range(self, size, buffer, kind, parent_loc, name):
         buffer_ranges = self.buffer_ranges
         if buffer_ranges:
             start = buffer_ranges[-1].end + 1
         else:
             start = self.FIRST_BUFFER_LOC
-        buffer_range = LocationRange(kind, start, start + size - 1, buffer)
+
+        if kind == RangeKind.scratch:
+            buffer_range = LocationRange(kind, start, start + size - 1, buffer)
+        else:
+            buffer_range = BufferLocationRange(buffer, start, start + size - 1, parent_loc, name)
         buffer_ranges.append(buffer_range)
         return buffer_range
 
-    def new_buffer_loc(self, buffer_size, buffer):
-        buffer_range = self.new_buffer_range(buffer_size, buffer, RangeKind.buffer)
+    def new_buffer_loc(self, buffer, name, parent_loc):
+        # Allow a location for the buffer's EOF.
+        size = len(buffer.text) + 1
+        buffer_range = self.new_buffer_range(size, buffer, RangeKind.buffer, parent_loc, name)
         return buffer_range.start
 
     def new_scratch_buffer(self, size):
         buffer = ScratchBuffer(size)
-        self.scratch_buffer_range = self.new_buffer_range(size, buffer, RangeKind.scratch)
+        self.scratch_buffer_range = self.new_buffer_range(size, buffer, RangeKind.scratch, -1,
+                                                          '<scratch>')
 
     def new_macro_range(self, count, origin):
         macro_ranges = self.macro_ranges
