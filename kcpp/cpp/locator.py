@@ -261,10 +261,10 @@ class Locator:
     def source_buffer_loc(self, loc):
         while True:
             loc_range = self.lookup_range(loc)
-            if loc_range.kind != RangeKind.buffer:
-                loc = loc_range.macro_parent_loc(loc)
-                continue
-            return loc
+            parent_loc = loc_range.macro_parent_loc(loc)
+            if parent_loc == -1:
+                return loc
+            loc = parent_loc
 
     def source_file_coords(self, loc):
         return self.buffer_coords(self.source_buffer_loc(loc))
@@ -280,11 +280,10 @@ class Locator:
             while True:
                 loc_range = self.lookup_range(loc)
                 parent_loc = loc_range.macro_parent_loc(loc)
-                if parent_loc != -1:
-                    contexts.append(MacroContext(loc, loc_range))
-                    loc = parent_loc
-                    continue
-                return contexts
+                if parent_loc == -1:
+                    return contexts
+                contexts.append(MacroContext(loc, loc_range))
+                loc = parent_loc
 
         def range_contexts(token_range):
             start_contexts = macro_context_stack(token_range.start)
