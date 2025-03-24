@@ -12,7 +12,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate
 
-from ..cpp import Buffer, BufferCoords
+from ..basic import Buffer, BufferCoords
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )

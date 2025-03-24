@@ -10,11 +10,11 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
+from ..basic import Buffer, BufferCoords
 from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
     RangeCoords,
 )
-from .basic import Buffer
 from .lexer import Lexer
 
 
@@ -366,7 +366,8 @@ class Locator:
     def buffer_coords(self, loc):
         '''Convert a location to a BufferCoords instance.'''
         buffer, offset = self.loc_to_buffer_and_offset(loc)
-        return buffer.offset_to_coords(offset)
+        line_offset, line_number = buffer.offset_to_line_info(offset)
+        return BufferCoords(buffer, line_number, offset - line_offset, line_offset)
 
     def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):

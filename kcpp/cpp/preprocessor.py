@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
+from ..basic import Buffer
 from ..diagnostics import DID, Diagnostic, DiagnosticEngine
 
 from .basic import (
-    Buffer, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
+    IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
     TargetMachine, IntegerKind, Charset, BuiltInKind
 )
 from .expressions import ExprParser

@@ -7,7 +7,8 @@
 import re
 from dataclasses import dataclass
 
-from ..cpp import BufferCoords, BufferPosition
+from ..basic import BufferPosition, BufferCoords
+
 from .definitions import (
     DID, DiagnosticSeverity, diagnostic_definitions,
 )
