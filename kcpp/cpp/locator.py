@@ -51,7 +51,6 @@ class BufferSpan:
         return -1
 
     def spelling_loc(self, loc):
-        assert self.start <= loc <= self.end
         return loc
 
     def add_line_range(self, start, name, line_number):
@@ -114,7 +113,6 @@ class ScratchBufferSpan(Buffer):
         return self.entries[bisect_left(self.entries, loc + 1, key=lambda e: e.offset) - 1]
 
     def spelling_loc(self, loc):
-        assert self.start <= loc <= self.end
         return loc
 
     def macro_parent_loc(self, loc):
@@ -238,11 +236,15 @@ class Locator:
     def spelling_span_and_offset(self, loc):
         '''Return a pair (span, offset) where span is a BufferSpan or ScratchBufferSpan
         instance.'''
-        span = self.lookup_span(loc)
-        if isinstance(span, (FunctionLikeMacroReplacementSpan, ObjectLikeMacroReplacementSpan)):
-            loc = span.spelling_loc(loc)
+        while True:
             span = self.lookup_span(loc)
-        return span, loc - span.start
+            spelling_loc = span.spelling_loc(loc)
+            if spelling_loc != loc:
+                # Object-like macros need to recurse once.  Function-like macros may be
+                # many times.
+                loc = spelling_loc
+                continue
+            return span, loc - span.start
 
     def spelling_buffer_and_offset(self, loc):
         '''Return a buffer and offset into it so that the token can be lexed.'''
