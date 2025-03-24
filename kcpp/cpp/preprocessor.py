@@ -239,10 +239,14 @@ class Preprocessor:
     def push_source(self, source):
         self.sources.append(source)
 
-    def pop_source(self, token):
+    def pop_source_and_get_token(self, token):
         if len(self.sources) > 1:
             self.sources.pop()
             self.get_token(token)
+
+    def pop_source(self):
+        assert len(self.sources) > 1
+        self.sources.pop()
 
     def get_token(self, token):
         # Take tokens from the currently active source.

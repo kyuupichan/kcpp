@@ -83,6 +83,7 @@ class DID(IntEnum):
     invalid_variadic_identifier_use = auto()
     left_shift_of_negative_value = auto()
     left_shift_overflows = auto()
+    macro_defined_here = auto()
     macro_definition_ends_with_concat = auto()
     macro_definition_starts_with_concat = auto()
     macro_name_not_identifier = auto()
@@ -468,6 +469,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.warning,
         DiagnosticGroup.none,
         'left shift overflows',
+    ),
+    DID.macro_defined_here: DiagnosticDefinition(
+        DID.macro_defined_here,
+        DiagnosticSeverity.note,
+        DiagnosticGroup.none,
+        'macro %q0 was defined here',
     ),
     DID.macro_definition_ends_with_concat: DiagnosticDefinition(
         DID.macro_definition_ends_with_concat,

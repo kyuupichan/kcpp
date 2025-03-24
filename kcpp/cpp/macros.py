@@ -8,8 +8,8 @@ from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum
 
-from ..diagnostics import DID
-from .basic import Token, TokenSource, TokenKind, TokenFlags
+from ..diagnostics import DID, Diagnostic
+from .basic import Token, TokenKind, TokenFlags
 from .lexer import Lexer
 from .locator import ScratchEntryKind
 
@@ -37,6 +37,10 @@ class MacroArgument:
     # cache of expanded macro arguments, to save expanding arguments twice or more.
     # Initially None (to distinguish from empty); filled on-demand.
     expanded_tokens: object
+
+    @classmethod
+    def from_tokens(cls, tokens):
+        return cls(tokens, None if tokens else [])
 
 
 @dataclass(slots=True)
@@ -103,7 +107,9 @@ class Macro:
             get_token(token)
 
             if token.kind == TokenKind.EOF:
-                pp.diag(DID.unterminated_argument_list, token.loc, [self.macro_name(pp)])
+                macro_name = self.macro_name(pp)
+                note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
+                pp.diag(DID.unterminated_argument_list, name_token.loc, [macro_name, note])
                 arguments = None
                 break
             if token.kind == TokenKind.PAREN_CLOSE:
@@ -115,7 +121,7 @@ class Macro:
                 if token.kind == TokenKind.COMMA:
                     # This completes an argument unless we are in the variable arguments.
                     if len(arguments) + 1 < param_count_no_variadic:
-                        arguments.append(MacroArgument(tokens, None))
+                        arguments.append(MacroArgument.from_tokens(tokens))
                         tokens = []
                         continue
                     # It is impossible to have too many arguments to a variadic macro; the
@@ -136,7 +142,7 @@ class Macro:
         if arguments is not None:
             # The ')' completed an argument unless there are no parameters at all.
             if token.kind == TokenKind.PAREN_CLOSE and param_count:
-                arguments.append(MacroArgument(tokens, None))
+                arguments.append(MacroArgument.from_tokens(tokens))
                 # Do we have enough arguments?
                 if len(arguments) < param_count:
                     if len(arguments) < param_count_no_variadic:
@@ -144,53 +150,20 @@ class Macro:
                         arguments = None
                     else:
                         # Add an empty variable argument if none was given
-                        arguments.append(MacroArgument([], None))
+                        arguments.append(MacroArgument.from_tokens([]))
             assert arguments is None or len(arguments) == param_count
 
         return arguments
 
 
-class MacroExpansionBase(TokenSource):
-    '''A token source that returns tokens from the replacement list of a macro.  Token
-    concatenation via the ## operator is handled transparently.
-    '''
+class SimpleTokenList:
+    '''Common functionaliy for various token lists.'''
 
-    def __init__(self, pp, macro, token):
-        assert token.kind == TokenKind.IDENTIFIER
-        self.pp = pp
-        self.macro = macro
-        self.tokens = macro.replacement_list
-        self.cursor = 0
-        self.macro_token_flags = token.flags
-        self.base_loc = pp.locator.new_macro_range(token.loc, len(self.tokens), macro)
-
-    def get_token(self, token):
-        cursor = self.cursor
-        tokens = self.tokens
-
-        if cursor == len(tokens):
-            self.macro.enable()
-            self.pp.pop_source(token)
-        else:
-            token.set_to(tokens[cursor], self.base_loc + cursor)
-            # Copy spacing flags of the invocation token.  Also disable the macro.
-            if cursor == 0:
-                token.copy_spacing_flags_from(self.macro_token_flags)
-                self.macro.disable()
-            cursor += 1
-
-            if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
-                assert cursor + 1 < len(tokens)
-                if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
-                    cursor += 2
-                else:
-                    cursor += 1
-
-            self.cursor = cursor
+    peek_end_kind = TokenKind.PEEK_AGAIN
 
     def peek_token_kind(self):
         if self.cursor == len(self.tokens):
-            return TokenKind.PEEK_AGAIN
+            return self.peek_end_kind
         return self.tokens[self.cursor].kind
 
     def concatenate_tokens(self, lhs, concat_loc, rhs):
@@ -230,42 +203,164 @@ class MacroExpansionBase(TokenSource):
         return token, lexer.cursor == len(spelling)
 
 
-class ObjectLikeExpansion(MacroExpansionBase):
+class ObjectLikeExpansion(SimpleTokenList):
     '''A token source that returns tokens from the replacement list of an object-like macro.
-    Token concatenation via the ## operator is handled transparently.
+    Token concatenation via the ## operator is handled by get_token().
     '''
 
-
-class FunctionLikeExpansion(MacroExpansionBase):
-    '''A token source that returns tokens from the replacement list of an function-like macro.
-    Token concatenation via the ## operator, and stringizing via the # operator, are
-    handled transparently.
-    '''
-
-    def __init__(self, pp, macro, token, arguments):
-        super().__init__(pp, macro, token)
-        self.arguments = arguments
+    def __init__(self, pp, macro, parent_token):
+        assert parent_token.kind == TokenKind.IDENTIFIER
+        self.pp = pp
+        self.macro = macro
+        self.parent_flags = parent_token.flags
+        self.tokens = macro.replacement_list
+        self.cursor = 0
+        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(self.tokens), macro)
 
     def get_token(self, token):
-        super().get_token(token)
+        '''Get the next replacement list token and handle token concatenation.'''
+        cursor = self.cursor
+        tokens = self.tokens
+        if cursor == len(tokens):
+            self.pp.pop_source_and_get_token(token)
+            self.macro.enable()
+            return
 
-        if token.kind == TokenKind.STRINGIZE:
-            self.stringize_argument(token, self.tokens[self.cursor])
-            self.cursor += 1
+        token.set_to(tokens[cursor], self.base_loc + cursor)
+        if cursor == 0:
+            # Copy spacing flags of the parent token
+            token.copy_spacing_flags_from(self.parent_flags)
+        cursor += 1
 
-    def stringize_argument(self, lhs, rhs):
-        '''lhs is a copy of the # operator.  rhs is the macro parameter token and must not be
-        modified.
+        if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
+            assert cursor + 1 < len(tokens)
+            if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
+                cursor += 2
+            else:
+                cursor += 1
+        self.cursor = cursor
 
-        Convert the argument tokens of rhs to a string and place it in lhs.  If
-        strinization doesn't produce a valid string, set it to an empty string.
-        lhs retains its WS and BOL flags.
+
+class FunctionLikeExpansion(SimpleTokenList):
+    '''A token source that returns tokens from the replacement list of an function-like macro.
+    Token concatenation via the ## operator, and stringizing via the # operator, are
+    handled by get_token().
+    '''
+
+    def __init__(self, pp, macro, parent_token, arguments):
+        assert parent_token.kind == TokenKind.IDENTIFIER
+        self.pp = pp
+        self.macro = macro
+        self.parent_flags = parent_token.flags
+        self.cursor = 0
+        self.base_loc = pp.locator.new_macro_range(parent_token.loc, len(macro.replacement_list),
+                                                   macro)
+        self.tokens = self.replace_arguments(macro.replacement_list, arguments)
+
+    def replace_arguments(self, tokens, arguments):
+        def check_argument(param):
+            assert param.kind == TokenKind.MACRO_PARAM
+            assert 0 <= param.extra < len(arguments)
+            return arguments[param.extra]
+
+        result = []
+        cursor = 0
+        while cursor < len(tokens):
+            token = tokens[cursor]
+            new_token_loc = self.base_loc + cursor
+            cursor += 1
+
+            if token.kind == TokenKind.STRINGIZE:
+                string = self.stringize_argument(check_argument(tokens[cursor]), new_token_loc)
+                # Preserve the spacing flags of # operator
+                string.copy_spacing_flags_from(token.flags)
+                result.append(string)
+                cursor += 1
+                continue
+
+            if token.kind == TokenKind.MACRO_PARAM:
+                argument = check_argument(token)
+                lhs_concat = result and result[-1].kind == TokenKind.CONCAT
+                rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
+                if lhs_concat or rhs_concat:
+                    argument_tokens = argument.tokens
+                    # Replace empty argument with a placemarker
+                    if not argument_tokens:
+                        result.append(self.placemarker_from_token(token))
+                        continue
+                else:
+                    argument_tokens = self.expand_argument(argument)
+                # Replace the first token with a copy and set its spacing flags
+                first = copy(argument_tokens[0])
+                first.copy_spacing_flags_from(token.flags)
+                argument_tokens[0] = first
+                result.extend(argument_tokens)
+                continue
+
+            token = copy(token)
+            token.loc = new_token_loc
+            result.append(token)
+
+        return result
+
+    def get_token(self, token):
+        '''Handle argument replacement, stringizing and token concatenation.'''
+        cursor = self.cursor
+        tokens = self.tokens
+        if cursor == len(tokens):
+            self.pp.pop_source_and_get_token(token)
+            self.macro.enable()
+            return
+
+        token.set_to(tokens[cursor], token.loc)
+        if cursor == 0:
+            # Copy spacing flags of the parent token
+            token.copy_spacing_flags_from(self.parent_flags)
+        cursor += 1
+
+        if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
+            assert cursor + 1 < len(tokens)
+            if self.concatenate_tokens(token, token.loc, tokens[cursor + 1]):
+                cursor += 2
+            else:
+                cursor += 1
+        self.cursor = cursor
+
+    def expand_argument(self, argument):
+        def collect_expanded_tokens(get_token):
+            result = []
+            while True:
+                token = Token.create()
+                get_token(token)
+                if token.kind == TokenKind.EOF:
+                    return result
+                result.append(token)
+
+        tokens = argument.expanded_tokens
+        if tokens is None:
+            self.pp.push_source(UnexpandedArgument(argument.tokens))
+            tokens = collect_expanded_tokens(self.pp.get_token)
+            argument.expanded_tokens = tokens
+            self.pp.pop_source()
+
+        return tokens
+
+    def placemarker_from_token(self, token):
+        return Token(TokenKind.PLACEMARKER, token.flags & TokenFlags.WS, token.loc, None)
+
+    def stringize_argument(self, argument, stringize_loc):
+        '''argument is the argument to stringize.  Return a new token.  stringize_loc is the macro
+        location of the # operator.
+
+        Convert the argument tokens of rhs to a string and place it in the result.  If
+        strinization doesn't produce a valid string, set it to an empty string.  The
+        result retains the WS flag of lhs.
         '''
-        assert 0 <= rhs.extra < len(self.arguments)
-        macro_arg = self.arguments[rhs.extra]
         spelling = bytearray()
+
+        # Build up the spelling of the stringized argument tokens.
         spelling.append(34)    # '"'
-        for n, token in enumerate(macro_arg.tokens):
+        for n, token in enumerate(argument.tokens):
             if n and token.flags & TokenFlags.WS:
                 spelling.append(32)
             token_spelling = self.pp.token_spelling(token)
@@ -278,7 +373,6 @@ class FunctionLikeExpansion(MacroExpansionBase):
                 spelling.extend(token_spelling)
         spelling.append(34)    # '"'
 
-        stringize_loc = lhs.loc
         token, all_consumed = self.lex_from_scratch(spelling, stringize_loc,
                                                     ScratchEntryKind.stringize)
         assert all_consumed
@@ -289,9 +383,29 @@ class FunctionLikeExpansion(MacroExpansionBase):
             token = Token(TokenKind.STRING_LITERAL, 0, stringize_loc, (b'""', None))
 
         assert token.kind == TokenKind.STRING_LITERAL
-        # Preserve the spacing flags and copy the token with its new macro location
-        token.copy_spacing_flags_from(lhs.flags)
-        lhs.set_to(token, token.loc)
+        return token
+
+
+class UnexpandedArgument(SimpleTokenList):
+
+    peek_end_kind = TokenKind.EOF
+
+    def __init__(self, tokens):
+        assert tokens
+        self.tokens = tokens
+        self.cursor = 0
+
+    def get_token(self, token):
+        cursor = self.cursor
+        tokens = self.tokens
+        if cursor == len(tokens):
+            # Terminate the collect_expanded_tokens() loop.
+            token.kind = TokenKind.EOF
+        else:
+            # Don't care about the whitespace of the first token - it is set by
+            # FunctionLikeExpansion.get_token().
+            token.set_to(tokens[cursor], tokens[cursor].loc)
+            self.cursor = cursor + 1
 
 
 class DiagnosticFilter:
