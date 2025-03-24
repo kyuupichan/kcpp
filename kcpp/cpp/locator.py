@@ -137,10 +137,10 @@ class ScratchEntry:
 class ObjectLikeMacroReplacementSpan:
 
     def __init__(self, macro, invocation_loc, start):
-        self.start = start
-        self.end = start + len(macro.replacement_list) - 1
         self.macro = macro
         self.invocation_loc = invocation_loc
+        self.start = start
+        self.end = start + len(macro.replacement_list) - 1
 
     def spelling_loc(self, loc):
         token_index = loc - self.start
@@ -157,8 +157,25 @@ class ObjectLikeMacroReplacementSpan:
         return DID.in_expansion_of_macro, [self.macro_name(pp)]
 
 
-class FunctionLikeMacroReplacementSpan(ObjectLikeMacroReplacementSpan):
-    pass
+class FunctionLikeMacroReplacementSpan:
+
+    def __init__(self, invocation_loc, start, locations):
+        self.invocation_loc = invocation_loc
+        self.start = start
+        self.end = start + len(locations) - 1
+
+    def spelling_loc(self, loc):
+        return self.locations[loc - self.start]
+
+    def macro_parent_loc(self, loc):
+        return self.invocation_loc
+
+    def macro_name(self, pp):
+        '''Return the macro name (as UTF-8).'''
+        return pp.token_spelling_at_loc(self.invocation_loc)
+
+    def did_and_substitutions(self, pp, loc):
+        return DID.in_expansion_of_macro, [self.macro_name(pp)]
 
 
 @dataclass(slots=True)
@@ -194,9 +211,9 @@ class Locator:
         except IndexError:
             return self.FIRST_MACRO_LOC
 
-    def functionlike_macro_replacement_span(self, macro, parent_loc):
+    def functionlike_macro_replacement_span(self, parent_loc, locations):
         start = self.next_macro_span_start()
-        self.macro_spans.append(FunctionLikeMacroReplacementSpan(macro, parent_loc, start))
+        self.macro_spans.append(FunctionLikeMacroReplacementSpan(parent_loc, start, locations))
         return start
 
     def objlike_macro_replacement_span(self, macro, parent_loc):

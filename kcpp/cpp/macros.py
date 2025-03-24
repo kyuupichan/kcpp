@@ -235,10 +235,9 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.macro = macro
         self.parent_flags = parent_token.flags
         self.cursor = 0
-        self.base_loc = pp.locator.functionlike_macro_replacement_span(macro, parent_token.loc)
-        self.tokens = self.replace_arguments(macro.replacement_list, arguments)
+        self.tokens = self.replace_arguments(macro.replacement_list, arguments, parent_token.loc)
 
-    def replace_arguments(self, tokens, arguments):
+    def replace_arguments(self, tokens, arguments, invocation_loc):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
             assert 0 <= param.extra < len(arguments)
@@ -248,11 +247,10 @@ class FunctionLikeExpansion(SimpleTokenList):
         cursor = 0
         while cursor < len(tokens):
             token = tokens[cursor]
-            new_token_loc = self.base_loc + cursor
             cursor += 1
 
             if token.kind == TokenKind.STRINGIZE:
-                string = self.stringize_argument(check_argument(tokens[cursor]), new_token_loc)
+                string = self.stringize_argument(check_argument(tokens[cursor]), token.loc)
                 # Preserve the spacing flags of # operator
                 string.copy_spacing_flags_from(token.flags)
                 result.append(string)
@@ -265,21 +263,24 @@ class FunctionLikeExpansion(SimpleTokenList):
                 rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
                 if lhs_concat or rhs_concat:
                     # Replace empty argument with a placemarker
-                    if not argument_tokens:
-                        result.append(self.placemarker_from_token(token))
-                        continue
+                    if argument_tokens:
+                        argument_tokens = [copy(token) for token in argument_tokens]
+                    else:
+                        argument_tokens = [self.placemarker_from_token(token, token.loc)]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
                 # Replace the first token with a copy and set its spacing flags
-                first = copy(argument_tokens[0])
-                first.copy_spacing_flags_from(token.flags)
-                argument_tokens[0] = first
+                argument_tokens[0].copy_spacing_flags_from(token.flags)
                 result.extend(argument_tokens)
                 continue
 
-            token = copy(token)
-            token.loc = new_token_loc
-            result.append(token)
+            result.append(copy(token))
+
+        # Give the tokens their macro-expansion locations
+        locations = [token.loc for token in result]
+        base_loc = self.pp.locator.functionlike_macro_replacement_span(invocation_loc, locations)
+        for loc, token in enumerate(tokens, start=base_loc):
+            token.loc = loc
 
         return result
 
@@ -322,6 +323,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         return tokens
 
     def placemarker_from_token(self, token):
+        # FIXME: check this
         return Token(TokenKind.PLACEMARKER, token.flags & TokenFlags.WS, token.loc, None)
 
     def stringize_argument(self, argument_tokens, stringize_loc):
