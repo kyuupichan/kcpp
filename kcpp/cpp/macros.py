@@ -8,7 +8,7 @@ from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum
 
-from ..diagnostics import DID
+from ..diagnostics import DID, Diagnostic
 from .basic import Token, TokenKind, TokenFlags
 from .lexer import Lexer
 from .locator import ScratchEntryKind
@@ -107,7 +107,9 @@ class Macro:
             get_token(token)
 
             if token.kind == TokenKind.EOF:
-                pp.diag(DID.unterminated_argument_list, name_token.loc, [self.macro_name(pp)])
+                macro_name = self.macro_name(pp)
+                note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
+                pp.diag(DID.unterminated_argument_list, name_token.loc, [macro_name, note])
                 arguments = None
                 break
             if token.kind == TokenKind.PAREN_CLOSE:
