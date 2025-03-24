@@ -169,7 +169,7 @@ class FunctionLikeMacroReplacementSpan:
         return self.locations[loc - self.start]
 
     def macro_parent_loc(self, loc):
-        return self.invocation_loc
+        return self.locations[loc - self.start]
 
     def macro_name(self, pp):
         '''Return the macro name (as UTF-8).'''
