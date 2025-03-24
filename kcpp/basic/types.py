@@ -130,6 +130,8 @@ class BufferCoords:
     '''Represents a location in a buffer as a line number and column offset.'''
     # The buffer
     buffer: Buffer
+    # The filename
+    filename: str
     # Line number in the buffer (1-based)
     line_number: int
     # Byte offset of the location from the start of the line (0-based)

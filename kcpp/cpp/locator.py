@@ -367,7 +367,7 @@ class Locator:
         '''Convert a location to a BufferCoords instance.'''
         buffer, offset = self.loc_to_buffer_and_offset(loc)
         line_offset, line_number = buffer.offset_to_line_info(offset)
-        return BufferCoords(buffer, line_number, offset - line_offset, line_offset)
+        return BufferCoords(buffer, buffer.name, line_number, offset - line_offset, line_offset)
 
     def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):

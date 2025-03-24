@@ -238,7 +238,7 @@ class DiagnosticEngine(DiagnosticConsumer):
         with no location, something like '<command line>: ' for command-line errors, and
         otherwise something like '"file_name": line 25: " for file locations.
         '''
-        arguments = [coords.buffer.name, coords.line_number, coords.column_offset + 1]
+        arguments = [coords.filename, coords.line_number, coords.column_offset + 1]
 
         if self.worded_locations:
             pos = coords.buffer_position()

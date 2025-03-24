@@ -55,20 +55,20 @@ class PreprocessedOutput(ProcessorBase):
         self.at_bol = True
         self.write = sys.stdout.buffer.write
         self.line_number = -1
-        self.buffer_name = None
+        self.filename = None
         self.pp = None
 
     def write_line_marker(self):
         '''Write a line marker.  On return self.at_bol is True.'''
         if not self.at_bol:
             self.write(b'\n')
-        self.write(f'#line {quoted_string(self.buffer_name)} {self.line_number}\n'.encode())
+        self.write(f'#line {self.line_number} {quoted_string(self.filename)}\n'.encode())
         self.at_bol = True
 
     def source_file_changed(self, loc, reason):
         coords = self.pp.locator.source_file_coords(loc)
         self.line_number = coords.line_number
-        self.buffer_name = coords.buffer.name
+        self.filename = coords.filename
         self.write_line_marker()
 
     def move_to_line_number(self, line_number):
