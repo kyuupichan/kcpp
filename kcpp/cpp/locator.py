@@ -47,7 +47,6 @@ class BufferLocationRange:
     '''
 
     def __init__(self, buffer, start, parent_loc, name):
-        self.kind = RangeKind.buffer
         self.buffer = buffer
         self.start = start
         # End is inclusive, so this permits an end-of-buffer location
@@ -84,7 +83,6 @@ class ScratchRange(Buffer):
         '''Create a scratch buffer with the given size.'''
         super().__init__(bytearray())
         assert start <= end
-        self.kind = RangeKind.scratch
         self.buffer = self
         self.start = start
         self.end = end
@@ -148,7 +146,6 @@ class ScratchEntry:
 class ObjectLikeMacroReplacementSpan:
 
     def __init__(self, macro, invocation_loc, start):
-        self.kind = RangeKind.macro
         self.start = start
         self.end = start + len(macro.replacement_list) - 1
         self.macro = macro
@@ -248,10 +245,10 @@ class Locator:
     def loc_to_buffer_range(self, loc):
         '''Return a pair (buffer, offset) where buffer is a Buffer or ScratchBuffer instance.'''
         loc_range = self.lookup_range(loc)
-        if loc_range.kind == RangeKind.macro:
+        if isinstance(loc_range, (FunctionLikeMacroReplacementSpan,
+                                  ObjectLikeMacroReplacementSpan)):
             loc = loc_range.buffer_loc(loc)
             loc_range = self.lookup_range(loc)
-        assert loc_range.kind != RangeKind.macro
         return loc_range, loc
 
     def loc_to_buffer_and_offset(self, loc):
