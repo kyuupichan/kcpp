@@ -7,7 +7,9 @@
 import sys
 from abc import ABC, abstractmethod
 
-from kcpp.cpp import Token, TokenKind, TokenFlags, Preprocessor, quoted_string
+from kcpp.cpp import (
+    Token, TokenKind, TokenFlags, Preprocessor, quoted_string, PreprocessorActions,
+)
 from kcpp.diagnostics import UnicodeTerminal
 
 
@@ -49,35 +51,60 @@ class ProcessorBase(ABC):
 class PreprocessedOutput(ProcessorBase):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def line_marker(self, filename, line_number):
-        return f'#line {quoted_string(filename)} {line_number}\n'
+    def __init__(self):
+        self.at_bol = True
+        self.write = sys.stdout.buffer.write
+        self.line_number = -1
+        self.buffer_name = None
+        self.pp = None
+
+    def write_line_marker(self):
+        '''Write a line marker.  On return self.at_bol is True.'''
+        if not self.at_bol:
+            self.write(b'\n')
+        self.write(f'#line {quoted_string(self.buffer_name)} {self.line_number}\n'.encode())
+        self.at_bol = True
+
+    def source_file_changed(self, loc, reason):
+        coords = self.pp.locator.source_file_coords(loc)
+        self.line_number = coords.line_number
+        self.buffer_name = coords.buffer.name
+        self.write_line_marker()
+
+    def move_to_line_number(self, line_number):
+        count = line_number - self.line_number
+        self.line_number = line_number
+
+        assert count >= 0
+        if count < 8:
+            self.write(b'\n' * count)
+        else:
+            self.write_line_marker()
+        self.at_bol = True
 
     def process_source(self, pp, filename):
-        # FIXME: this needs a lot of work; it's currently used for simple debugging.
-        lexer = pp.push_source_file(filename)
-        token = Token.create()
-        write = sys.stdout.buffer.write
+        self.pp = pp
+        pp.actions = PreprocessorActions()
+        pp.actions.source_file_changed = self.source_file_changed
+        pp.push_source_file(filename)
 
-        write(self.line_marker(filename, 1).encode())
-        line_number = 1
-        count = 0
+        token = Token.create()
+        write = self.write
         locator = pp.locator
         while True:
             pp.get_token(token)
             if token.kind == TokenKind.EOF:
                 break
-            count += 1
 
             coords = locator.source_file_coords(token.loc)
-            if coords.line_number != line_number:
-                write(b'\n' * (coords.line_number - line_number))
-                line_number = coords.line_number
+            if coords.line_number != self.line_number:
+                self.move_to_line_number(coords.line_number)
                 if coords.column_offset > 1:
-                    # One will be done below for WS flag
                     write(b' ' * coords.column_offset)
             elif token.flags & TokenFlags.WS:
                 write(b' ')
             write(pp.token_spelling(token))
+            self.at_bol = False
 
         write(b'\n')
 

@@ -6,7 +6,7 @@
 import sys
 from copy import copy
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import IntEnum, auto
 from functools import partial
 
 from ..diagnostics import DID, Diagnostic, DiagnosticEngine
@@ -22,7 +22,7 @@ from .locator import Locator
 from .macros import Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion
 
 
-__all__ = ['Preprocessor']
+__all__ = ['Preprocessor', 'PreprocessorActions']
 
 
 class Keywords(IntEnum):
@@ -40,6 +40,25 @@ class IfSection:
     else_loc: int
     # Location of opening directive
     opening_loc: int
+
+
+class SourceFileChangeReason(IntEnum):
+    enter = auto()    # via #include, command line, predefine buffer, etc.
+    leave = auto()    # end of file reached
+    line = auto()     # line directive
+
+
+@dataclass
+class PreprocessorActions:
+    '''These functions are called when the preprocessor performs certain actions.  Subclass or
+    instantiate to customize behaviour.
+    '''
+
+    def source_file_changed(self, loc, reason):
+        '''Called when entering a new soure file, leaving a source file, or on a #line directive
+        (even if the file name remains unchanged).  loc is the first location of the new
+        context, and reason is a SourcefileChangeReason.'''
+        pass
 
 
 class Preprocessor:
@@ -61,6 +80,8 @@ class Preprocessor:
         self.literal_interpreter = LiteralInterpreter(self, False)
         # Diagnostics are sent here
         self.diagnostic_consumer = None
+        # Action listener
+        self.actions = None
         # Directive handlers
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}
@@ -225,16 +246,18 @@ class Preprocessor:
             except OSError as e:
                 print(f'error: unable to open {filename}: {e}', file=sys.stderr)
                 return
-        return self.push_buffer(raw, name=filename)
+        return self.push_buffer(raw, filename, -1)
 
-    def push_buffer(self, text, *, name=None):
+    def push_buffer(self, text, name, parent_loc):
         buffer = Buffer(text, name=name)
         # Allow a location for the buffer's EOF.
         first_loc = self.locator.new_buffer_loc(-1, len(text) + 1, buffer)
-        source = Lexer(self, text, first_loc)
-        source.if_sections = []
-        self.push_source(source)
-        return source
+        lexer = Lexer(self, text, first_loc)
+        lexer.if_sections = []
+        self.push_source(lexer)
+        if self.actions:
+            self.actions.source_file_changed(first_loc, SourceFileChangeReason.enter)
+        return lexer
 
     def push_source(self, source):
         self.sources.append(source)

@@ -639,6 +639,6 @@ def quoted_string(s):
                 result += esc
             else:
                 for cp in c.encode():
-                    result += f'\\{cp:02x}'
+                    result += f'\\x{cp:02x}'
     result += '"'
     return result
