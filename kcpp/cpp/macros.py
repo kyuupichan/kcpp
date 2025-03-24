@@ -107,7 +107,7 @@ class Macro:
             get_token(token)
 
             if token.kind == TokenKind.EOF:
-                pp.diag(DID.unterminated_argument_list, token.loc, [self.macro_name(pp)])
+                pp.diag(DID.unterminated_argument_list, name_token.loc, [self.macro_name(pp)])
                 arguments = None
                 break
             if token.kind == TokenKind.PAREN_CLOSE:
