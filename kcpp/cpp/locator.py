@@ -258,7 +258,7 @@ class Locator:
             loc = parent_loc
 
     def source_file_coords(self, loc):
-        return self.buffer_coords(self.source_buffer_loc(loc))
+        return self.spelling_coords(self.source_buffer_loc(loc))
 
     def diagnostic_contexts_core(self, orig_context):
         def source_buffer_range(source_range):
@@ -361,7 +361,7 @@ class Locator:
         contexts.reverse()
         return contexts
 
-    def buffer_coords(self, loc):
+    def spelling_coords(self, loc):
         '''Convert a location to a BufferCoords instance.'''
         span, offset = self.spelling_span_and_offset(loc)
         buffer = span.buffer
@@ -391,20 +391,20 @@ class Locator:
             source_range = BufferRange(offsets[0], offsets[1])
 
         if isinstance(source_range, BufferRange):
-            start = self.buffer_coords(source_range.start)
-            end = self.buffer_coords(source_range.end)
+            start = self.spelling_coords(source_range.start)
+            end = self.spelling_coords(source_range.end)
             assert start.buffer is end.buffer
         elif isinstance(source_range, TokenRange):
             if source_range.start <= location_none:
                 start = end = None
             else:
-                start = self.buffer_coords(source_range.start)
+                start = self.spelling_coords(source_range.start)
                 if source_range.start == source_range.end:
                     end = start
                 else:
-                    end = self.buffer_coords(source_range.end)
+                    end = self.spelling_coords(source_range.end)
                 token_end = source_range.end + self.token_length(source_range.end)
-                end = self.buffer_coords(token_end)
+                end = self.spelling_coords(token_end)
         else:
             raise RuntimeError(f'unhandled source range {source_range}')
 
