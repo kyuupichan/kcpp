@@ -251,7 +251,7 @@ class Preprocessor:
     def push_buffer(self, text, name, parent_loc):
         buffer = Buffer(text, name=name)
         # Allow a location for the buffer's EOF.
-        first_loc = self.locator.new_buffer_loc(-1, len(text) + 1, buffer)
+        first_loc = self.locator.new_buffer_loc(len(text) + 1, buffer)
         lexer = Lexer(self, text, first_loc)
         lexer.if_sections = []
         self.push_source(lexer)

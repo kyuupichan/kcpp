@@ -35,7 +35,6 @@ class LocationRange:
     # Range is inclusive from start to end.
     start: int
     end: int
-    parent: int
     # buffer: the Buffer object.  scratch: the ScratchBuffer object.  macro: a macro object
     origin: object
 
@@ -47,9 +46,7 @@ class LocationRange:
 
     def parent_loc(self, loc):
         assert self.kind != RangeKind.buffer
-        if self.kind == RangeKind.scratch:
-            return self.origin.parent_loc(loc - self.start)
-        return self.parent
+        return self.origin.parent_loc(loc - self.start)
 
     def did_and_substitutions(self, pp, loc):
         if self.kind == RangeKind.scratch:
@@ -133,35 +130,31 @@ class Locator:
         self.macro_ranges = []
         self.scratch_buffer_range = None
 
-    def new_buffer_range(self, parent_loc, size, buffer, kind):
-        assert isinstance(parent_loc, int)
-        assert parent_loc > 0 or parent_loc == -1
+    def new_buffer_range(self, size, buffer, kind):
         buffer_ranges = self.buffer_ranges
         if buffer_ranges:
             start = buffer_ranges[-1].end + 1
         else:
             start = self.FIRST_BUFFER_LOC
-        buffer_range = LocationRange(kind, start, start + size - 1, parent_loc, buffer)
+        buffer_range = LocationRange(kind, start, start + size - 1, buffer)
         buffer_ranges.append(buffer_range)
         return buffer_range
 
-    def new_buffer_loc(self, parent_loc, buffer_size, buffer):
-        buffer_range = self.new_buffer_range(parent_loc, buffer_size, buffer, RangeKind.buffer)
+    def new_buffer_loc(self, buffer_size, buffer):
+        buffer_range = self.new_buffer_range(buffer_size, buffer, RangeKind.buffer)
         return buffer_range.start
 
     def new_scratch_buffer(self, size):
         buffer = ScratchBuffer(size)
-        self.scratch_buffer_range = self.new_buffer_range(-1, size, buffer, RangeKind.scratch)
+        self.scratch_buffer_range = self.new_buffer_range(size, buffer, RangeKind.scratch)
 
-    def new_macro_range(self, parent_loc, count, origin):
-        assert parent_loc > 0
+    def new_macro_range(self, count, origin):
         macro_ranges = self.macro_ranges
         if macro_ranges:
             start = macro_ranges[-1].end + 1
         else:
             start = self.FIRST_MACRO_LOC
-        macro_ranges.append(LocationRange(RangeKind.macro, start, start + count - 1,
-                                          parent_loc, origin))
+        macro_ranges.append(LocationRange(RangeKind.macro, start, start + count - 1, origin))
         return start
 
     def new_scratch_token(self, spelling, parent_loc, entry_kind):
