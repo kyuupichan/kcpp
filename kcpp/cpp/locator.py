@@ -29,32 +29,6 @@ class RangeKind(IntEnum):
 
 
 @dataclass(slots=True)
-class LocationRange:
-    '''Represents a contiguous location range.'''
-    kind: RangeKind
-    # Range is inclusive from start to end.
-    start: int
-    end: int
-    # To be removed
-    origin: object
-
-    def buffer_loc(self, loc):
-        assert self.kind != RangeKind.buffer
-        if self.kind == RangeKind.scratch:
-            return loc
-        return self.origin.buffer_loc(loc - self.start)
-
-    def parent_loc(self, loc):
-        assert self.kind != RangeKind.buffer
-        return self.origin.parent_loc(loc - self.start)
-
-    def did_and_substitutions(self, pp, loc):
-        if self.kind == RangeKind.macro:
-            return DID.in_expansion_of_macro, [self.origin.macro_name(pp)]
-        assert False
-
-
-@dataclass(slots=True)
 class LineRange:
     '''Names a range of lines in a source file.  A new BufferRange entry creates an initial
     instance.  Subsequent entries are created by #line directives.'''
@@ -159,12 +133,6 @@ class ScratchRange(Buffer):
         return '<scratch>'
 
 
-@dataclass(slots=True)
-class MacroContext:
-    macro_loc: int
-    loc_range: LocationRange
-
-
 class ScratchEntryKind(IntEnum):
     concatenate = auto()
     stringize = auto()
@@ -175,6 +143,40 @@ class ScratchEntry:
     offset: int
     parent_loc: int
     kind: ScratchEntryKind
+
+
+class ObjectLikeMacroReplacementSpan:
+
+    def __init__(self, macro, invocation_loc, start):
+        self.kind = RangeKind.macro
+        self.start = start
+        self.end = start + len(macro.replacement_list) - 1
+        self.macro = macro
+        self.invocation_loc = invocation_loc
+
+    def buffer_loc(self, loc):
+        token_index = loc - self.start
+        return self.macro.replacement_list[token_index].loc
+
+    def parent_loc(self, loc):
+        return self.invocation_loc
+
+    def macro_name(self, pp):
+        '''Return the macro name (as UTF-8).'''
+        return pp.token_spelling_at_loc(self.invocation_loc)
+
+    def did_and_substitutions(self, pp, loc):
+        return DID.in_expansion_of_macro, [self.macro_name(pp)]
+
+
+class FunctionLikeMacroReplacementSpan(ObjectLikeMacroReplacementSpan):
+    pass
+
+
+@dataclass(slots=True)
+class MacroContext:
+    macro_loc: int
+    loc_range: object
 
 
 class Locator:
@@ -198,13 +200,20 @@ class Locator:
         buffer_ranges.append(BufferLocationRange(buffer, start, parent_loc, name))
         return start
 
-    def new_macro_range(self, count, origin):
-        macro_ranges = self.macro_ranges
-        if macro_ranges:
-            start = macro_ranges[-1].end + 1
-        else:
-            start = self.FIRST_MACRO_LOC
-        macro_ranges.append(LocationRange(RangeKind.macro, start, start + count - 1, origin))
+    def next_macro_span_start(self):
+        try:
+            return self.macro_ranges[-1].end + 1
+        except IndexError:
+            return self.FIRST_MACRO_LOC
+
+    def functionlike_macro_replacement_span(self, macro, parent_loc):
+        start = self.next_macro_span_start()
+        self.macro_ranges.append(FunctionLikeMacroReplacementSpan(macro, parent_loc, start))
+        return start
+
+    def objlike_macro_replacement_span(self, macro, parent_loc):
+        start = self.next_macro_span_start()
+        self.macro_ranges.append(ObjectLikeMacroReplacementSpan(macro, parent_loc, start))
         return start
 
     def new_scratch_token(self, spelling, parent_loc, entry_kind):

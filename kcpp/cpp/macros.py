@@ -138,23 +138,6 @@ class Macro:
         return arguments
 
 
-class ObjectLikeLocations:
-
-    def __init__(self, macro, invocation_loc):
-        self.macro = macro
-        self.invocation_loc = invocation_loc
-
-    def buffer_loc(self, token_index):
-        return self.macro.replacement_list[token_index].loc
-
-    def parent_loc(self, token_index):
-        return self.invocation_loc
-
-    def macro_name(self, pp):
-        '''Return the macro name (as UTF-8).'''
-        return pp.token_spelling_at_loc(self.invocation_loc)
-
-
 class SimpleTokenList:
     '''Common functionaliy for various token lists.'''
 
@@ -214,8 +197,7 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.tokens = macro.replacement_list
         self.cursor = 0
-        origin = ObjectLikeLocations(macro, parent_token.loc)
-        self.base_loc = pp.locator.new_macro_range(len(self.tokens), origin)
+        self.base_loc = pp.locator.objlike_macro_replacement_span(macro, parent_token.loc)
 
     def get_token(self, token):
         '''Get the next replacement list token and handle token concatenation.'''
@@ -253,7 +235,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.macro = macro
         self.parent_flags = parent_token.flags
         self.cursor = 0
-        self.base_loc = pp.locator.new_macro_range(len(macro.replacement_list), macro)
+        self.base_loc = pp.locator.functionlike_macro_replacement_span(macro, parent_token.loc)
         self.tokens = self.replace_arguments(macro.replacement_list, arguments)
 
     def replace_arguments(self, tokens, arguments):
