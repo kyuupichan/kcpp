@@ -49,13 +49,7 @@ class LocationRange:
         return self.origin.parent_loc(loc - self.start)
 
     def did_and_substitutions(self, pp, loc):
-        if self.kind == RangeKind.scratch:
-            kind = self.origin.entry_for_loc(loc - self.start).kind
-            if kind == ScratchEntryKind.concatenate:
-                return DID.in_token_concatenation, []
-            else:
-                return DID.in_argument_stringizing, []
-        elif self.kind == RangeKind.macro:
+        if self.kind == RangeKind.macro:
             return DID.in_expansion_of_macro, [self.origin.macro_name(pp)]
         assert False
 
@@ -86,7 +80,6 @@ class BufferLocationRange:
         self.end = end
         self._parent_loc = parent_loc
         self.line_ranges = [LineRange(start, name, 1)]
-        self.origin = buffer
 
     def parent_loc(self, loc):
         assert self.start <= loc <= self.end
@@ -99,6 +92,59 @@ class BufferLocationRange:
     def add_line_range(self, start, name, line_number):
         assert start < self.line_ranges[-1].start < start <= self.end
         self.line_ranges.append(LineRange(start, name, line_number))
+
+    def filename(self):
+        return self.line_ranges[0].name
+
+
+class ScratchRange:
+
+    def __init__(self, buffer, start, end):
+        assert start <= end
+        self.kind = RangeKind.scratch
+        self.buffer = buffer
+        self.start = start
+        self.end = end
+        # Naturally sorted by offset.
+        self.entries = []
+
+    def add_spelling(self, spelling, parent_loc, entry_kind):
+        start = len(self.buffer.text)
+        if start + len(spelling) + 1 < self.buffer.size:
+            # Add the spelling and a newline character (so it appears on its own line in
+            # diagnostics)
+            self.buffer.text.extend(spelling)
+            self.buffer.text.append(10)
+            self.entries.append(ScratchEntry(start, parent_loc, entry_kind))
+            # Clear the cached line offsets
+            self.buffer._sparse_line_offsets = None
+            return start
+        return -1
+
+    def did_and_substitutions(self, pp, loc):
+        kind = self.entry_for_loc(loc).kind
+        if kind == ScratchEntryKind.concatenate:
+            return DID.in_token_concatenation, []
+        else:
+            return DID.in_argument_stringizing, []
+
+    def entry_for_loc(self, loc):
+        '''Return the parent location (i.e. the location of the ## or # token) of a scratch buffer
+        location.  loc is an offset into the scratch buffer.
+        '''
+        loc -= self.start
+        assert 0 <= loc < len(self.buffer.text)
+        return self.entries[bisect_left(self.entries, loc + 1, key=lambda e: e.offset) - 1]
+
+    def buffer_loc(self, loc):
+        assert self.start <= loc <= self.end
+        return loc
+
+    def parent_loc(self, loc):
+        return self.entry_for_loc(loc).parent_loc
+
+    def filename(self):
+        return '<scratch>'
 
 
 @dataclass(slots=True)
@@ -132,31 +178,6 @@ class ScratchBuffer(Buffer):
         '''Create a scratch buffer with the given size.'''
         super().__init__(bytearray(), name='<scratch>')
         self.size = size
-        # Naturally sorted by offset.
-        self.entries = []
-
-    def add_spelling(self, spelling, parent_loc, entry_kind):
-        start = len(self.text)
-        if start + len(spelling) + 1 < self.size:
-            # Add the spelling and a newline character (so it appears on its own line in
-            # diagnostics)
-            self.text.extend(spelling)
-            self.text.append(10)
-            self.entries.append(ScratchEntry(start, parent_loc, entry_kind))
-            # Clear the cached line offsets
-            self._sparse_line_offsets = None
-            return start
-        return -1
-
-    def entry_for_loc(self, loc):
-        '''Return the parent location (i.e. the location of the ## or # token) of a scratch buffer
-        location.  loc is an offset into the scratch buffer.
-        '''
-        assert 0 <= loc < len(self.text)
-        return self.entries[bisect_left(self.entries, loc + 1, key=lambda e: e.offset) - 1]
-
-    def parent_loc(self, loc):
-        return self.entry_for_loc(loc).parent_loc
 
 
 class Locator:
@@ -169,7 +190,7 @@ class Locator:
         self.pp = pp
         self.buffer_ranges = []
         self.macro_ranges = []
-        self.scratch_buffer_range = None
+        self.scratch_range = None
 
     def new_buffer_range(self, size, buffer, kind, parent_loc, name):
         buffer_ranges = self.buffer_ranges
@@ -179,7 +200,7 @@ class Locator:
             start = self.FIRST_BUFFER_LOC
 
         if kind == RangeKind.scratch:
-            buffer_range = LocationRange(kind, start, start + size - 1, buffer)
+            buffer_range = ScratchRange(buffer, start, start + size - 1)
         else:
             buffer_range = BufferLocationRange(buffer, start, start + size - 1, parent_loc, name)
         buffer_ranges.append(buffer_range)
@@ -193,8 +214,7 @@ class Locator:
 
     def new_scratch_buffer(self, size):
         buffer = ScratchBuffer(size)
-        self.scratch_buffer_range = self.new_buffer_range(size, buffer, RangeKind.scratch, -1,
-                                                          '<scratch>')
+        self.scratch_range = self.new_buffer_range(size, buffer, RangeKind.scratch, -1, None)
 
     def new_macro_range(self, count, origin):
         macro_ranges = self.macro_ranges
@@ -207,11 +227,10 @@ class Locator:
 
     def new_scratch_token(self, spelling, parent_loc, entry_kind):
         def alloc_in_current(spelling):
-            if self.scratch_buffer_range:
-                scratch_buffer = self.scratch_buffer_range.origin
-                result = scratch_buffer.add_spelling(spelling, parent_loc, entry_kind)
+            if self.scratch_range:
+                result = self.scratch_range.add_spelling(spelling, parent_loc, entry_kind)
                 if result != -1:
-                    return self.scratch_buffer_range.start + result
+                    return self.scratch_range.start + result
             return -1
 
         assert isinstance(entry_kind, ScratchEntryKind)
@@ -232,14 +251,18 @@ class Locator:
         assert loc_range.start <= loc <= loc_range.end
         return loc_range
 
-    def loc_to_buffer_and_offset(self, loc):
+    def loc_to_buffer_range(self, loc):
         '''Return a pair (buffer, offset) where buffer is a Buffer or ScratchBuffer instance.'''
         loc_range = self.lookup_range(loc)
         if loc_range.kind == RangeKind.macro:
             loc = loc_range.buffer_loc(loc)
             loc_range = self.lookup_range(loc)
         assert loc_range.kind != RangeKind.macro
-        return loc_range.origin, loc - loc_range.start
+        return loc_range, loc
+
+    def loc_to_buffer_and_offset(self, loc):
+        buffer_range, loc = self.loc_to_buffer_range(loc)
+        return buffer_range.buffer, loc - buffer_range.start
 
     def source_buffer_loc(self, loc):
         while True:
@@ -365,9 +388,12 @@ class Locator:
 
     def buffer_coords(self, loc):
         '''Convert a location to a BufferCoords instance.'''
-        buffer, offset = self.loc_to_buffer_and_offset(loc)
+        buffer_range, loc = self.loc_to_buffer_range(loc)
+        offset = loc - buffer_range.start
+        buffer = buffer_range.buffer
         line_offset, line_number = buffer.offset_to_line_info(offset)
-        return BufferCoords(buffer, buffer.name, line_number, offset - line_offset, line_offset)
+        filename = buffer_range.filename()
+        return BufferCoords(buffer, filename, line_number, offset - line_offset, line_offset)
 
     def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):
