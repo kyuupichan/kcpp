@@ -235,19 +235,19 @@ class Locator:
         assert span.start <= loc <= span.end
         return span
 
-    def loc_to_buffer_range(self, loc):
+    def spelling_span_and_offset(self, loc):
         '''Return a pair (span, offset) where span is a BufferSpan or ScratchBufferSpan
         instance.'''
         span = self.lookup_span(loc)
         if isinstance(span, (FunctionLikeMacroReplacementSpan, ObjectLikeMacroReplacementSpan)):
             loc = span.buffer_loc(loc)
             span = self.lookup_span(loc)
-        return span, loc
+        return span, loc - span.start
 
     def spelling_buffer_and_offset(self, loc):
         '''Return a buffer and offset into it so that the token can be lexed.'''
-        buffer_range, loc = self.loc_to_buffer_range(loc)
-        return buffer_range.buffer, loc - buffer_range.start
+        span, offset = self.spelling_span_and_offset(loc)
+        return span.buffer, offset
 
     def source_buffer_loc(self, loc):
         while True:
@@ -363,11 +363,10 @@ class Locator:
 
     def buffer_coords(self, loc):
         '''Convert a location to a BufferCoords instance.'''
-        buffer_range, loc = self.loc_to_buffer_range(loc)
-        offset = loc - buffer_range.start
-        buffer = buffer_range.buffer
+        span, offset = self.spelling_span_and_offset(loc)
+        buffer = span.buffer
         line_offset, line_number = buffer.offset_to_line_info(offset)
-        filename = buffer_range.filename()
+        filename = span.filename()
         return BufferCoords(buffer, filename, line_number, offset - line_offset, line_offset)
 
     def token_length(self, loc):
