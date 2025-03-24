@@ -16,8 +16,8 @@ from ..unicode import (
 )
 
 from .basic import (
-    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Charset, Encoding, IdentifierInfo,
-    IntegerKind, RealKind, Token, value_width
+    HEX_DIGIT_VALUES, SIMPLE_ESCAPES, TokenKind, TokenFlags, Charset, Encoding, IdentifierInfo,
+    IntegerKind, RealKind, Token, value_width, CONTROL_CHARACTER_ESCAPES
 )
 
 
@@ -28,7 +28,6 @@ __all__ = [
 
 
 OCTAL_DIGITS = {ord(c) for c in '01234567'}
-SIMPLE_ESCAPES = {ord(c): ord(d) for c, d in zip('\\\'?"abfnrtv', '\\\'?"\a\b\f\n\r\t\v')}
 # Map bases to diagnostic arguments for DID.invalid_digit
 bases = [2, 8, 10, 16]
 
@@ -97,10 +96,9 @@ class StringLiteral:
 
 def printable_form(cp):
     '''Like printable_char, except that C escape sequences are used if available.'''
-    if cp < 32:
-        for c, d in SIMPLE_ESCAPES.items():
-            if d == cp:
-                return '\\' + chr(c)
+    esc = CONTROL_CHARACTER_ESCAPES.get(cp)
+    if esc:
+        return esc
     return printable_char(cp)
 
 

@@ -16,13 +16,14 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from typing import ClassVar
 
-from ..unicode import REPLACEMENT_CHAR
+from ..unicode import REPLACEMENT_CHAR, is_printable
 
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
     'IdentifierInfo', 'SpecialKind', 'TargetMachine', 'Environment',
     'Buffer', 'BufferPosition', 'BufferCoords',
+    'SIMPLE_ESCAPES', 'CONTROL_CHARACTER_ESCAPES', 'quoted_string',
 ]
 
 
@@ -610,3 +611,34 @@ def value_width(value):
     if value >= 0:
         return value.bit_length()
     return (-value - 1).bit_length() + 1
+
+
+SIMPLE_ESCAPES = {ord(c): ord(d) for c, d in zip('\\\'?"abfnrtv', '\\\'?"\a\b\f\n\r\t\v')}
+
+'''Maps a codepoint to a C escape sequence if it is a control character and representable
+   as a C escape sequence.
+
+    For example, 9 -> "\\t".
+
+'''
+CONTROL_CHARACTER_ESCAPES = {d: '\\' + chr(c) for c, d in SIMPLE_ESCAPES.items() if d < 32}
+
+
+def quoted_string(s):
+    '''Place s in quotes in a C-string, such that the string literal would be interpreted
+    back to s.'''
+    result = '"'
+
+    for c in s:
+        cp = ord(c)
+        if is_printable(cp):
+            result += c
+        else:
+            esc = CONTROL_CHARACTER_ESCAPES.get(cp)
+            if esc:
+                result += esc
+            else:
+                for cp in c.encode():
+                    result += f'\\{cp:02x}'
+    result += '"'
+    return result
