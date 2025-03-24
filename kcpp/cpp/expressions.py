@@ -425,11 +425,15 @@ class ExprParser:
             lhs.value = value & self.mask
         else:
             assert op.kind == TokenKind.RSHIFT
-            if not (lhs.is_unsigned or lhs_value >= 0):
-                # Implementation-defined value in C.  In C++, an arithmetic right-shift
-                # preserving the sign (which is what Python does).
+            # In C++23, this is an arithmetic right shift preserving the sign (i.e.  a
+            # division rounding to negative infinity).  It has an implementation-defined
+            # value in C.
+            if lhs_value < 0:
+                # Shift the complement, and complement back.
+                lhs.value = self.mask - ((self.mask - lhs.value) >> rhs_value)
                 self.diag(DID.right_shift_of_negative_value, op.loc, [lhs.loc])
-            lhs.value >>= rhs.value
+            else:
+                lhs.value >>= rhs_value
 
     def evaluate_logical(self, lhs, rhs, op):
         '''Evaluate short-circuiting logical expressions (&& and ||).'''
