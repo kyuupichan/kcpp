@@ -72,12 +72,12 @@ class BufferLocationRange:
     directive (the actual "include" token) so that an include stack can be produced.
     '''
 
-    def __init__(self, buffer, start, end, parent_loc, name):
-        assert start <= end
+    def __init__(self, buffer, start, parent_loc, name):
         self.kind = RangeKind.buffer
         self.buffer = buffer
         self.start = start
-        self.end = end
+        # End is inclusive, so this permits an end-of-buffer location
+        self.end = start + len(buffer.text)
         self._parent_loc = parent_loc
         self.line_ranges = [LineRange(start, name, 1)]
 
@@ -189,25 +189,14 @@ class Locator:
         self.macro_ranges = []
         self.scratch_range = None
 
-    def new_buffer_range(self, size, buffer, kind, parent_loc, name):
+    def new_buffer_loc(self, buffer, name, parent_loc):
         buffer_ranges = self.buffer_ranges
         if buffer_ranges:
             start = buffer_ranges[-1].end + 1
         else:
             start = self.FIRST_BUFFER_LOC
-
-        if kind == RangeKind.scratch:
-            buffer_range = ScratchRange(start, start + size - 1)
-        else:
-            buffer_range = BufferLocationRange(buffer, start, start + size - 1, parent_loc, name)
-        buffer_ranges.append(buffer_range)
-        return buffer_range
-
-    def new_buffer_loc(self, buffer, name, parent_loc):
-        # Allow a location for the buffer's EOF.
-        size = len(buffer.text) + 1
-        buffer_range = self.new_buffer_range(size, buffer, RangeKind.buffer, parent_loc, name)
-        return buffer_range.start
+        buffer_ranges.append(BufferLocationRange(buffer, start, parent_loc, name))
+        return start
 
     def new_macro_range(self, count, origin):
         macro_ranges = self.macro_ranges
@@ -230,7 +219,9 @@ class Locator:
         loc = alloc_in_current(spelling)
         if loc == -1:
             size = max(len(spelling), 1_000)
-            self.scratch_range = self.new_buffer_range(size, None, RangeKind.scratch, -1, None)
+            start = self.buffer_ranges[-1].end
+            self.scratch_range = ScratchRange(start, start + size - 1)
+            self.buffer_ranges.append(self.scratch_range)
             loc = alloc_in_current(spelling)
             assert loc != -1
         return loc
