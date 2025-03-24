@@ -55,7 +55,7 @@ class BufferLocationRange:
         self._parent_loc = parent_loc
         self.line_ranges = [LineRange(start, name, 1)]
 
-    def parent_loc(self, loc):
+    def macro_parent_loc(self, loc):
         assert self.start <= loc <= self.end
         return -1
 
@@ -126,7 +126,7 @@ class ScratchRange(Buffer):
         assert self.start <= loc <= self.end
         return loc
 
-    def parent_loc(self, loc):
+    def macro_parent_loc(self, loc):
         return self.entry_for_loc(loc).parent_loc
 
     def filename(self):
@@ -158,7 +158,7 @@ class ObjectLikeMacroReplacementSpan:
         token_index = loc - self.start
         return self.macro.replacement_list[token_index].loc
 
-    def parent_loc(self, loc):
+    def macro_parent_loc(self, loc):
         return self.invocation_loc
 
     def macro_name(self, pp):
@@ -262,7 +262,7 @@ class Locator:
         while True:
             loc_range = self.lookup_range(loc)
             if loc_range.kind != RangeKind.buffer:
-                loc = loc_range.parent_loc(loc)
+                loc = loc_range.macro_parent_loc(loc)
                 continue
             return loc
 
@@ -279,9 +279,10 @@ class Locator:
             contexts = []
             while True:
                 loc_range = self.lookup_range(loc)
-                if loc_range.kind != RangeKind.buffer:
+                parent_loc = loc_range.macro_parent_loc(loc)
+                if parent_loc != -1:
                     contexts.append(MacroContext(loc, loc_range))
-                    loc = loc_range.parent_loc(loc)
+                    loc = parent_loc
                     continue
                 return contexts
 
