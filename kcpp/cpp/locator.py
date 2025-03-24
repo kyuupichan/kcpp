@@ -163,6 +163,7 @@ class FunctionLikeMacroReplacementSpan:
         self.invocation_loc = invocation_loc
         self.start = start
         self.end = start + len(locations) - 1
+        self.locations = locations
 
     def spelling_loc(self, loc):
         return self.locations[loc - self.start]
@@ -370,7 +371,6 @@ class Locator:
 
         contexts = []
         caret_ranges = caret_and_spans(orig_context)
-
         if caret_ranges:
             highlight_contexts = [range_contexts(source_range)
                                   for source_range in orig_context.source_ranges]

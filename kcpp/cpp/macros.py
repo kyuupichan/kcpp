@@ -279,7 +279,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         # Give the tokens their macro-expansion locations
         locations = [token.loc for token in result]
         base_loc = self.pp.locator.functionlike_macro_replacement_span(invocation_loc, locations)
-        for loc, token in enumerate(tokens, start=base_loc):
+        for loc, token in enumerate(result, start=base_loc):
             token.loc = loc
 
         return result
