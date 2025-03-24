@@ -200,18 +200,21 @@ class Locator:
         assert loc_range.kind != RangeKind.macro
         return loc_range.origin, loc - loc_range.start
 
-    def diagnostic_contexts_core(self, orig_context):
-        def to_standard_buffer_loc(loc):
-            while True:
-                loc_range = self.lookup_range(loc)
-                if loc_range.kind != RangeKind.buffer:
-                    loc = loc_range.parent_loc(loc)
-                    continue
-                return loc
+    def source_buffer_loc(self, loc):
+        while True:
+            loc_range = self.lookup_range(loc)
+            if loc_range.kind != RangeKind.buffer:
+                loc = loc_range.parent_loc(loc)
+                continue
+            return loc
 
-        def standard_buffer_range(source_range):
-            start = to_standard_buffer_loc(source_range.start)
-            end = to_standard_buffer_loc(source_range.end)
+    def source_file_coords(self, loc):
+        return self.buffer_coords(self.source_buffer_loc(loc))
+
+    def diagnostic_contexts_core(self, orig_context):
+        def source_buffer_range(source_range):
+            start = self.source_buffer_loc(source_range.start)
+            end = self.source_buffer_loc(source_range.end)
             return TokenRange(start, end)
 
         def macro_context_stack(loc):
@@ -278,8 +281,8 @@ class Locator:
                         caret_range = TokenRange(caret_loc, caret_loc)
                     result[n] = (caret_loc, caret_range, context.loc_range)
 
-                # Lower the orig_context caret range to a standard buffer
-                token_loc = to_standard_buffer_loc(caret_token_loc)
+                # Lower the orig_context caret range to a source file
+                token_loc = self.source_buffer_loc(caret_token_loc)
                 orig_context.caret_range = TokenRange(token_loc, token_loc)
             return result
 
@@ -302,7 +305,7 @@ class Locator:
                 contexts.append(context)
 
         # Lower the source ranges in the original context and make it the final context
-        orig_context.source_ranges = [standard_buffer_range(source_range)
+        orig_context.source_ranges = [source_buffer_range(source_range)
                                       for source_range in orig_context.source_ranges]
         contexts.append(orig_context)
         contexts.reverse()

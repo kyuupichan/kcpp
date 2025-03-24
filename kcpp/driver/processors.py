@@ -63,17 +63,15 @@ class PreprocessedOutput(ProcessorBase):
             if token.kind == TokenKind.EOF:
                 break
             count += 1
-            if token.flags & TokenFlags.BOL:
-                # FIXME: this isn't right any more
-                coords = locator.buffer_coords(token.loc)
-                if coords.line_number != line_number:
-                    write(b'\n' * (coords.line_number - line_number))
-                    line_number = coords.line_number
-                    if coords.column_offset > 1:
-                        # FIXME assert token.flags & TokenFlags.WS
-                        # One will be done below for WS flag
-                        write(b' ' * (coords.column_offset - 1))
-            if token.flags & TokenFlags.WS:
+
+            coords = locator.source_file_coords(token.loc)
+            if coords.line_number != line_number:
+                write(b'\n' * (coords.line_number - line_number))
+                line_number = coords.line_number
+                if coords.column_offset > 1:
+                    # One will be done below for WS flag
+                    write(b' ' * coords.column_offset)
+            elif token.flags & TokenFlags.WS:
                 write(b' ')
             write(pp.token_spelling(token))
 
