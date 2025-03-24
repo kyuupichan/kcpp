@@ -30,20 +30,6 @@ class MacroFlags(IntEnum):
 
 
 @dataclass(slots=True)
-class MacroArgument:
-    # A list.  The first entry is the list of tokens forming the first argument, the
-    # second entry is the list of tokens forming the second argument, etc.
-    tokens: list
-    # cache of expanded macro arguments, to save expanding arguments twice or more.
-    # Initially None (to distinguish from empty); filled on-demand.
-    expanded_tokens: object
-
-    @classmethod
-    def from_tokens(cls, tokens):
-        return cls(tokens, None if tokens else [])
-
-
-@dataclass(slots=True)
 class Macro:
     '''Records the details of a macro definition.'''
     # Location of the macro name in the definition
@@ -117,7 +103,7 @@ class Macro:
                 if token.kind == TokenKind.COMMA:
                     # This completes an argument unless we are in the variable arguments.
                     if len(arguments) + 1 < param_count_no_variadic:
-                        arguments.append(MacroArgument.from_tokens(tokens))
+                        arguments.append(tokens)
                         tokens = []
                         continue
                     # It is impossible to have too many arguments to a variadic macro; the
@@ -138,7 +124,7 @@ class Macro:
         if arguments is not None:
             # The ')' completed an argument unless there are no parameters at all.
             if token.kind == TokenKind.PAREN_CLOSE and param_count:
-                arguments.append(MacroArgument.from_tokens(tokens))
+                arguments.append(tokens)
                 # Do we have enough arguments?
                 if len(arguments) < param_count:
                     if len(arguments) < param_count_no_variadic:
@@ -146,7 +132,7 @@ class Macro:
                         arguments = None
                     else:
                         # Add an empty variable argument if none was given
-                        arguments.append(MacroArgument.from_tokens([]))
+                        arguments.append([])
             assert arguments is None or len(arguments) == param_count
 
         return arguments
@@ -292,17 +278,16 @@ class FunctionLikeExpansion(SimpleTokenList):
                 continue
 
             if token.kind == TokenKind.MACRO_PARAM:
-                argument = check_argument(token)
+                argument_tokens = check_argument(token)
                 lhs_concat = result and result[-1].kind == TokenKind.CONCAT
                 rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
                 if lhs_concat or rhs_concat:
-                    argument_tokens = argument.tokens
                     # Replace empty argument with a placemarker
                     if not argument_tokens:
                         result.append(self.placemarker_from_token(token))
                         continue
                 else:
-                    argument_tokens = self.expand_argument(argument)
+                    argument_tokens = self.expand_argument(argument_tokens)
                 # Replace the first token with a copy and set its spacing flags
                 first = copy(argument_tokens[0])
                 first.copy_spacing_flags_from(token.flags)
@@ -339,7 +324,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                 cursor += 1
         self.cursor = cursor
 
-    def expand_argument(self, argument):
+    def expand_argument(self, argument_tokens):
         def collect_expanded_tokens(get_token):
             result = []
             while True:
@@ -349,20 +334,16 @@ class FunctionLikeExpansion(SimpleTokenList):
                     return result
                 result.append(token)
 
-        tokens = argument.expanded_tokens
-        if tokens is None:
-            self.pp.push_source(UnexpandedArgument(argument.tokens))
-            tokens = collect_expanded_tokens(self.pp.get_token)
-            argument.expanded_tokens = tokens
-            self.pp.pop_source()
-
+        self.pp.push_source(UnexpandedArgument(argument_tokens))
+        tokens = collect_expanded_tokens(self.pp.get_token)
+        self.pp.pop_source()
         return tokens
 
     def placemarker_from_token(self, token):
         return Token(TokenKind.PLACEMARKER, token.flags & TokenFlags.WS, token.loc, None)
 
-    def stringize_argument(self, argument, stringize_loc):
-        '''argument is the argument to stringize.  Return a new token.  stringize_loc is the macro
+    def stringize_argument(self, argument_tokens, stringize_loc):
+        '''Stringize the argument tokens.  Return a new token.  stringize_loc is the macro
         location of the # operator.
 
         Convert the argument tokens of rhs to a string and place it in the result.  If
@@ -373,7 +354,7 @@ class FunctionLikeExpansion(SimpleTokenList):
 
         # Build up the spelling of the stringized argument tokens.
         spelling.append(34)    # '"'
-        for n, token in enumerate(argument.tokens):
+        for n, token in enumerate(argument_tokens):
             if n and token.flags & TokenFlags.WS:
                 spelling.append(32)
             token_spelling = self.pp.token_spelling(token)
