@@ -250,7 +250,7 @@ class Preprocessor:
         return self.push_buffer(raw, filename, -1)
 
     def push_buffer(self, text, name, parent_loc):
-        buffer = Buffer(text, name=name)
+        buffer = Buffer(text)
         first_loc = self.locator.new_buffer_loc(buffer, name, -1)
         lexer = Lexer(self, text, first_loc)
         lexer.if_sections = []

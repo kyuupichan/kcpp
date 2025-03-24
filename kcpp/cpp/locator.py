@@ -176,7 +176,7 @@ class ScratchBuffer(Buffer):
 
     def __init__(self, size):
         '''Create a scratch buffer with the given size.'''
-        super().__init__(bytearray(), name='<scratch>')
+        super().__init__(bytearray())
         self.size = size
 
 

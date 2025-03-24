@@ -41,8 +41,7 @@ def sparse_line_offsets(raw, min_step):
 class Buffer:
     '''Represents a file being preprocessed.'''
 
-    def __init__(self, text, *, name=None, sparsity=1_000):
-        self.name = '<unnamed>' if name is None else name
+    def __init__(self, text, *, sparsity=1_000):
         self.text = text
         # A sparse list of (offset, line_number) pairs to save memory
         self._sparse_line_offsets = None
