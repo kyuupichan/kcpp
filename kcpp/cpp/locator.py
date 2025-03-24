@@ -50,7 +50,7 @@ class BufferSpan:
         assert self.start <= loc <= self.end
         return -1
 
-    def buffer_loc(self, loc):
+    def spelling_loc(self, loc):
         assert self.start <= loc <= self.end
         return loc
 
@@ -113,7 +113,7 @@ class ScratchBufferSpan(Buffer):
         assert 0 <= loc < len(self.buffer.text)
         return self.entries[bisect_left(self.entries, loc + 1, key=lambda e: e.offset) - 1]
 
-    def buffer_loc(self, loc):
+    def spelling_loc(self, loc):
         assert self.start <= loc <= self.end
         return loc
 
@@ -144,7 +144,7 @@ class ObjectLikeMacroReplacementSpan:
         self.macro = macro
         self.invocation_loc = invocation_loc
 
-    def buffer_loc(self, loc):
+    def spelling_loc(self, loc):
         token_index = loc - self.start
         return self.macro.replacement_list[token_index].loc
 
@@ -240,7 +240,7 @@ class Locator:
         instance.'''
         span = self.lookup_span(loc)
         if isinstance(span, (FunctionLikeMacroReplacementSpan, ObjectLikeMacroReplacementSpan)):
-            loc = span.buffer_loc(loc)
+            loc = span.spelling_loc(loc)
             span = self.lookup_span(loc)
         return span, loc - span.start
 
@@ -249,7 +249,13 @@ class Locator:
         span, offset = self.spelling_span_and_offset(loc)
         return span.buffer, offset
 
-    def source_buffer_loc(self, loc):
+    def buffer_span_loc(self, loc):
+        '''Step up through the parents of a location until a BufferSpan is reached, and return the
+        location there.
+
+        So if a location arises from a macro expansion, this will return to the outermost
+        macro invocation.
+        '''
         while True:
             span = self.lookup_span(loc)
             parent_loc = span.macro_parent_loc(loc)
@@ -258,12 +264,20 @@ class Locator:
             loc = parent_loc
 
     def source_file_coords(self, loc):
-        return self.spelling_coords(self.source_buffer_loc(loc))
+        '''Step through the parents of a location until a BufferSpan is reached, and convert the
+        resulting location to coordinates of that token's spelling.  The will be the
+        original location if directly in a source file, otherwise the outermost macro
+        invocation.
+
+        Note how this is different to the buffer containing the spelling of the token with
+        location loc - use spelling_span_and_offset() to get that.
+        '''
+        return self.spelling_coords(self.buffer_span_loc(loc))
 
     def diagnostic_contexts_core(self, orig_context):
         def source_buffer_range(source_range):
-            start = self.source_buffer_loc(source_range.start)
-            end = self.source_buffer_loc(source_range.end)
+            start = self.buffer_span_loc(source_range.start)
+            end = self.buffer_span_loc(source_range.end)
             return TokenRange(start, end)
 
         def macro_context_stack(loc):
@@ -305,8 +319,8 @@ class Locator:
                 else:
                     ranges.append((start, end))
 
-            buffer_loc = span.buffer_loc
-            return [TokenRange(buffer_loc(start), buffer_loc(end)) for start, end in ranges]
+            spelling_loc = span.spelling_loc
+            return [TokenRange(spelling_loc(start), spelling_loc(end)) for start, end in ranges]
 
         def caret_and_spans(orig_context):
             def caret_range_token_loc(source_range):
@@ -322,7 +336,7 @@ class Locator:
             result = macro_context_stack(caret_token_loc)
             if result:
                 for n, context in enumerate(result):
-                    caret_loc = context.span.buffer_loc(context.macro_loc)
+                    caret_loc = context.span.spelling_loc(context.macro_loc)
                     if n == 0 and isinstance(orig_context.caret_range, SpellingRange):
                         caret_range = SpellingRange(caret_loc, orig_context.caret_range.start,
                                                     orig_context.caret_range.end)
@@ -331,7 +345,7 @@ class Locator:
                     result[n] = (caret_loc, caret_range, context.span)
 
                 # Lower the orig_context caret range to a source file
-                token_loc = self.source_buffer_loc(caret_token_loc)
+                token_loc = self.buffer_span_loc(caret_token_loc)
                 orig_context.caret_range = TokenRange(token_loc, token_loc)
             return result
 
