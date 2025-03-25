@@ -234,6 +234,8 @@ class SourceLine:
         on where that range intersects this source line.  If it does not intersect this
         line then end == start == -1, otherwise end >= start.
         '''
+        if start is None:
+            return -1, -1
         if start.buffer is self.buffer is end.buffer:
             if start.line_number <= self.line_number <= end.line_number:
                 if start.line_number == self.line_number:

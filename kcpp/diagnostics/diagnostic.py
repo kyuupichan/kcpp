@@ -41,6 +41,9 @@ class TokenRange:
     start: int
     end: int
 
+    def caret_loc(self):
+        return self.start
+
 
 @dataclass(slots=True)
 class BufferRange:
@@ -48,6 +51,9 @@ class BufferRange:
     # Start and end are locations (not offsets) so that the buffer can be located.
     start: int
     end: int
+
+    def caret_loc(self):
+        return self.start
 
 
 @dataclass(slots=True)
@@ -58,6 +64,9 @@ class SpellingRange:
     # Offsets into spelling.  End is not included in the range.
     start: int
     end: int
+
+    def caret_loc(self):
+        return self.token_loc
 
 
 @dataclass(slots=True)

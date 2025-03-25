@@ -248,7 +248,7 @@ class Locator:
             spans = self.buffer_spans
         n = bisect_left(spans, loc + 1, key=lambda lr: lr.start) - 1
         span = spans[n]
-        assert span.start <= loc <= span.end
+        assert span.start <= loc <= span.end, f'{span.start} <= {loc} <= {span.end} {span}'
         return span
 
     def spelling_span_and_offset(self, loc):
@@ -294,109 +294,11 @@ class Locator:
         '''
         return self.spelling_coords(self.buffer_span_loc(loc))
 
-    def diagnostic_contexts_core(self, orig_context):
-        def source_buffer_range(source_range):
-            start = self.buffer_span_loc(source_range.start)
-            end = self.buffer_span_loc(source_range.end)
-            return TokenRange(start, end)
-
-        def macro_context_stack(loc):
-            contexts = []
-            while True:
-                span = self.lookup_span(loc)
-                parent_loc = span.macro_parent_loc(loc)
-                if parent_loc == -1:
-                    return contexts
-                contexts.append(MacroContext(loc, span))
-                loc = parent_loc
-
-        def range_contexts(token_range):
-            start_contexts = macro_context_stack(token_range.start)
-            if token_range.start == token_range.end:
-                end_contexts = start_contexts
-            else:
-                end_contexts = macro_context_stack(token_range.end)
-            return [start_contexts, end_contexts]
-
-        def intersections(span, highlight_contexts):
-            ranges = []
-            for start_contexts, end_contexts in highlight_contexts:
-                start = None
-                end = None
-                for context in start_contexts:
-                    if context.span is span:
-                        start = context.macro_loc
-                        break
-                for context in end_contexts:
-                    if context.span is span:
-                        end = context.macro_loc
-                        break
-                if start is None:
-                    if end is not None:
-                        ranges.append((span.start, end))
-                elif end is None:
-                    ranges.append((start, span.end))
-                else:
-                    ranges.append((start, end))
-
-            spelling_loc = span.spelling_loc
-            return [TokenRange(spelling_loc(start), spelling_loc(end)) for start, end in ranges]
-
-        def caret_and_spans(orig_context):
-            def caret_range_token_loc(source_range):
-                if isinstance(source_range, BufferRange):
-                    # A BufferRange can be into a standard or scratch buffer.
-                    return source_range.start
-                if isinstance(source_range, TokenRange):
-                    assert source_range.start == source_range.end
-                    return source_range.start
-                return source_range.token_loc   # SpellingRange
-
-            caret_token_loc = caret_range_token_loc(orig_context.caret_range)
-            result = macro_context_stack(caret_token_loc)
-            if result:
-                for n, context in enumerate(result):
-                    caret_loc = context.span.spelling_loc(context.macro_loc)
-                    if n == 0 and isinstance(orig_context.caret_range, SpellingRange):
-                        caret_range = SpellingRange(caret_loc, orig_context.caret_range.start,
-                                                    orig_context.caret_range.end)
-                    else:
-                        caret_range = TokenRange(caret_loc, caret_loc)
-                    result[n] = (caret_loc, caret_range, context.span)
-
-                # Lower the orig_context caret range to a source file
-                token_loc = self.buffer_span_loc(caret_token_loc)
-                orig_context.caret_range = TokenRange(token_loc, token_loc)
-            return result
-
-        contexts = []
-        caret_ranges = caret_and_spans(orig_context)
-        if caret_ranges:
-            highlight_contexts = [range_contexts(source_range)
-                                  for source_range in orig_context.source_ranges]
-            for caret_loc, caret_range, span in caret_ranges:
-                # Now add an extry for each source range that intersects this context level
-                source_ranges = intersections(span, highlight_contexts)
-                if span is None:
-                    # Use the original context but replace its source ranges
-                    orig_context.source_ranges = source_ranges
-                    context = orig_context
-                else:
-                    did, substitutions = span.did_and_substitutions(self.pp, caret_loc)
-                    context = DiagnosticContext(did, substitutions, caret_loc,
-                                                caret_range, source_ranges)
-                contexts.append(context)
-
-        # Lower the source ranges in the original context and make it the final context
-        orig_context.source_ranges = [source_buffer_range(source_range)
-                                      for source_range in orig_context.source_ranges]
-        contexts.append(orig_context)
-        contexts.reverse()
-        return contexts
-
-    def spelling_coords(self, loc):
+    def spelling_coords(self, loc, token_end=False):
         '''Convert a location to a BufferCoords instance.'''
         span, offset = self.spelling_span_and_offset(loc)
+        if token_end:
+            offset += self.token_length(span.start + offset)
         buffer = span.buffer
         line_offset, line_number = buffer.offset_to_line_info(offset)
         filename = span.filename()
@@ -432,33 +334,137 @@ class Locator:
                 start = end = None
             else:
                 start = self.spelling_coords(source_range.start)
-                if source_range.start == source_range.end:
-                    end = start
-                else:
-                    end = self.spelling_coords(source_range.end)
-                token_end = source_range.end + self.token_length(source_range.end)
-                end = self.spelling_coords(token_end)
+                end = self.spelling_coords(source_range.end, True)
+        elif source_range is None:
+            start = end = None
         else:
             raise RuntimeError(f'unhandled source range {source_range}')
 
         return RangeCoords(start, end)
 
-    def diagnostic_contexts(self, context):
-        '''Expand the diagnostic context stack for the given diagnostic context.'''
-        # Apart from the caret range, all ranges must be TokenRange instances
-        assert all(isinstance(source_range, TokenRange)
-                   for source_range in context.source_ranges)
+    def spans_and_locs(self, loc):
+        '''Generates the spans of a location stepping up through the locations parents.
 
-        # Special ranges don't have source text, and only a single location code
+        The span of the location is generated first, then the span of its parent location,
+        recursively.
+        '''
+        result = []
+        while True:
+            span = self.lookup_span(loc)
+            result.append((span, loc))
+            parent_loc = span.macro_parent_loc(loc)
+            if parent_loc == -1:
+                return result
+            loc = parent_loc
+
+    def diagnostic_contexts(self, context):
+        # Special diagnostics - those without a source location to highlight, e.g. a
+        # complaint about a command-line option, or a compilation summary - only have a
+        # single location code and no highlight ranges
         if context.caret_range.start <= location_none:
             assert not context.source_ranges
-            contexts = [context]
-        else:
-            contexts = self.diagnostic_contexts_core(context)
-
-        for context in contexts:
             context.caret_range = self.range_coords(context.caret_range)
-            context.source_ranges = [self.range_coords(source_range)
-                                     for source_range in context.source_ranges]
+            return [context]
 
+        def intersections(spans, source_range):
+            result = []
+            if isinstance(source_range, BufferRange):
+                start_spans_and_locs = self.spans_and_locs(source_range.start)
+                for span in spans:
+                    for our_span, our_loc in start_spans_and_locs:
+                        if span is not our_span:
+                            continue
+                        if our_loc == source_range.start:
+                            item = source_range
+                        else:
+                            item = TokenRange(our_loc, our_loc)
+                        break
+                    else:
+                        item = None
+                    result.append(item)
+                return result
+
+            if isinstance(source_range, SpellingRange):
+                # A SpellingRange is a range of characters in a single token's spelling.
+                # Remain a SpellingRange for the span with the token's spelling, otherwise
+                # decay into a TokenRange for a single token.
+                token_loc = source_range.token_loc
+                spelling_span, _ = self.spelling_span_and_offset(token_loc)
+                our_spans_and_locs = self.spans_and_locs(token_loc)
+                for span in spans:
+                    for our_span, our_loc in our_spans_and_locs:
+                        if span is not our_span:
+                            continue
+                        if span is spelling_span:
+                            item = SpellingRange(our_loc, source_range.start, source_range.end)
+                        else:
+                            item = TokenRange(our_loc, our_loc)
+                        break
+                    else:
+                        item = None
+                    result.append(item)
+                return result
+
+            def token_intersection(span, token_spans_and_locs):
+                for token_span, token_loc in token_spans_and_locs:
+                    if span is token_span:
+                        return token_loc
+                return None
+
+            if isinstance(source_range, TokenRange):
+                start_spans_and_locs = self.spans_and_locs(source_range.start)
+                end_spans_and_locs = self.spans_and_locs(source_range.end)
+                for span in spans:
+                    start = token_intersection(span, start_spans_and_locs)
+                    end = token_intersection(span, end_spans_and_locs)
+                    if start is None:
+                        if end is not None:
+                            item = TokenRange(span.start, end)
+                        else:
+                            item = None
+                    else:
+                        if end is None:
+                            item = TokenRange(start, span.end)
+                        else:
+                            item = TokenRange(start, end)
+                    result.append(item)
+                return result
+
+            assert False
+
+        # We are dealing with a diagnostic about source code.
+        contexts = []
+        # Caret range is an instance of BufferRange, SpellingRange or single token
+        # location.  Highlights are token ranges.
+        #
+        # However, the generic case it is easy to handle, so in case future diagnostic
+        # evolution would benefit, the code accepts and handles appropriately any of
+        # Buffer Range, SpellingRange, TokenRange or single token locations for the caret
+        # range and the highlights.
+        caret_spans_and_locs = self.spans_and_locs(context.caret_range.caret_loc())
+        caret_spans = [span for span, loc in caret_spans_and_locs]
+        caret_ranges = intersections(caret_spans, context.caret_range)
+        source_ranges_list = [intersections(caret_spans, source_range)
+                              for source_range in context.source_ranges]
+
+        for n, ((span, caret_loc), caret_range) in enumerate(zip(caret_spans_and_locs,
+                                                                 caret_ranges)):
+            if isinstance(span, BufferSpan):
+                did, substitutions = context.did, context.substitutions
+            else:
+                did, substitutions = span.did_and_substitutions(self.pp, caret_loc)
+
+            source_ranges = [source_ranges_item[n] for source_ranges_item in source_ranges_list]
+
+            # Now convert each range to RangeCoords
+            caret_range = self.range_coords(caret_range)
+            assert caret_range.start is not None
+
+            source_ranges = [self.range_coords(source_range) for source_range in source_ranges]
+
+            # We finally have the new context; add it to the list
+            contexts.append(DiagnosticContext(did, substitutions, caret_loc, caret_range,
+                                              source_ranges))
+
+        contexts.reverse()
         return contexts
