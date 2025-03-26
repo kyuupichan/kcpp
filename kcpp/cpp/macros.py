@@ -248,8 +248,20 @@ class FunctionLikeExpansion(SimpleTokenList):
     def replace_arguments(self, tokens, arguments, base_loc):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
-            assert 0 <= param.extra < len(arguments)
-            return arguments[param.extra]
+            if param.extra < 0:
+                assert self.macro.is_variadic()
+                # We need to expand the variable argument.  Ugh.
+                va_tokens = self.expand_argument(arguments[-1])
+                # FIXME: remove placemarkers
+                if va_tokens:
+                    token_count = -param.extra   # Includes the parentheses
+                    va_opt_tokens = tokens[cursor + 1: cursor + token_count - 1]
+                    return self.expand_argument(va_opt_tokens), token_count
+                else:
+                    return [self.placemarker_token()], -param.extra
+            else:
+                assert 0 <= param.extra < len(arguments)
+                return arguments[param.extra], 0
 
         result = []
         cursor = 0
@@ -259,15 +271,17 @@ class FunctionLikeExpansion(SimpleTokenList):
             cursor += 1
 
             if token.kind == TokenKind.STRINGIZE:
-                string = self.stringize_argument(check_argument(tokens[cursor]), new_token_loc)
+                argument_tokens, token_count = check_argument(tokens[cursor])
+                string = self.stringize_argument(argument_tokens, new_token_loc)
                 # Preserve the spacing flags of # operator
                 string.copy_spacing_flags_from(token.flags)
                 result.append(string)
-                cursor += 1
+                cursor += token_count + 1
                 continue
 
             if token.kind == TokenKind.MACRO_PARAM:
-                argument_tokens = check_argument(token)
+                argument_tokens, token_count = check_argument(token)
+                cursor += token_count
                 lhs_concat = result and result[-1].kind == TokenKind.CONCAT
                 rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
                 if lhs_concat or rhs_concat:
