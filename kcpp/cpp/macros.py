@@ -250,13 +250,13 @@ class FunctionLikeExpansion(SimpleTokenList):
             assert param.kind == TokenKind.MACRO_PARAM
             if param.extra < 0:
                 assert self.macro.is_variadic()
-                # We need to expand the variable argument.  Ugh.
+                # Pre-expand the variable argument to see if it's empty.
                 va_tokens = self.expand_argument(arguments[-1])
                 # FIXME: remove placemarkers
                 if va_tokens:
                     token_count = -param.extra   # Includes the parentheses
-                    va_opt_tokens = tokens[cursor + 1: cursor + token_count - 1]
-                    return self.expand_argument(va_opt_tokens), token_count
+                    va_opt_tokens = tokens[cursor + 2: cursor + token_count]
+                    return va_opt_tokens, token_count
                 else:
                     return [self.placemarker_token()], -param.extra
             else:
@@ -268,9 +268,9 @@ class FunctionLikeExpansion(SimpleTokenList):
         while cursor < len(tokens):
             token = tokens[cursor]
             new_token_loc = base_loc + cursor
-            cursor += 1
 
             if token.kind == TokenKind.STRINGIZE:
+                cursor += 1
                 argument_tokens, token_count = check_argument(tokens[cursor])
                 string = self.stringize_argument(argument_tokens, new_token_loc)
                 # Preserve the spacing flags of # operator
@@ -281,7 +281,7 @@ class FunctionLikeExpansion(SimpleTokenList):
 
             if token.kind == TokenKind.MACRO_PARAM:
                 argument_tokens, token_count = check_argument(token)
-                cursor += token_count
+                cursor += token_count + 1
                 lhs_concat = result and result[-1].kind == TokenKind.CONCAT
                 rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
                 if lhs_concat or rhs_concat:
@@ -308,6 +308,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             token = copy(token)
             token.loc = new_token_loc
             result.append(token)
+            cursor += 1
 
         return result
 
