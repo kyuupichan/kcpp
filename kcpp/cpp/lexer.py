@@ -246,7 +246,11 @@ class Lexer(TokenSource):
         if self.pp.in_directive:
             # Stick on the newline
             return TokenKind.EOF, cursor - 1
-        token.flags &= ~TokenFlags.WS
+        # When collecting arguments, newlines are treated as whitespace
+        if self.pp.collecting_arguments:
+            token.flags |= TokenFlags.WS
+        else:
+            token.flags &= ~TokenFlags.WS
         token.flags |= TokenFlags.BOL
         return TokenKind.WS, cursor
 

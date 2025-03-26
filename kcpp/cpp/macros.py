@@ -84,7 +84,6 @@ class Macro:
         get_token(token)
         assert token.kind == TokenKind.PAREN_OPEN
 
-        # FIXME: handle newlines as whitespace
         while True:
             get_token(token)
 
@@ -274,15 +273,14 @@ class FunctionLikeExpansion(SimpleTokenList):
                 lhs_concat = result and result[-1].kind == TokenKind.CONCAT
                 rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
                 if lhs_concat or rhs_concat:
-                    # Replace empty argument with a placemarker
                     if argument_tokens:
                         argument_tokens = [copy(token) for token in argument_tokens]
-                    else:
-                        argument_tokens = [self.placemarker_token()]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
-                    if not argument_tokens:
-                        argument_tokens = [self.placemarker_token()]
+
+                # Replace empty argument with a placemarker
+                if not argument_tokens:
+                    argument_tokens = [self.placemarker_token()]
 
                 # Replace the first token with a copy and set its spacing flags
                 argument_tokens[0].copy_spacing_flags_from(token.flags)
