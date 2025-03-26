@@ -270,11 +270,11 @@ class FunctionLikeExpansion(SimpleTokenList):
                     if argument_tokens:
                         argument_tokens = [copy(token) for token in argument_tokens]
                     else:
-                        argument_tokens = [self.placemarker_from_token(token)]
+                        argument_tokens = [self.placemarker_token()]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
                     if not argument_tokens:
-                        argument_tokens = [self.placemarker_from_token(token)]
+                        argument_tokens = [self.placemarker_token()]
 
                 # Replace the first token with a copy and set its spacing flags
                 argument_tokens[0].copy_spacing_flags_from(token.flags)
@@ -331,9 +331,8 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.pp.pop_source()
         return tokens
 
-    def placemarker_from_token(self, token):
-        # FIXME: check this
-        return Token(TokenKind.PLACEMARKER, token.flags & TokenFlags.WS, token.loc, None)
+    def placemarker_token(self):
+        return Token(TokenKind.PLACEMARKER, 0, 0, None)
 
     def stringize_argument(self, argument_tokens, stringize_loc):
         '''Stringize the argument tokens.  Return a new token.  stringize_loc is the macro
