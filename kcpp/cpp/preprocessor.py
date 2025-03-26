@@ -227,6 +227,8 @@ class Preprocessor:
         if token.is_literal():
             spelling, _ = token.extra
             return spelling
+        if token.kind == TokenKind.PLACEMARKER:
+            return b''
         # FIXME: can spell most (all?) other tokens immediately too
         return self.token_spelling_at_loc(token.loc)
 
