@@ -351,9 +351,15 @@ class FunctionLikeExpansion(SimpleTokenList):
 
         # Build up the spelling of the stringized argument tokens.
         spelling.append(34)    # '"'
+        ws = False
         for n, token in enumerate(argument_tokens):
             if n and token.flags & TokenFlags.WS:
+                ws = True
+            if token.kind == TokenKind.PLACEMARKER:
+                continue   # Placemarkers can only contribute to whitespace and not accumulate it
+            if ws:
                 spelling.append(32)
+                ws = False
             token_spelling = self.pp.token_spelling(token)
             if token.kind == TokenKind.STRING_LITERAL or token.kind == TokenKind.CHARACTER_LITERAL:
                 for c in token_spelling:
