@@ -92,13 +92,14 @@ class UnicodeTerminal(DiagnosticEngine):
         '''Emit the top-level diagnostic at the given indentation level.  Then emit nested
         diagnostics at an increased indentation level.
         '''
+        orig_indent = indent
         for n, message_context in enumerate(elaborated_diagnostic.message_contexts):
             if n == 1:
                 indent += self.nested_indent
             for line in self.diagnostic_lines(message_context):
                 print(f'{" " * indent}{line}', file=self.file)
         for nested in elaborated_diagnostic.nested_diagnostics:
-            self.emit_recursive(nested, indent + self.nested_indent)
+            self.emit_recursive(nested, orig_indent + self.nested_indent)
 
     def diagnostic_lines(self, context):
         '''Generate all the lines to display for the diagnostic conext - one for the message, and

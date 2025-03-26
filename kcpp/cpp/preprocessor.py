@@ -319,7 +319,7 @@ class Preprocessor:
             arguments = macro.collect_arguments(self, token)
             self.expand_macros = True
             self.collecting_arguments = False
-            if arguments:
+            if arguments is not None:
                 self.push_source(FunctionLikeExpansion(self, macro, token, arguments))
         else:
             self.push_source(ObjectLikeExpansion(self, macro, token))

@@ -198,14 +198,15 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.tokens = macro.replacement_list
         self.cursor = 0
         self.base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
+        macro.disable()
 
     def get_token(self, token):
         '''Get the next replacement list token and handle token concatenation.'''
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
-            self.pp.pop_source_and_get_token(token)
             self.macro.enable()
+            self.pp.pop_source_and_get_token(token)
             return
 
         token.set_to(tokens[cursor], self.base_loc + cursor)
@@ -235,6 +236,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.macro = macro
         self.parent_flags = parent_token.flags
         self.cursor = 0
+        macro.disable()
         base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         self.tokens = self.replace_arguments(macro.replacement_list, arguments, base_loc)
 
@@ -268,9 +270,11 @@ class FunctionLikeExpansion(SimpleTokenList):
                     if argument_tokens:
                         argument_tokens = [copy(token) for token in argument_tokens]
                     else:
-                        argument_tokens = [self.placemarker_from_token(token, token.loc)]
+                        argument_tokens = [self.placemarker_from_token(token)]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
+                    if not argument_tokens:
+                        argument_tokens = [self.placemarker_from_token(token)]
 
                 # Give the tokens their macro-expansion locations
                 locations = [token.loc for token in argument_tokens]
@@ -294,8 +298,8 @@ class FunctionLikeExpansion(SimpleTokenList):
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
-            self.pp.pop_source_and_get_token(token)
             self.macro.enable()
+            self.pp.pop_source_and_get_token(token)
             return
 
         token.set_to(tokens[cursor], tokens[cursor].loc)
