@@ -31,6 +31,10 @@ class ProcessorBase(ABC):
     def process_source(self, source):
         pass
 
+    def push_source(self, pp, filename):
+        '''Split out so it can be overridden.'''
+        pp.push_source_file(filename)
+
     def run(self, source, env):
         pp = Preprocessor(env)
 
@@ -113,10 +117,6 @@ class PreprocessedOutput(ProcessorBase):
             ws = False
 
         write('\n')
-
-    def push_source(self, pp, filename):
-        '''Split out so it can be overridden.'''
-        pp.push_source_file(filename)
 
 
 class FrontEnd(ProcessorBase):
