@@ -394,7 +394,6 @@ class UnexpandedArgument(SimpleTokenList):
     peek_end_kind = TokenKind.EOF
 
     def __init__(self, tokens):
-        assert tokens
         self.tokens = tokens
         self.cursor = 0
 
