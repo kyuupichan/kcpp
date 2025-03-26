@@ -76,9 +76,7 @@ class Macro:
         token = Token.create()
         arguments = []
         tokens = []
-
         param_count = self.param_count()
-        param_count_no_variadic = param_count - bool(self.is_variadic())
 
         # Eat the opening parenthesis that was already peeked
         get_token(token)
@@ -101,7 +99,7 @@ class Macro:
                 too_many = False
                 if token.kind == TokenKind.COMMA:
                     # This completes an argument unless we are in the variable arguments.
-                    if len(arguments) + 1 < param_count_no_variadic:
+                    if len(arguments) + 1 < param_count:
                         arguments.append(tokens)
                         tokens = []
                         continue
@@ -126,7 +124,7 @@ class Macro:
                 arguments.append(tokens)
                 # Do we have enough arguments?
                 if len(arguments) < param_count:
-                    if len(arguments) < param_count_no_variadic:
+                    if len(arguments) < param_count - bool(self.is_variadic()):
                         pp.diag(DID.too_few_macro_arguments, token.loc, [self.macro_name(pp)])
                         arguments = None
                     else:
