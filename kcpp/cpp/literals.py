@@ -627,12 +627,14 @@ class LiteralInterpreter:
                          for bad_token in bad_tokens])
             self.pp.diag(DID.string_concatenation_conflict, location_in_args, args)
 
+        assert token.kind == TokenKind.STRING_LITERAL
+
         # Read adjacent string literal tokens
         is_erroneous = False
-        tokens = []
-        while token.kind == TokenKind.STRING_LITERAL:
-            tokens.append(copy(token))
+        tokens = [copy(token)]
+        while self.pp.peek_token_kind() == TokenKind.STRING_LITERAL:
             self.pp.get_token(token)
+            tokens.append(copy(token))
 
         # Determine a common encoding prefix and user-defined suffix.  All concatenated
         # tokens with an encoding prefix must have the same one, and similarly all with a
