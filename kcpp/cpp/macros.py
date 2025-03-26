@@ -223,7 +223,7 @@ class ObjectLikeExpansion(SimpleTokenList):
             token.copy_spacing_flags_from(self.parent_flags)
         cursor += 1
 
-        if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
+        while cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
             assert cursor + 1 < len(tokens)
             if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
                 cursor += 2
@@ -316,7 +316,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             token.copy_spacing_flags_from(self.parent_flags)
         cursor += 1
 
-        if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
+        while cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
             assert cursor + 1 < len(tokens)
             if self.concatenate_tokens(token, tokens[cursor].loc, tokens[cursor + 1]):
                 cursor += 2
