@@ -169,6 +169,9 @@ class SimpleTokenList:
         if token.kind == TokenKind.EOF or not all_consumed:
             self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
             return False
+        # Do not produce concat operators through concatenation
+        if token.kind == TokenKind.CONCAT:
+            token.kind = TokenKind.OTHER
         # Preserve the spacing flags and copy the token with its new macro location
         token.copy_spacing_flags_from(lhs.flags)
         lhs.set_to(token, token.loc)
