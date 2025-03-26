@@ -197,7 +197,7 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.tokens = macro.replacement_list
         self.cursor = 0
-        self.base_loc = pp.locator.objlike_macro_replacement_span(macro, parent_token.loc)
+        self.base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
 
     def get_token(self, token):
         '''Get the next replacement list token and handle token concatenation.'''
@@ -235,9 +235,10 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.macro = macro
         self.parent_flags = parent_token.flags
         self.cursor = 0
-        self.tokens = self.replace_arguments(macro.replacement_list, arguments, parent_token.loc)
+        base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
+        self.tokens = self.replace_arguments(macro.replacement_list, arguments, base_loc)
 
-    def replace_arguments(self, tokens, arguments, invocation_loc):
+    def replace_arguments(self, tokens, arguments, base_loc):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
             assert 0 <= param.extra < len(arguments)
@@ -247,10 +248,11 @@ class FunctionLikeExpansion(SimpleTokenList):
         cursor = 0
         while cursor < len(tokens):
             token = tokens[cursor]
+            new_token_loc = base_loc + cursor
             cursor += 1
 
             if token.kind == TokenKind.STRINGIZE:
-                string = self.stringize_argument(check_argument(tokens[cursor]), token.loc)
+                string = self.stringize_argument(check_argument(tokens[cursor]), new_token_loc)
                 # Preserve the spacing flags of # operator
                 string.copy_spacing_flags_from(token.flags)
                 result.append(string)
@@ -269,18 +271,21 @@ class FunctionLikeExpansion(SimpleTokenList):
                         argument_tokens = [self.placemarker_from_token(token, token.loc)]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
+
+                # Give the tokens their macro-expansion locations
+                locations = [token.loc for token in argument_tokens]
+                first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
+                for loc, token in enumerate(argument_tokens, start=first_loc):
+                    token.loc = loc
+
                 # Replace the first token with a copy and set its spacing flags
                 argument_tokens[0].copy_spacing_flags_from(token.flags)
                 result.extend(argument_tokens)
                 continue
 
-            result.append(copy(token))
-
-        # Give the tokens their macro-expansion locations
-        locations = [token.loc for token in result]
-        base_loc = self.pp.locator.functionlike_macro_replacement_span(invocation_loc, locations)
-        for loc, token in enumerate(result, start=base_loc):
-            token.loc = loc
+            token = copy(token)
+            token.loc = new_token_loc
+            result.append(token)
 
         return result
 

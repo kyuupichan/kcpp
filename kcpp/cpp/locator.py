@@ -135,7 +135,7 @@ class ScratchEntry:
 
 
 @dataclass(slots=True)
-class ObjectLikeMacroReplacementSpan:
+class MacroReplacementSpan:
 
     macro: object
     invocation_loc: int
@@ -158,9 +158,9 @@ class ObjectLikeMacroReplacementSpan:
 
 
 @dataclass(slots=True)
-class FunctionLikeMacroReplacementSpan:
+class MacroArgumentSpan:
 
-    invocation_loc: int
+    parameter_loc: int
     start: int
     end: int
     locations: list
@@ -169,14 +169,7 @@ class FunctionLikeMacroReplacementSpan:
         return self.locations[loc - self.start]
 
     def macro_parent_loc(self, loc):
-        return self.locations[loc - self.start]
-
-    def macro_name(self, pp):
-        '''Return the macro name (as UTF-8).'''
-        return pp.token_spelling_at_loc(self.invocation_loc)
-
-    def did_and_substitutions(self, pp, loc):
-        return DID.in_expansion_of_macro, [self.macro_name(pp)]
+        return self.parameter_loc
 
 
 @dataclass(slots=True)
@@ -212,17 +205,16 @@ class Locator:
         except IndexError:
             return self.FIRST_MACRO_LOC
 
-    def functionlike_macro_replacement_span(self, parent_loc, locations):
-        start = self.next_macro_span_start()
-        end = start + len(locations) - 1
-        self.macro_spans.append(FunctionLikeMacroReplacementSpan(parent_loc, start, end,
-                                                                 locations))
-        return start
-
-    def objlike_macro_replacement_span(self, macro, parent_loc):
+    def macro_replacement_span(self, macro, parent_loc):
         start = self.next_macro_span_start()
         end = start + len(macro.replacement_list) - 1
-        self.macro_spans.append(ObjectLikeMacroReplacementSpan(macro, parent_loc, start, end))
+        self.macro_spans.append(MacroReplacementSpan(macro, parent_loc, start, end))
+        return start
+
+    def macro_argument_span(self, parameter_loc, locations):
+        start = self.next_macro_span_start()
+        end = start + len(locations) - 1
+        self.macro_spans.append(MacroArgumentSpan(parameter_loc, start, end, locations))
         return start
 
     def new_scratch_token(self, spelling, parent_loc, entry_kind):
@@ -354,11 +346,16 @@ class Locator:
         result = []
         while True:
             span = self.lookup_span(loc)
-            result.append((span, loc))
-            parent_loc = span.macro_parent_loc(loc)
-            if parent_loc == -1:
-                return result
-            loc = parent_loc
+            if isinstance(span, MacroArgumentSpan):
+                macro_span = self.lookup_span(span.parameter_loc)
+                result.append((macro_span, span.parameter_loc))
+                loc = span.spelling_loc(loc)
+            else:
+                result.append((span, loc))
+                parent_loc = span.macro_parent_loc(loc)
+                if parent_loc == -1:
+                    return result
+                loc = parent_loc
 
     def diagnostic_contexts(self, context):
         # Special diagnostics - those without a source location to highlight, e.g. a
