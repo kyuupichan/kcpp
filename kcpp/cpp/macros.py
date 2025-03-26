@@ -363,13 +363,16 @@ class FunctionLikeExpansion(SimpleTokenList):
             token_spelling = self.pp.token_spelling(token)
             if token.kind == TokenKind.STRING_LITERAL or token.kind == TokenKind.CHARACTER_LITERAL:
                 for c in token_spelling:
+                    # Raw strings can have embedded newlines
+                    if c == 10:
+                        spelling.extend(b'\\n')
+                        continue
                     if c == 34 or c == 92:   # '"' '\\'
                         spelling.append(92)
                     spelling.append(c)
             else:
                 spelling.extend(token_spelling)
         spelling.append(34)    # '"'
-
         token, all_consumed = self.lex_from_scratch(spelling, stringize_loc,
                                                     ScratchEntryKind.stringize)
         assert all_consumed
