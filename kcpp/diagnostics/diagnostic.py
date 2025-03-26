@@ -16,7 +16,7 @@ from .definitions import (
 
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine', 'DiagnosticContext',
-    'DiagnosticListener',
+    'DiagnosticListener', 'DiagnosticPrinter',
     'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords',
     'location_command_line', 'location_none', 'location_in_args',
 ]
@@ -156,6 +156,9 @@ class Diagnostic:
     def __repr__(self):
         return f'Diagnostic(did={self.did!r}, loc={self.loc}, args={self.arguments!r})'
 
+    def to_short_text(self):
+        return f'Diagnostic({self.did.name}, {self.loc}, {self.arguments!r})'
+
     def decompose(self):
         '''Decompose a diagnostic and return a pair (diagnostic_context, nested_diagnostics).'''
         substitutions = []
@@ -216,6 +219,13 @@ class DiagnosticListener(DiagnosticConsumer):
     def emit(self, diagnostic):
         super().emit(diagnostic)
         self.diagnostics.append(diagnostic)
+
+
+class DiagnosticPrinter(DiagnosticConsumer):
+    '''A simple diagnostic consumer that prints the emitted diagnostics.'''
+
+    def emit(self, diagnostic):
+        print(diagnostic.to_short_text())
 
 
 class DiagnosticEngine(DiagnosticConsumer):

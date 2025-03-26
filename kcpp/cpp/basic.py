@@ -107,6 +107,14 @@ class Token:
             extra = (extra[0].decode(), extra[1])
         return f'Token(kind={self.kind.name}, flags={flags}, loc={self.loc}, extra={extra})'
 
+    def to_short_text(self):
+        if self.kind == TokenKind.IDENTIFIER:
+            return f'Token({self.kind.name}, {self.extra.spelling.decode()})'
+        if self.kind == TokenKind.CHARACTER_LITERAL or self.kind == TokenKind.STRING_LITERAL:
+            spelling, _ = self.extra
+            return f'Token({self.kind.name}, {spelling.decode()})'
+        return f'Token({self.kind.name})'
+
 
 class TokenKind(IntEnum):
     # These are for internal use of the preprocessor and are never returned by pp.get_token()

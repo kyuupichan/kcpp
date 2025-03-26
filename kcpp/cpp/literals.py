@@ -47,7 +47,11 @@ class IntegerLiteral:
     kind: IntegerKind
     value: int
     # An instance of UserDefinedSuffix, or None
-    ud_suffix: any
+    ud_suffix: object
+
+    def to_short_text(self):
+        ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
+        return f'IntegerLiteral({self.kind.name}, {self.value}{ud_suffix_part})'
 
 
 @dataclass(slots=True)
@@ -58,8 +62,12 @@ class FloatingPointLiteral:
     exponent: int
     radix: int
     # An instance of UserDefinedSuffix, or None
-    ud_suffix: any
+    ud_suffix: object
 
+    def to_short_text(self):
+        ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
+        return (f'FloatingPointLiteral({self.kind.name}, {self.value}, {self.post_dot_digits}, '
+                f'{self.exponent}, {self.radix}{ud_suffix_part})')
 
 @dataclass(slots=True)
 class StringLiteral:
@@ -69,7 +77,7 @@ class StringLiteral:
     # The array element (character) type
     char_kind: IntegerKind
     # An instance of UserDefinedSuffix, or None
-    ud_suffix: any
+    ud_suffix: object
 
     def char_count(self, target):
         char_size = target.integer_width(self.char_kind) // 8
@@ -92,6 +100,10 @@ class StringLiteral:
             if value & (limit >> 1):
                 value -= limit
         return value
+
+    def to_short_text(self):
+        ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
+        return f'StringLiteral({self.encoded.decode()}, {self.char_kind.name}{ud_suffix_part})'
 
 
 def printable_form(cp):

@@ -10,10 +10,10 @@ from abc import ABC, abstractmethod
 from kcpp.cpp import (
     Token, TokenKind, TokenFlags, Preprocessor, quoted_string, PreprocessorActions,
 )
-from kcpp.diagnostics import UnicodeTerminal
+from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
 
-__all__ = ['PreprocessedOutput', 'ProcessorBase']
+__all__ = ['PreprocessedOutput', 'ProcessorBase', 'FrontEnd']
 
 
 class ProcessorBase(ABC):
@@ -124,19 +124,23 @@ class FrontEnd(ProcessorBase):
     interpretation of literals.
     '''
 
-    def process_source(self, pp, source):
+    def diagnostic_consumer(self, pp, env):
+        return DiagnosticPrinter()
+
+    def process_source(self, pp, filename):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present
         this is used for debugging purposes.'''
-        pp.push_source_file(source)
+        self.push_source(pp, filename)
 
         token = Token.create()
         pp.get_token(token)
         while True:
             if token.kind == TokenKind.EOF:
                 return
+            print(token.to_short_text())
             if token.is_literal():
                 result = pp.interpret_literal(token)
-                print(result)
+                print(result.to_short_text())
 
             # Consume the token.  String literal concatenation has already consumed all
             # adjacent string literals.
