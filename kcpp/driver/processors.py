@@ -53,7 +53,7 @@ class PreprocessedOutput(ProcessorBase):
 
     def __init__(self):
         self.at_bol = True
-        self.write = sys.stdout.buffer.write
+        self.write = sys.stdout.write
         self.line_number = -1
         self.filename = None
         self.pp = None
@@ -61,8 +61,8 @@ class PreprocessedOutput(ProcessorBase):
     def write_line_marker(self):
         '''Write a line marker.  On return self.at_bol is True.'''
         if not self.at_bol:
-            self.write(b'\n')
-        self.write(f'#line {self.line_number} {quoted_string(self.filename)}\n'.encode())
+            self.write('\n')
+        self.write(f'#line {self.line_number} {quoted_string(self.filename)}\n')
         self.at_bol = True
 
     def source_file_changed(self, loc, reason):
@@ -77,7 +77,7 @@ class PreprocessedOutput(ProcessorBase):
 
         assert count >= 0
         if count < 8:
-            self.write(b'\n' * count)
+            self.write('\n' * count)
         else:
             self.write_line_marker()
         self.at_bol = True
@@ -86,7 +86,7 @@ class PreprocessedOutput(ProcessorBase):
         self.pp = pp
         pp.actions = PreprocessorActions()
         pp.actions.source_file_changed = self.source_file_changed
-        pp.push_source_file(filename)
+        self.push_source(pp, filename)
 
         token = Token.create()
         write = self.write
@@ -105,14 +105,18 @@ class PreprocessedOutput(ProcessorBase):
             if coords.line_number != self.line_number:
                 self.move_to_line_number(coords.line_number)
                 if coords.column_offset > 1:
-                    write(b' ' * coords.column_offset)
+                    write(' ' * coords.column_offset)
             elif ws or token.flags & TokenFlags.WS:
-                write(b' ')
-            write(pp.token_spelling(token))
+                write(' ')
+            write(pp.token_spelling(token).decode())
             self.at_bol = False
             ws = False
 
-        write(b'\n')
+        write('\n')
+
+    def push_source(self, pp, filename):
+        '''Split out so it can be overridden.'''
+        pp.push_source_file(filename)
 
 
 class FrontEnd(ProcessorBase):

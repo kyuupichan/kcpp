@@ -161,6 +161,7 @@ class SimpleTokenList:
 
         if not spelling:
             # Concatenation of two placemarkers - result is the left placemarker
+            assert lhs.kind == rhs.kind == TokenKind.PLACEMARKER
             return True
 
         token, all_consumed = self.lex_from_scratch(spelling, concat_loc,
