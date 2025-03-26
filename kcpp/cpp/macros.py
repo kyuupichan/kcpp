@@ -159,6 +159,10 @@ class SimpleTokenList:
         rhs_spelling = self.pp.token_spelling(rhs)
         spelling = lhs_spelling + rhs_spelling
 
+        if not spelling:
+            # Concatenation of two placemarkers - result is the left placemarker
+            return True
+
         token, all_consumed = self.lex_from_scratch(spelling, concat_loc,
                                                     ScratchEntryKind.concatenate)
         if token.kind == TokenKind.EOF or not all_consumed:
@@ -310,7 +314,7 @@ class FunctionLikeExpansion(SimpleTokenList):
 
         if cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
             assert cursor + 1 < len(tokens)
-            if self.concatenate_tokens(token, token.loc, tokens[cursor + 1]):
+            if self.concatenate_tokens(token, tokens[cursor].loc, tokens[cursor + 1]):
                 cursor += 2
             else:
                 cursor += 1
