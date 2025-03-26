@@ -101,11 +101,13 @@ class Token:
 
         flags = '|'.join(flags_repr())
         extra = self.extra
-        if isinstance(extra, IdentifierInfo):
-            extra = extra.to_text()
+        if extra is None:
+            extra = ''
+        elif isinstance(extra, IdentifierInfo):
+            extra = f', {extra.to_text()}'
         elif isinstance(extra, tuple):
-            extra = (extra[0].decode(), extra[1])
-        return f'Token(kind={self.kind.name}, flags={flags}, loc={self.loc}, extra={extra})'
+            extra = f', {extra[0].decode()}'
+        return f'Token({self.kind.name}, {flags}, {self.loc}{extra})'
 
     def to_short_text(self):
         if self.kind == TokenKind.IDENTIFIER:

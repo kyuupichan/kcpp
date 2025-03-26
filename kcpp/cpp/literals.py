@@ -69,6 +69,7 @@ class FloatingPointLiteral:
         return (f'FloatingPointLiteral({self.kind.name}, {self.value}, {self.post_dot_digits}, '
                 f'{self.exponent}, {self.radix}{ud_suffix_part})')
 
+
 @dataclass(slots=True)
 class StringLiteral:
     # The string literal as encoded in memory for the target machine, including the
