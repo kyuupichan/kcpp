@@ -629,12 +629,13 @@ class LiteralInterpreter:
 
         assert token.kind == TokenKind.STRING_LITERAL
 
-        # Read adjacent string literal tokens
+        # Read adjacent string literal tokens.  This leaves the next non-string-literal
+        # token in token.
         is_erroneous = False
-        tokens = [copy(token)]
-        while self.pp.peek_token_kind() == TokenKind.STRING_LITERAL:
-            self.pp.get_token(token)
+        tokens = []
+        while token.kind == TokenKind.STRING_LITERAL:
             tokens.append(copy(token))
+            self.pp.get_token(token)
 
         # Determine a common encoding prefix and user-defined suffix.  All concatenated
         # tokens with an encoding prefix must have the same one, and similarly all with a

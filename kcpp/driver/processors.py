@@ -133,8 +133,15 @@ class FrontEnd(ProcessorBase):
         self.push_source(pp, filename)
 
         token = Token.create()
+        consume = True
         while True:
-            pp.get_token(token)
+            # The literal interpreter concatenates string literals, and to do so, it reads
+            # the first token after the last string literal so we don't need to fetch
+            # another token
+            if consume:
+                pp.get_token(token)
+            consume = token.kind != TokenKind.STRING_LITERAL
+
             if token.kind == TokenKind.EOF:
                 return
             print(token.to_short_text())
