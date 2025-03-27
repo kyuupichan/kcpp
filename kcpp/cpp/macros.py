@@ -7,7 +7,7 @@
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
-from enum import IntEnum
+from enum import IntEnum, auto
 
 from ..diagnostics import DID, Diagnostic
 from .basic import Token, TokenKind, TokenFlags, quoted_string
@@ -39,10 +39,10 @@ class BuiltinKind(IntEnum):
     compilation.  For example, respectively, __LINE__ and __TIME__ are builtins.
     __cplusplus is not a builtin, it is a predefined macro.
     '''
-    DATE = 0
-    TIME = 1
-    FILE = 2
-    LINE = 3
+    DATE = auto()
+    TIME = auto()
+    FILE = auto()
+    LINE = auto()
 
 
 @dataclass(slots=True)
@@ -255,14 +255,15 @@ class FunctionLikeExpansion(SimpleTokenList):
         assert parent_token.kind == TokenKind.IDENTIFIER
         self.pp = pp
         self.macro = macro
-        self.parent_flags = parent_token.flags
         self.cursor = 0
+        self.trailing_ws = False
         tokens = macro.replacement_list
         base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
-        self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens))
+        self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
+                                             parent_token.flags)
         macro.disable()
 
-    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit):
+    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, parent_flags):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
             if param.extra < 0:
@@ -272,8 +273,9 @@ class FunctionLikeExpansion(SimpleTokenList):
                 # FIXME: remove placemarkers
                 if va_tokens:
                     token_count = -param.extra   # Includes the parentheses
-                    va_opt_tokens = self.replace_arguments(tokens, arguments, base_loc,
-                                                           cursor + 2, cursor + token_count)
+                    va_opt_tokens = self.replace_arguments(
+                        tokens, arguments, base_loc, cursor + 2, cursor + token_count,
+                        param.flags)
                     return va_opt_tokens, token_count
                 else:
                     return [self.placemarker_token()], -param.extra
@@ -282,18 +284,23 @@ class FunctionLikeExpansion(SimpleTokenList):
                 return arguments[param.extra], 0
 
         result = []
+        starting_cursor = cursor
+        ws = parent_flags & TokenFlags.WS
         while cursor < limit:
             token = tokens[cursor]
             new_token_loc = base_loc + cursor
+            if cursor != starting_cursor and token.flags & TokenFlags.WS:
+                ws = True
 
             if token.kind == TokenKind.STRINGIZE:
                 cursor += 1
-                argument_tokens, token_count = check_argument(tokens[cursor])
+                argument_tokens, va_opt_count = check_argument(tokens[cursor])
                 string = self.stringize_argument(argument_tokens, new_token_loc)
-                # Preserve the spacing flags of # operator
-                string.copy_spacing_flags_from(token.flags)
+                if ws:
+                    string.flags |= TokenFlags.WS
+                ws = False
                 result.append(string)
-                cursor += token_count + 1
+                cursor += 1 + va_opt_count
                 continue
 
             if token.kind == TokenKind.MACRO_PARAM:
@@ -310,9 +317,10 @@ class FunctionLikeExpansion(SimpleTokenList):
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
 
-                # Replace the first token with a copy and set its spacing flags
-                if argument_tokens:
-                    argument_tokens[0].copy_spacing_flags_from(token.flags)
+                # Set WS flag on the first token (if there is one)
+                if argument_tokens and ws:
+                    argument_tokens[0].flags |= TokenFlags.WS
+                    ws = False
                 # Give the tokens their macro-expansion locations
                 locations = [token.loc for token in argument_tokens]
                 first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
@@ -323,16 +331,24 @@ class FunctionLikeExpansion(SimpleTokenList):
                 continue
 
             token = copy(token)
+            if cursor == starting_cursor:
+                token.flags &= ~TokenFlags.WS
+            elif ws:
+                token.flags |= TokenFlags.WS
+                ws = False
             token.loc = new_token_loc
             result.append(token)
             cursor += 1
 
-        return self.perform_concatenations(result)
+        result, result_ws = self.perform_concatenations(result)
+        self.trailing_ws = ws or result_ws
+        return result
 
     def perform_concatenations(self, tokens):
         result = []
         cursor = 0
         limit = len(tokens)
+        ws = False
         while cursor < limit:
             token = tokens[cursor]
             if token.kind == TokenKind.CONCAT:
@@ -344,7 +360,11 @@ class FunctionLikeExpansion(SimpleTokenList):
             else:
                 result.append(token)
                 cursor += 1
-        return result
+            if ws:
+                result[-1].flags |= TokenFlags.WS
+                ws = False
+
+        return result, ws
 
     def get_token(self, token):
         '''Handle argument replacement, stringizing and token concatenation.'''
@@ -353,12 +373,11 @@ class FunctionLikeExpansion(SimpleTokenList):
         if cursor == len(tokens):
             self.macro.enable()
             self.pp.pop_source_and_get_token(token)
+            if self.trailing_ws:
+                token.flags |= TokenFlags.WS
             return
 
         token.set_to(tokens[cursor], tokens[cursor].loc)
-        if cursor == 0:
-            # Copy spacing flags of the parent token
-            token.copy_spacing_flags_from(self.parent_flags)
         self.cursor = cursor + 1
 
         # Don't let placemarker tokens leak out
