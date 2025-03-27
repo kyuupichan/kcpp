@@ -311,6 +311,23 @@ class FunctionLikeExpansion(SimpleTokenList):
             result.append(token)
             cursor += 1
 
+        return self.perform_concatenations(result)
+
+    def perform_concatenations(self, tokens):
+        result = []
+        cursor = 0
+        limit = len(tokens)
+        while cursor < limit:
+            token = tokens[cursor]
+            if token.kind == TokenKind.CONCAT:
+                assert cursor + 1 < len(tokens)
+                if self.concatenate_tokens(result[-1], token.loc, tokens[cursor + 1]):
+                    cursor += 2
+                else:
+                    cursor += 1
+            else:
+                result.append(token)
+                cursor += 1
         return result
 
     def get_token(self, token):
@@ -326,15 +343,14 @@ class FunctionLikeExpansion(SimpleTokenList):
         if cursor == 0:
             # Copy spacing flags of the parent token
             token.copy_spacing_flags_from(self.parent_flags)
-        cursor += 1
+        self.cursor = cursor + 1
 
-        while cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
-            assert cursor + 1 < len(tokens)
-            if self.concatenate_tokens(token, tokens[cursor].loc, tokens[cursor + 1]):
-                cursor += 2
-            else:
-                cursor += 1
-        self.cursor = cursor
+        # Don't let placemarker tokens leak out
+        if token.kind == TokenKind.PLACEMARKER:
+            ws = bool(token.flags & TokenFlags.WS)
+            self.get_token(token)
+            if ws:
+                token.flags |= TokenFlags.WS
 
     def expand_argument(self, argument_tokens):
         def collect_expanded_tokens(get_token):
