@@ -242,10 +242,11 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.cursor = 0
         base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
-        self.tokens = self.replace_arguments(macro.replacement_list, arguments, base_loc)
+        tokens = macro.replacement_list
+        self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens))
         macro.disable()
 
-    def replace_arguments(self, tokens, arguments, base_loc):
+    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
             if param.extra < 0:
@@ -255,7 +256,8 @@ class FunctionLikeExpansion(SimpleTokenList):
                 # FIXME: remove placemarkers
                 if va_tokens:
                     token_count = -param.extra   # Includes the parentheses
-                    va_opt_tokens = tokens[cursor + 2: cursor + token_count]
+                    va_opt_tokens = self.replace_arguments(tokens, arguments, base_loc,
+                                                           cursor + 2, cursor + token_count)
                     return va_opt_tokens, token_count
                 else:
                     return [self.placemarker_token()], -param.extra
@@ -264,8 +266,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                 return arguments[param.extra], 0
 
         result = []
-        cursor = 0
-        while cursor < len(tokens):
+        while cursor < limit:
             token = tokens[cursor]
             new_token_loc = base_loc + cursor
 
@@ -283,8 +284,8 @@ class FunctionLikeExpansion(SimpleTokenList):
                 argument_tokens, token_count = check_argument(token)
                 cursor += token_count + 1
                 lhs_concat = result and result[-1].kind == TokenKind.CONCAT
-                rhs_concat = (cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT)
-                if lhs_concat or rhs_concat:
+                rhs_concat = (cursor != limit and tokens[cursor].kind == TokenKind.CONCAT)
+                if lhs_concat or rhs_concat or token_count:
                     if argument_tokens:
                         argument_tokens = [copy(token) for token in argument_tokens]
                 else:
