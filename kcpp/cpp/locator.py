@@ -10,10 +10,10 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..basic import Buffer, BufferCoords
+from ..basic import Buffer, BufferCoords, BufferPosition, PresumedLocation
 from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
-    RangeCoords,
+    RangeCoords
 )
 
 
@@ -22,11 +22,13 @@ __all__ = ['Locator']
 
 @dataclass(slots=True)
 class LineRange:
-    '''Names a range of lines in a source file.  A new BufferRange entry creates an initial
-    instance.  Subsequent entries are created by #line directives.'''
-    start: int           # The first location in this range
-    name: str            # Normally a file name, but can be e.g. <scratch>
-    line_number: int
+    '''Gives a line number and filename to a location in a source file.  The BufferSpan
+    constructor creates an initial instance.  Subsequent entries in the buffer span are
+    created by #line directives.
+    '''
+    start: int         # The offset into the buffer that starts this range
+    name: str          # Normally a file name, but can be e.g. <scratch>
+    line_adj: int      # Add this to the physical line number to get the presumed line number
 
 
 class BufferSpan:
@@ -44,7 +46,7 @@ class BufferSpan:
         # End is inclusive, so this permits an end-of-buffer location
         self.end = start + len(buffer.text)
         self._parent_loc = parent_loc
-        self.line_ranges = [LineRange(start, name, 1)]
+        self.line_ranges = [LineRange(0, name, 0)]
 
     def macro_parent_loc(self, loc):
         assert self.start <= loc <= self.end
@@ -53,12 +55,31 @@ class BufferSpan:
     def spelling_loc(self, loc):
         return loc
 
-    def add_line_range(self, start, name, line_number):
-        assert start < self.line_ranges[-1].start < start <= self.end
-        self.line_ranges.append(LineRange(start, name, line_number))
+    def add_line_range(self, start_loc, name, presumed_line_number):
+        assert self.start <= start_loc <= self.end
+        if name is Locator.prior_file_name:
+            name = self.line_ranges[-1].name
+        offset = start_loc - self.start
+        _, line_number = self.buffer.offset_to_line_info(offset)
+        self.line_ranges.append(LineRange(offset, name, presumed_line_number - line_number))
 
-    def filename(self):
-        return self.line_ranges[0].name
+    def presumed_location(self, offset):
+        '''Return a PresumedLocation instance.'''
+        assert 0 <= offset <= self.end - self.start
+        index = bisect_left(self.line_ranges, offset + 1, key=lambda lr: lr.start) - 1
+        line_range = self.line_ranges[index]
+        line_offset, line_number = self.buffer.offset_to_line_info(offset)
+        presumed_line_number = line_number + line_range.line_adj
+        text = self.buffer.text
+        if offset == len(text):
+            buffer_position = BufferPosition.END_OF_SOURCE
+        elif text[offset] in {10, 13}:
+            buffer_position = BufferPosition.END_OF_LINE
+        else:
+            buffer_position = BufferPosition.WITHIN_LINE
+
+        return PresumedLocation(line_range.name, presumed_line_number, offset - line_offset,
+                                buffer_position)
 
 
 class ScratchBufferSpan(Buffer):
@@ -70,6 +91,8 @@ class ScratchBufferSpan(Buffer):
     is fixed and not unbounded.  The scratch buffer keeps track of the origin of the
     virtual tokens it creates so that the macro stack can be correctly reported.
     '''
+
+    filename = '<scratch>'
 
     def __init__(self, start, end):
         '''Create a scratch buffer with the given size.'''
@@ -118,8 +141,12 @@ class ScratchBufferSpan(Buffer):
     def macro_parent_loc(self, loc):
         return self.entry_for_loc(loc).parent_loc
 
-    def filename(self):
-        return '<scratch>'
+    def presumed_location(self, offset):
+        '''Return a PresumedLocation instance.'''
+        assert 0 <= offset <= self.end - self.start
+        line_offset, line_number = self.offset_to_line_info(offset)
+        return PresumedLocation(self.filename, line_number, offset - line_offset,
+                                BufferPosition.WITHIN_LINE)
 
 
 class ScratchEntryKind(IntEnum):
@@ -177,6 +204,7 @@ class Locator:
 
     FIRST_BUFFER_LOC = 1
     FIRST_MACRO_LOC = 1 << 40
+    prior_file_name = str
 
     def __init__(self, pp):
         self.pp = pp
@@ -272,17 +300,6 @@ class Locator:
                 return loc
             loc = parent_loc
 
-    def source_file_coords(self, loc):
-        '''Step through the parents of a location until a BufferSpan is reached, and convert the
-        resulting location to coordinates of that token's spelling.  The will be the
-        original location if directly in a source file, otherwise the outermost macro
-        invocation.
-
-        Note how this is different to the buffer containing the spelling of the token with
-        location loc - use spelling_span_and_offset() to get that.
-        '''
-        return self.spelling_coords(self.buffer_span_loc(loc))
-
     def spelling_coords(self, loc, token_end=False):
         '''Convert a location to a BufferCoords instance.'''
         span, offset = self.spelling_span_and_offset(loc)
@@ -290,7 +307,7 @@ class Locator:
             offset += self.token_length(span.start + offset)
         buffer = span.buffer
         line_offset, line_number = buffer.offset_to_line_info(offset)
-        filename = span.filename()
+        filename = ''
         return BufferCoords(buffer, filename, line_number, offset - line_offset, line_offset)
 
     def token_length(self, loc):
@@ -301,6 +318,19 @@ class Locator:
         prior_cursor = lexer.cursor
         lexer.get_token_quietly()
         return lexer.cursor - prior_cursor
+
+    def presumed_location(self, loc, force_outermost_context):
+        '''Convert the location to a a PresumedLocation object.  The filename and line number are
+        not necessarily physical, but affected by #line directives.
+
+        If force_buffer_context is True, step through the parents of a location until a
+        BufferSpan is reached.  The will be the original location if directly in a source
+        file, otherwise the outermost macro invocation.  Otherwise use loc directly.
+        '''
+        if force_outermost_context:
+            loc = self.buffer_span_loc(loc)
+        span, offset = self.spelling_span_and_offset(loc)
+        return span.presumed_location(offset)
 
     def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):

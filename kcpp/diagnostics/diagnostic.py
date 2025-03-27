@@ -256,19 +256,18 @@ class DiagnosticEngine(DiagnosticConsumer):
         '''Add command line arugments to the group.'''
         pass
 
-    def location_text(self, caret_range):
+    def location_text(self, caret_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
         with no location, something like '<command line>: ' for command-line errors, and
         otherwise something like '"file_name": line 25: " for file locations.
         '''
-        coords = self.pp.locator.range_coords(caret_range).start
-        arguments = [coords.filename, coords.line_number, coords.column_offset + 1]
+        location = self.pp.locator.presumed_location(caret_loc, False)
+        arguments = [location.filename, location.line_number, location.column_offset + 1]
 
         if self.worded_locations:
-            pos = coords.buffer_position()
-            if pos == BufferPosition.END_OF_SOURCE:
+            if location.buffer_position == BufferPosition.END_OF_SOURCE:
                 did = DID.at_file_end
-            elif pos == BufferPosition.END_OF_LINE:
+            elif location.buffer_position == BufferPosition.END_OF_LINE:
                 did = DID.at_file_and_end_of_line
             elif self.show_columns:
                 did = DID.at_file_line_and_column
@@ -305,7 +304,7 @@ class DiagnosticEngine(DiagnosticConsumer):
             if caret_loc == location_command_line:
                 location_text = 'kcpp'
             else:
-                location_text = self.location_text(caret_range)
+                location_text = self.location_text(caret_loc)
             text_parts.append((location_text + ': ', 'path'))
         # Add the severity text unless it is none
         if severity_enum != DiagnosticSeverity.none:

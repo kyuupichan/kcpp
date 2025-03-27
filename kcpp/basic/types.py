@@ -5,7 +5,7 @@
 '''Basic types.  Should have no dependencies on external modules.'''
 
 
-__all__ = ['Buffer', 'BufferCoords', 'BufferPosition']
+__all__ = ['Buffer', 'BufferCoords', 'BufferPosition', 'PresumedLocation']
 
 
 from bisect import bisect_left
@@ -151,3 +151,16 @@ class BufferCoords:
         if text[offset] in {10, 13}:
             return BufferPosition.END_OF_LINE
         return BufferPosition.WITHIN_LINE
+
+
+@dataclass(slots=True)
+class PresumedLocation:
+    # The filname, potentially modified by #line
+    filename: str
+    # The line number, potentially modified by #line.  1-based, but line numbers of zero
+    # can happen because we accept, with a diagnostic, '#line 0'.
+    line_number: int
+    # Byte offset of the location from the start of the line (0-based)
+    column_offset: int
+    # Where a location lies in the buffer
+    buffer_position: BufferPosition
