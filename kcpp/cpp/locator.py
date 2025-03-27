@@ -357,7 +357,6 @@ class Locator:
         # single location code and no highlight ranges
         if context.caret_range.start <= location_none:
             assert not context.source_ranges
-            context.caret_range = self.range_coords(context.caret_range)
             return [context]
 
         def intersections(spans, source_range):
@@ -449,12 +448,6 @@ class Locator:
                 did, substitutions = span.did_and_substitutions(self.pp, caret_loc)
 
             source_ranges = [source_ranges_item[n] for source_ranges_item in source_ranges_list]
-
-            # Now convert each range to RangeCoords
-            caret_range = self.range_coords(caret_range)
-            assert caret_range.start is not None
-
-            source_ranges = [self.range_coords(source_range) for source_range in source_ranges]
 
             # We finally have the new context; add it to the list
             contexts.append(DiagnosticContext(did, substitutions, caret_loc, caret_range,

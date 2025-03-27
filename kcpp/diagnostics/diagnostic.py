@@ -292,22 +292,26 @@ class DiagnosticEngine(DiagnosticConsumer):
         # which is the first one in the list.
         severity_enum = diagnostic_definitions[diagnostic_context.did].severity
         text = self.translations.diagnostic_text(diagnostic_context.did)
-        caret_loc = diagnostic_context.caret_loc
-        caret_highlight = diagnostic_context.caret_range
+        caret_loc = diagnostic_context.caret_range.caret_loc()
+
+        # Now convert each range to RangeCoords
+        caret_range = self.pp.locator.range_coords(diagnostic_context.caret_range)
+        source_ranges = [self.pp.locator.range_coords(source_range)
+                         for source_range in diagnostic_context.source_ranges]
 
         text_parts = []
         if caret_loc != location_none:
             if caret_loc == location_command_line:
                 location_text = 'kcpp'
             else:
-                location_text = self.location_text(caret_highlight.start)
+                location_text = self.location_text(caret_range.start)
             text_parts.append((location_text + ': ', 'path'))
         # Add the severity text unless it is none
         if severity_enum != DiagnosticSeverity.none:
             severity_did, hint = self.severity_map[severity_enum]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
-        return MessageContext(caret_highlight, diagnostic_context.source_ranges, text_parts)
+        return MessageContext(caret_range, source_ranges, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
         def select(text, arg):
