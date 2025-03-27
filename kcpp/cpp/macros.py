@@ -217,7 +217,7 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.tokens = macro.replacement_list
         self.cursor = 0
-        self.base_loc = pp.locator.macro_replacement_span(len(self.tokens), parent_token.loc)
+        self.base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         macro.disable()
 
     def get_token(self, token):
@@ -257,7 +257,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.cursor = 0
         tokens = macro.replacement_list
-        base_loc = pp.locator.macro_replacement_span(len(tokens), parent_token.loc)
+        base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens))
         macro.disable()
 
@@ -474,7 +474,7 @@ class BuiltinMacroExpansion(SimpleTokenList):
         btoken, all_consumed = self.lex_from_scratch(spelling.encode(), self.parent_loc,
                                                      ScratchEntryKind.builtin)
         assert all_consumed
-        token.set_to(btoken, self.pp.locator.macro_replacement_span(1, self.parent_loc))
+        token.set_to(btoken, btoken.loc)
         self.pp.pop_source()
 
 

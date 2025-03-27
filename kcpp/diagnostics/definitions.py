@@ -71,6 +71,7 @@ class DID(IntEnum):
     identifier_in_pp_expr = auto()
     identifier_not_NFC = auto()
     in_argument_stringizing = auto()
+    in_expansion_of_builtin = auto()
     in_expansion_of_macro = auto()
     in_token_concatenation = auto()
     incomplete_UCN_as_tokens = auto()
@@ -401,6 +402,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.note,
         DiagnosticGroup.none,
         'in stringizing of macro argument',
+    ),
+    DID.in_expansion_of_builtin: DiagnosticDefinition(
+        DID.in_expansion_of_builtin,
+        DiagnosticSeverity.note,
+        DiagnosticGroup.none,
+        'in expansion of builtin macro %q0',
     ),
     DID.in_expansion_of_macro: DiagnosticDefinition(
         DID.in_expansion_of_macro,

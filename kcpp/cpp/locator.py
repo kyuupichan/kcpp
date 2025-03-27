@@ -167,6 +167,7 @@ class ScratchEntry:
 @dataclass(slots=True)
 class MacroReplacementSpan:
 
+    macro: object
     invocation_loc: int
     start: int
     end: int
@@ -229,10 +230,10 @@ class Locator:
         except IndexError:
             return self.FIRST_MACRO_LOC
 
-    def macro_replacement_span(self, size, parent_loc):
+    def macro_replacement_span(self, macro, parent_loc):
         start = self.next_macro_span_start()
-        end = start + size - 1
-        self.macro_spans.append(MacroReplacementSpan(parent_loc, start, end))
+        end = start + len(macro.replacement_list) - 1
+        self.macro_spans.append(MacroReplacementSpan(macro, parent_loc, start, end))
         return start
 
     def macro_argument_span(self, parameter_loc, locations):
