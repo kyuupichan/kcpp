@@ -473,7 +473,7 @@ class BuiltinMacroExpansion(SimpleTokenList):
                 months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
                 today = datetime.today()
                 self.pp.time_str = f'"{today.hour:02d}:{today.minute:02d}:{today.second:02d}"'
-                self.pp.date_str = f'"{months[today.month]} {today.day:2d} {today.year:4d}"'
+                self.pp.date_str = f'"{months[today.month - 1]} {today.day:2d} {today.year:4d}"'
             if self.kind == BuiltinKind.TIME:
                 return self.pp.time_str
             return self.pp.date_str
