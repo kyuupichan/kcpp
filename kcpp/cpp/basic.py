@@ -324,22 +324,6 @@ class SpecialKind(IntEnum):
     VA_IDENTIFIER = 1      # These tokens are restricted to limited contexts
     ALT_TOKEN = 2
     ENCODING_PREFIX = 3
-    BUILT_IN_MACRO = 4
-
-
-class BuiltInKind(IntEnum):
-    '''The type of built-in dynamic macro.  There are only a handful.
-
-    Predefined macros always have the same value no matter where expanded and across
-    different invocations of the compiler with the same command line switches.  Built-in
-    macros are dynamic - their expansion changes depending on location, or with each
-    compilation.  For example, respectively, __LINE__ and __TIME__ are builtins.
-    __cplusplus is not a builtin, it is a predefined macro.
-    '''
-    DATE = 0
-    TIME = 1
-    FILE = 2
-    LINE = 3
 
 
 @dataclass(slots=True)
@@ -371,10 +355,6 @@ class IdentifierInfo:
         assert self.special_kind() == SpecialKind.ENCODING_PREFIX
         return Encoding(self.special >> 4)
 
-    def built_in_kind(self):
-        assert self.special_kind() == SpecialKind.BUILT_IN
-        return BuiltInKind(self.special >> 4)
-
     def set_special(self, kind):
         self.special = kind
 
@@ -383,9 +363,6 @@ class IdentifierInfo:
 
     def set_encoding(self, encoding):
         self.special = (encoding << 4) + SpecialKind.ENCODING_PREFIX
-
-    def set_built_in(self, builtin_kind):
-        self.special = (builtin_kind << 4) + SpecialKind.BUILT_IN_MACRO
 
 
 # A dummy used for a lexed identifier when skipping

@@ -16,6 +16,10 @@ in_argument_stringizing:
   severity: note
   text: in stringizing of macro argument
 
+in_expansion_of_builtin:
+  severity: note
+  text: in expansion of builtin macro %q0
+
 in_expansion_of_macro:
   severity: note
   text: in expansion of macro %q0

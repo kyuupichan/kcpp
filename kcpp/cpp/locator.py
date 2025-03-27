@@ -121,11 +121,13 @@ class ScratchBufferSpan(Buffer):
         return -1
 
     def did_and_substitutions(self, pp, loc):
-        kind = self.entry_for_loc(loc).kind
-        if kind == ScratchEntryKind.concatenate:
+        entry = self.entry_for_loc(loc)
+        if entry.kind == ScratchEntryKind.concatenate:
             return DID.in_token_concatenation, []
-        else:
+        elif entry.kind == ScratchEntryKind.stringize:
             return DID.in_argument_stringizing, []
+        else:
+            return DID.in_expansion_of_builtin, [pp.token_spelling_at_loc(entry.parent_loc)]
 
     def entry_for_loc(self, loc):
         '''Return the parent location (i.e. the location of the ## or # token) of a scratch buffer
@@ -152,6 +154,7 @@ class ScratchBufferSpan(Buffer):
 class ScratchEntryKind(IntEnum):
     concatenate = auto()
     stringize = auto()
+    builtin = auto()
 
 
 @dataclass(slots=True)
@@ -164,7 +167,6 @@ class ScratchEntry:
 @dataclass(slots=True)
 class MacroReplacementSpan:
 
-    macro: object
     invocation_loc: int
     start: int
     end: int
@@ -227,10 +229,10 @@ class Locator:
         except IndexError:
             return self.FIRST_MACRO_LOC
 
-    def macro_replacement_span(self, macro, parent_loc):
+    def macro_replacement_span(self, size, parent_loc):
         start = self.next_macro_span_start()
-        end = start + len(macro.replacement_list) - 1
-        self.macro_spans.append(MacroReplacementSpan(macro, parent_loc, start, end))
+        end = start + size - 1
+        self.macro_spans.append(MacroReplacementSpan(parent_loc, start, end))
         return start
 
     def macro_argument_span(self, parameter_loc, locations):

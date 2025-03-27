@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 from ..diagnostics import DID, Diagnostic
-from .basic import Token, TokenKind, TokenFlags
+from .basic import Token, TokenKind, TokenFlags, quoted_string
 from .lexer import Lexer
 from .locator import ScratchEntryKind
 
@@ -27,6 +27,21 @@ class MacroFlags(IntEnum):
     def from_param_count(count):
         '''Return the flag bits to represent the given parameter count.'''
         return count << 8
+
+
+class BuiltinKind(IntEnum):
+    '''The type of built-in dynamic macro.  There are only a handful.
+
+    Predefined macros always have the same value no matter where expanded and across
+    different invocations of the compiler with the same command line switches.  Built-in
+    macros are dynamic - their expansion changes depending on location, or with each
+    compilation.  For example, respectively, __LINE__ and __TIME__ are builtins.
+    __cplusplus is not a builtin, it is a predefined macro.
+    '''
+    DATE = 0
+    TIME = 1
+    FILE = 2
+    LINE = 3
 
 
 @dataclass(slots=True)
@@ -202,7 +217,7 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.parent_flags = parent_token.flags
         self.tokens = macro.replacement_list
         self.cursor = 0
-        self.base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
+        self.base_loc = pp.locator.macro_replacement_span(len(self.tokens), parent_token.loc)
         macro.disable()
 
     def get_token(self, token):
@@ -241,8 +256,8 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.macro = macro
         self.parent_flags = parent_token.flags
         self.cursor = 0
-        base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         tokens = macro.replacement_list
+        base_loc = pp.locator.macro_replacement_span(len(tokens), parent_token.loc)
         self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens))
         macro.disable()
 
@@ -436,6 +451,31 @@ class UnexpandedArgument(SimpleTokenList):
             # FunctionLikeExpansion.get_token().
             token.set_to(tokens[cursor], tokens[cursor].loc)
             self.cursor = cursor + 1
+
+
+class BuiltinMacroExpansion(SimpleTokenList):
+
+    def __init__(self, pp, parent_loc, kind):
+        self.pp = pp
+        self.parent_loc = parent_loc
+        self.kind = kind
+
+    def spelling(self):
+        if self.kind == BuiltinKind.LINE or self.kind == BuiltinKind.FILE:
+            location = self.pp.locator.presumed_location(self.parent_loc, True)
+            if self.kind == BuiltinKind.LINE:
+                return str(location.line_number)
+            return quoted_string(location.filename)
+
+        assert False
+
+    def get_token(self, token):
+        spelling = self.spelling()
+        btoken, all_consumed = self.lex_from_scratch(spelling.encode(), self.parent_loc,
+                                                     ScratchEntryKind.builtin)
+        assert all_consumed
+        token.set_to(btoken, self.pp.locator.macro_replacement_span(1, self.parent_loc))
+        self.pp.pop_source()
 
 
 class DiagnosticFilter:

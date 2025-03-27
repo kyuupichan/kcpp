@@ -14,13 +14,16 @@ from ..diagnostics import DID, Diagnostic, DiagnosticEngine
 
 from .basic import (
     IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
-    TargetMachine, IntegerKind, Charset, BuiltInKind
+    TargetMachine, IntegerKind, Charset
 )
 from .expressions import ExprParser
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator
-from .macros import Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion
+from .macros import (
+    Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinMacroExpansion,
+    BuiltinKind,
+)
 
 
 __all__ = ['Preprocessor', 'PreprocessorActions']
@@ -164,10 +167,10 @@ class Preprocessor:
             self.get_identifier(spelling).set_encoding(encoding)
 
         # Built-in macros
-        self.get_identifier(b'__DATE__').set_built_in(BuiltInKind.DATE)
-        self.get_identifier(b'__TIME__').set_built_in(BuiltInKind.TIME)
-        self.get_identifier(b'__FILE__').set_built_in(BuiltInKind.FILE)
-        self.get_identifier(b'__LINE__').set_built_in(BuiltInKind.LINE)
+        self.get_identifier(b'__DATE__').macro = BuiltinKind.DATE
+        self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
+        self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
+        self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
@@ -307,24 +310,28 @@ class Preprocessor:
         macro = token.extra.macro
         if not macro:
             return
-        if macro.is_disabled():
-            # Disable this token forever from later expansion
-            token.disable()
-            return
-        if macro.flags & MacroFlags.IS_FUNCTION_LIKE:
-            if self.peek_token_kind() != TokenKind.PAREN_OPEN:
-                return
-            # Collect the arguments.  Macro expansion is disabled whilst doing this.
-            assert not self.collecting_arguments
-            self.collecting_arguments = True
-            self.expand_macros = False
-            arguments = macro.collect_arguments(self, token)
-            self.expand_macros = True
-            self.collecting_arguments = False
-            if arguments is not None:
-                self.push_source(FunctionLikeExpansion(self, macro, token, arguments))
+        if isinstance(macro, BuiltinKind):
+            self.push_source(BuiltinMacroExpansion(self, token.loc, macro))
         else:
-            self.push_source(ObjectLikeExpansion(self, macro, token))
+            if macro.is_disabled():
+                # Disable this token forever from later expansion
+                token.disable()
+                return
+            if macro.flags & MacroFlags.IS_FUNCTION_LIKE:
+                if self.peek_token_kind() != TokenKind.PAREN_OPEN:
+                    return
+                # Collect the arguments.  Macro expansion is disabled whilst doing this.
+                assert not self.collecting_arguments
+                self.collecting_arguments = True
+                self.expand_macros = False
+                arguments = macro.collect_arguments(self, token)
+                self.expand_macros = True
+                self.collecting_arguments = False
+                if arguments is not None:
+                    self.push_source(FunctionLikeExpansion(self, macro, token, arguments))
+            else:
+                self.push_source(ObjectLikeExpansion(self, macro, token))
+
         # We get the first token (or the next token if collect_arguments() failed).
         self.get_token(token)
 
