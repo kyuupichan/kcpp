@@ -95,26 +95,20 @@ class PreprocessedOutput(ProcessorBase):
         token = Token.create()
         write = self.write
         locator = pp.locator
-        ws = False
         while True:
             pp.get_token(token)
             if token.kind == TokenKind.EOF:
                 break
-            if token.kind == TokenKind.PLACEMARKER:
-                # Remember the whitespace flag
-                ws = bool(token.flags & TokenFlags.WS)
-                continue
 
             coords = locator.source_file_coords(token.loc)
             if coords.line_number != self.line_number:
                 self.move_to_line_number(coords.line_number)
                 if coords.column_offset > 1:
                     write(' ' * coords.column_offset)
-            elif ws or token.flags & TokenFlags.WS:
+            elif token.flags & TokenFlags.WS:
                 write(' ')
             write(pp.token_spelling(token).decode())
             self.at_bol = False
-            ws = False
 
         write('\n')
 
