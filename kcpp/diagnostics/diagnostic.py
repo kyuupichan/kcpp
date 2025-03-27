@@ -182,6 +182,7 @@ class Diagnostic:
             else:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
+        assert caret_range
         context = DiagnosticContext(self.did, substitutions, caret_range, source_ranges)
         return context, nested_diagnostics
 
@@ -255,11 +256,12 @@ class DiagnosticEngine(DiagnosticConsumer):
         '''Add command line arugments to the group.'''
         pass
 
-    def location_text(self, coords):
+    def location_text(self, caret_range):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
         with no location, something like '<command line>: ' for command-line errors, and
         otherwise something like '"file_name": line 25: " for file locations.
         '''
+        coords = self.pp.locator.range_coords(caret_range).start
         arguments = [coords.filename, coords.line_number, coords.column_offset + 1]
 
         if self.worded_locations:
@@ -295,25 +297,26 @@ class DiagnosticEngine(DiagnosticConsumer):
         # which is the first one in the list.
         severity_enum = diagnostic_definitions[diagnostic_context.did].severity
         text = self.translations.diagnostic_text(diagnostic_context.did)
-        caret_loc = diagnostic_context.caret_range.caret_loc()
-
-        # Now convert each range to RangeCoords
-        caret_range = self.pp.locator.range_coords(diagnostic_context.caret_range)
-        source_ranges = [self.pp.locator.range_coords(source_range)
-                         for source_range in diagnostic_context.source_ranges]
+        caret_range = diagnostic_context.caret_range
+        caret_loc = caret_range.caret_loc()
 
         text_parts = []
         if caret_loc != location_none:
             if caret_loc == location_command_line:
                 location_text = 'kcpp'
             else:
-                location_text = self.location_text(caret_range.start)
+                location_text = self.location_text(caret_range)
             text_parts.append((location_text + ': ', 'path'))
         # Add the severity text unless it is none
         if severity_enum != DiagnosticSeverity.none:
             severity_did, hint = self.severity_map[severity_enum]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
+
+        # Now convert each range to RangeCoords
+        caret_range = self.pp.locator.range_coords(caret_range)
+        source_ranges = [self.pp.locator.range_coords(source_range)
+                         for source_range in diagnostic_context.source_ranges]
         return MessageContext(caret_range, source_ranges, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
