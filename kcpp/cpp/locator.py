@@ -172,12 +172,6 @@ class MacroArgumentSpan:
         return self.parameter_loc
 
 
-@dataclass(slots=True)
-class MacroContext:
-    macro_loc: int
-    span: object
-
-
 class Locator:
     '''Manages and supplies token locations.'''
 
