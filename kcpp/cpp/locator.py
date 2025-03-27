@@ -450,8 +450,7 @@ class Locator:
             source_ranges = [source_ranges_item[n] for source_ranges_item in source_ranges_list]
 
             # We finally have the new context; add it to the list
-            contexts.append(DiagnosticContext(did, substitutions, caret_loc, caret_range,
-                                              source_ranges))
+            contexts.append(DiagnosticContext(did, substitutions, caret_range, source_ranges))
 
         contexts.reverse()
         return contexts

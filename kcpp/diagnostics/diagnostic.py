@@ -95,7 +95,6 @@ class DiagnosticContext:
     '''
     did: DID
     substitutions: list
-    caret_loc: int
     caret_range: object
     source_ranges: list
 
@@ -165,21 +164,25 @@ class Diagnostic:
         source_ranges = []
         nested_diagnostics = []
 
-        if self.loc != location_in_args:
-            source_ranges.append(TokenRange(self.loc, self.loc))
+        if self.loc == location_in_args:
+            caret_range = None
+        else:
+            caret_range = TokenRange(self.loc, self.loc)
+
         for arg in self.arguments:
             if isinstance(arg, (str, bytes, int)):
                 substitutions.append(arg)
             elif isinstance(arg, (TokenRange, SpellingRange, BufferRange)):
-                source_ranges.append(arg)
+                if caret_range is None:
+                    caret_range = arg
+                else:
+                    source_ranges.append(arg)
             elif isinstance(arg, Diagnostic):
                 nested_diagnostics.append(arg)
             else:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
-        assert source_ranges
-        context = DiagnosticContext(self.did, substitutions, self.loc,
-                                    source_ranges[0], source_ranges[1:])
+        context = DiagnosticContext(self.did, substitutions, caret_range, source_ranges)
         return context, nested_diagnostics
 
 
