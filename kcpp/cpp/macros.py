@@ -288,15 +288,15 @@ class FunctionLikeExpansion(SimpleTokenList):
                 if lhs_concat or rhs_concat or token_count:
                     if argument_tokens:
                         argument_tokens = [copy(token) for token in argument_tokens]
+                    # Replace empty argument with a placemarker
+                    if not argument_tokens:
+                        argument_tokens = [self.placemarker_token()]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
 
-                # Replace empty argument with a placemarker
-                if not argument_tokens:
-                    argument_tokens = [self.placemarker_token()]
-
                 # Replace the first token with a copy and set its spacing flags
-                argument_tokens[0].copy_spacing_flags_from(token.flags)
+                if argument_tokens:
+                    argument_tokens[0].copy_spacing_flags_from(token.flags)
                 # Give the tokens their macro-expansion locations
                 locations = [token.loc for token in argument_tokens]
                 first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
