@@ -78,11 +78,14 @@ class DID(IntEnum):
     invalid_charset = auto()
     invalid_digit = auto()
     invalid_directive = auto()
+    invalid_file_name = auto()
     invalid_numeric_suffix = auto()
     invalid_op_in_pp_expression = auto()
     invalid_variadic_identifier_use = auto()
     left_shift_of_negative_value = auto()
     left_shift_overflows = auto()
+    line_number_must_be_digit_sequence = auto()
+    line_number_out_of_range = auto()
     macro_defined_here = auto()
     macro_definition_ends_with_concat = auto()
     macro_definition_starts_with_concat = auto()
@@ -440,6 +443,12 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'invalid directive %q0',
     ),
+    DID.invalid_file_name: DiagnosticDefinition(
+        DID.invalid_file_name,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'invalid file name',
+    ),
     DID.invalid_numeric_suffix: DiagnosticDefinition(
         DID.invalid_numeric_suffix,
         DiagnosticSeverity.error,
@@ -469,6 +478,18 @@ diagnostic_definitions = {
         DiagnosticSeverity.warning,
         DiagnosticGroup.none,
         'left shift overflows',
+    ),
+    DID.line_number_must_be_digit_sequence: DiagnosticDefinition(
+        DID.line_number_must_be_digit_sequence,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'line number must be a digit sequence',
+    ),
+    DID.line_number_out_of_range: DiagnosticDefinition(
+        DID.line_number_out_of_range,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.none,
+        'the standard requires a line number between 1 and %0',
     ),
     DID.macro_defined_here: DiagnosticDefinition(
         DID.macro_defined_here,
