@@ -126,31 +126,15 @@ class BufferPosition(IntEnum):
 
 @dataclass(slots=True)
 class BufferCoords:
-    '''Represents a location in a buffer as a line number and column offset.'''
+    '''Represents a physical location in a buffer as a line number and column offset.'''
     # The buffer
     buffer: Buffer
-    # The filename
-    filename: str
     # Line number in the buffer (1-based)
     line_number: int
     # Byte offset of the location from the start of the line (0-based)
     column_offset: int
     # Byte offset of the start of the line in the buffer
     line_offset: int
-
-    def buffer_offset(self):
-        '''Convert the location as an offset in the buffer.'''
-        return self.line_offset + self.column_offset
-
-    def buffer_position(self):
-        '''Return a BufferPosition describing the location in the buffer.'''
-        text = self.buffer.text
-        offset = self.buffer_offset()
-        if offset == len(text):
-            return BufferPosition.END_OF_SOURCE
-        if text[offset] in {10, 13}:
-            return BufferPosition.END_OF_LINE
-        return BufferPosition.WITHIN_LINE
 
 
 @dataclass(slots=True)

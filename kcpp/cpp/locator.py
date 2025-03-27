@@ -307,8 +307,7 @@ class Locator:
             offset += self.token_length(span.start + offset)
         buffer = span.buffer
         line_offset, line_number = buffer.offset_to_line_info(offset)
-        filename = ''
-        return BufferCoords(buffer, filename, line_number, offset - line_offset, line_offset)
+        return BufferCoords(buffer, line_number, offset - line_offset, line_offset)
 
     def token_length(self, loc):
         '''The length of the token in bytes in the source file.  This incldues, e.g., escaped
