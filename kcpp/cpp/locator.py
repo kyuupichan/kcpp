@@ -258,6 +258,11 @@ class Locator:
             assert loc != -1
         return loc
 
+    def add_line_range(self, start_loc, name, line_number):
+        span = self.lookup_span(start_loc)
+        assert isinstance(span, BufferSpan)
+        span.add_line_range(start_loc, name, line_number)
+
     def lookup_span(self, loc):
         if loc >= self.FIRST_MACRO_LOC:
             spans = self.macro_spans
