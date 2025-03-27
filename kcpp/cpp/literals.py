@@ -307,6 +307,47 @@ class LiteralInterpreter:
 
         return result
 
+    def interpret_line_number(self, token, max_value):
+        '''Interpret the line number token of a #line directive and issue diagnostics for
+        erroneous values.  It shall be a digit-sequence - i.e. digits 0-9 with optional '
+        separators.
+        '''
+        if token.kind != TokenKind.NUMBER:
+            self.pp.diag(DID.line_number_must_be_digit_sequence, token.loc)
+            return -1
+        state = State.from_pp_number(token)
+        cursor, line_number, _ = self.read_radix_digits(state, 0, 10, True)
+        if cursor != state.limit:
+            state.diag_char(DID.line_number_must_be_digit_sequence, cursor)
+        if state.emit_diagnostics(self.pp):
+            return -1
+        if line_number == 0 or line_number > max_value:
+            self.pp.diag(DID.line_number_out_of_range, token.loc, [f'{max_value:,d}'])
+        return line_number
+
+    def interpret_filename(self, token):
+        '''Interpret a filename for a #line directive.  Return a string on success, or None on
+        error.
+
+        The token must be a string literal.  Encoding prefixes and user-defined suffixes
+        are rejected.  No attempt is made to interpret escape sequences, etc.
+        '''
+        if token.kind != TokenKind.STRING_LITERAL:
+            self.pp.diag(DID.invalid_file_name, token.loc)
+            return None
+
+        spelling, ud_suffix = token.extra
+        if TokenFlags.get_encoding(token.flags) != Encoding.NONE:
+            selector = 0
+        elif ud_suffix:
+            selector = 1
+        else:
+            return spelling[1:-1].decode()
+
+        self.pp.diag(DID.invalid_file_name, location_in_args,
+                     [self.string_spelling_range(token, selector)])
+        return None
+
     # binary-literal:
     #    0b binary-digit
     #    0B binary-digit
@@ -610,20 +651,22 @@ class LiteralInterpreter:
     # String literals
     #
 
+    def string_spelling_range(self, token, selector):
+        '''Returns a SpellingRange for a string token's encoding prefix (if selector is 0)
+        or user-defined suffix (if selector is 1).'''
+        spelling, _ = token.extra
+        body, limit = find_literal_body(spelling)
+        if selector == 0:
+            return SpellingRange(token.loc, 0, body - 1)
+        else:
+            return SpellingRange(token.loc, limit + 1, len(spelling))
+
     def concatenate_string_literals(self, token):
         '''Concatenate and interpret string literals beginning with token.'''
-        def spelling_range(token, selector):
-            spelling, _ = token.extra
-            body, limit = find_literal_body(spelling)
-            if selector == 0:
-                return SpellingRange(token.loc, 0, body - 1)
-            else:
-                return SpellingRange(token.loc, limit + 1, len(spelling))
-
         def diagnose_conflict(token, bad_tokens, selector):
-            args = [spelling_range(token, selector), selector]
+            args = [self.string_spelling_range(token, selector), selector]
             args.extend([Diagnostic(DID.string_concatenation_prior, location_in_args,
-                                    [selector, spelling_range(bad_token, selector)])
+                                    [selector, self.string_spelling_range(bad_token, selector)])
                          for bad_token in bad_tokens])
             self.pp.diag(DID.string_concatenation_conflict, location_in_args, args)
 
@@ -666,7 +709,8 @@ class LiteralInterpreter:
             if bad_tokens:
                 diagnose_conflict(token, bad_tokens, 1)
                 is_erroneous = True
-            common_ud_suffix = UserDefinedSuffix(common_ud_suffix, spelling_range(token, 1))
+            common_ud_suffix = UserDefinedSuffix(common_ud_suffix,
+                                                 self.string_spelling_range(token, 1))
 
         # Now loop through the tokens and encode them.
         elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(common_encoding, self)

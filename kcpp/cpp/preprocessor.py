@@ -608,8 +608,23 @@ class Preprocessor:
 
     def on_line(self, lexer, token):
         self.expand_macros = True
-        # FIXME
-        self.skip_to_eod(token, False)
+        # Read the line number - a digit-sequence (i.e. 0-9 with optional ')
+        self.get_token(token)
+        line_number = self.literal_interpreter.interpret_line_number(token, 2147483648)
+        if line_number != -1:
+            self.get_token(token)
+            if token.kind == TokenKind.EOF:
+                filename = self.locator.prior_file_name
+            else:
+                filename = self.literal_interpreter.interpret_filename(token)
+        is_good = line_number != -1 and filename is not None
+        self.skip_to_eod(token, is_good)
+        # Have the line number take effect from the first character of the next line
+        if is_good:
+            start_loc = token.loc + 1
+            self.locator.add_line_range(start_loc, filename, line_number)
+            if self.actions:
+                self.actions.source_file_changed(start_loc, SourceFileChangeReason.line)
 
     def on_error(self, lexer, token):
         self.diagnostic_directive(lexer, token, DID.error_directive)

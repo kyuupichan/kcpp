@@ -100,7 +100,7 @@ class PreprocessedOutput(ProcessorBase):
             if token.kind == TokenKind.EOF:
                 break
 
-            location = self.pp.locator.presumed_location(token.loc, True)
+            location = locator.presumed_location(token.loc, True)
             if location.line_number != self.line_number:
                 self.move_to_line_number(location.line_number)
                 if location.column_offset > 1:

@@ -24,6 +24,18 @@ in_token_concatenation:
   severity: note
   text: in result of token concatenation
 
+line_number_must_be_digit_sequence:
+  severity: error
+  text: line number must be a digit sequence
+
+line_number_out_of_range:
+  severity: warning
+  text: the standard requires a line number between 1 and %0
+
+invalid_file_name:
+  severity: error
+  text: invalid file name
+
 macro_defined_here:
   severity: note
   text: macro %q0 was defined here
