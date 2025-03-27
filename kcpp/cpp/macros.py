@@ -6,6 +6,7 @@
 
 from copy import copy
 from dataclasses import dataclass
+from datetime import datetime
 from enum import IntEnum
 
 from ..diagnostics import DID, Diagnostic
@@ -466,6 +467,16 @@ class BuiltinMacroExpansion(SimpleTokenList):
             if self.kind == BuiltinKind.LINE:
                 return str(location.line_number)
             return quoted_string(location.filename)
+
+        if self.kind == BuiltinKind.TIME or self.kind == BuiltinKind.DATE:
+            if self.pp.time_str is None:
+                months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
+                today = datetime.today()
+                self.pp.time_str = f'"{today.hour:02d}:{today.minute:02d}:{today.second:02d}"'
+                self.pp.date_str = f'"{months[today.month]} {today.day:2d} {today.year:4d}"'
+            if self.kind == BuiltinKind.TIME:
+                return self.pp.time_str
+            return self.pp.date_str
 
         assert False
 

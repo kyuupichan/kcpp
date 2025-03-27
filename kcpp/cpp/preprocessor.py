@@ -100,6 +100,9 @@ class Preprocessor:
         self.in_filename = False
         self.in_variadic_macro_definition = False
         self.skipping = False
+        # The date and time of compilation if __DATE__ or __TIME__ is seen.
+        self.time_str = None
+        self.date_str = None
 
         self.initialize()
 
@@ -308,7 +311,7 @@ class Preprocessor:
         if not self.expand_macros or token.is_disabled():
             return
         macro = token.extra.macro
-        if not macro:
+        if macro is None:
             return
         if isinstance(macro, BuiltinKind):
             self.push_source(BuiltinMacroExpansion(self, token.loc, macro))
