@@ -333,7 +333,7 @@ class LiteralInterpreter:
         are rejected.  No attempt is made to interpret escape sequences, etc.
         '''
         if token.kind != TokenKind.STRING_LITERAL:
-            self.pp.diag(DID.invalid_file_name, token.loc)
+            self.pp.diag(DID.filename_should_be_string, token.loc)
             return None
 
         spelling, ud_suffix = token.extra
@@ -344,8 +344,8 @@ class LiteralInterpreter:
         else:
             return spelling[1:-1].decode()
 
-        self.pp.diag(DID.invalid_file_name, location_in_args,
-                     [self.string_spelling_range(token, selector)])
+        self.pp.diag(DID.invalid_in_filename, location_in_args,
+                     [self.string_spelling_range(token, selector), selector])
         return None
 
     # binary-literal:

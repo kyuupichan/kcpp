@@ -48,6 +48,10 @@ extra_directive_tokens:
   severity: error
   text: 'extra tokens at end of #%0 directive'
 
+filename_should_be_string:
+  severity: error
+  text: filename should be a string literal
+
 hash_requires_macro_parameter:
   severity: error
   text: "'#' must be followed by a macro parameter"
@@ -55,6 +59,18 @@ hash_requires_macro_parameter:
 invalid_directive:
   severity: error
   text: invalid directive %q0
+
+invalid_in_filename:
+  severity: error
+  text: filename cannot have %select{an encoding prefix|a user-defined suffix}0
+
+line_number_must_be_digit_sequence:
+  severity: error
+  text: line number must be a digit sequence
+
+line_number_out_of_range:
+  severity: warning
+  text: the standard requires a line number between 1 and %0
 
 macro_definition_starts_with_concat:
   severity: error

@@ -64,6 +64,7 @@ class DID(IntEnum):
     expected_open_brace = auto()
     expected_open_paren = auto()
     extra_directive_tokens = auto()
+    filename_should_be_string = auto()
     floating_point_in_pp_expr = auto()
     hash_requires_macro_parameter = auto()
     hexadecimal_exponent_required = auto()
@@ -78,7 +79,7 @@ class DID(IntEnum):
     invalid_charset = auto()
     invalid_digit = auto()
     invalid_directive = auto()
-    invalid_file_name = auto()
+    invalid_in_filename = auto()
     invalid_numeric_suffix = auto()
     invalid_op_in_pp_expression = auto()
     invalid_variadic_identifier_use = auto()
@@ -359,6 +360,12 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'extra tokens at end of #%0 directive',
     ),
+    DID.filename_should_be_string: DiagnosticDefinition(
+        DID.filename_should_be_string,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'filename should be a string literal',
+    ),
     DID.floating_point_in_pp_expr: DiagnosticDefinition(
         DID.floating_point_in_pp_expr,
         DiagnosticSeverity.error,
@@ -443,11 +450,11 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'invalid directive %q0',
     ),
-    DID.invalid_file_name: DiagnosticDefinition(
-        DID.invalid_file_name,
+    DID.invalid_in_filename: DiagnosticDefinition(
+        DID.invalid_in_filename,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'invalid file name',
+        'filename cannot have %select{an encoding prefix|a user-defined suffix}0',
     ),
     DID.invalid_numeric_suffix: DiagnosticDefinition(
         DID.invalid_numeric_suffix,
