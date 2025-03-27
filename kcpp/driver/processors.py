@@ -70,9 +70,9 @@ class PreprocessedOutput(ProcessorBase):
         self.at_bol = True
 
     def source_file_changed(self, loc, reason):
-        coords = self.pp.locator.source_file_coords(loc)
-        self.line_number = coords.line_number
-        self.filename = coords.filename
+        location = self.pp.locator.presumed_location(loc, True)
+        self.line_number = location.line_number
+        self.filename = location.filename
         self.write_line_marker()
 
     def move_to_line_number(self, line_number):
@@ -100,11 +100,11 @@ class PreprocessedOutput(ProcessorBase):
             if token.kind == TokenKind.EOF:
                 break
 
-            coords = locator.source_file_coords(token.loc)
-            if coords.line_number != self.line_number:
-                self.move_to_line_number(coords.line_number)
-                if coords.column_offset > 1:
-                    write(' ' * coords.column_offset)
+            location = self.pp.locator.presumed_location(token.loc, True)
+            if location.line_number != self.line_number:
+                self.move_to_line_number(location.line_number)
+                if location.column_offset > 1:
+                    write(' ' * location.column_offset)
             elif token.flags & TokenFlags.WS:
                 write(' ')
             write(pp.token_spelling(token).decode())
