@@ -13,8 +13,9 @@ Why write a preprocessor in Python?
 ===================================
 
 Good question.  Essentially because Python makes it very easy to refactor code to find the
-cleanest and most efficient implementation of an idea.  This makes it an ideal language
-for a reference Python implementation to be transcoded to C or C++.
+cleanest and most efficient implementation of an idea.  It is ideal for a reference
+implementation that can be transcoded to C or C++.  I believe the result would be much
+better than could be achieved from scratch in a similar timeframe in those languages.
 
 I was a co-maintainer of GCC's preprocessor 1999 to 2003.  During this time the
 preprocessor was converted from a standalone executable that would write its output to a
@@ -50,58 +51,60 @@ What about the other open source C preprocessors?
 =================================================
 
 There are several publicly available preprocessors, usually written in C or C++, and most
-claim to be standards conforming, but in reality are not, particularly when it comes to
-corner cases or more recent features like processing generic UTF-8 source and handling the
-details of UCNs.  None of them make an effort at high-quality, consistent diagnostics and
-I do not like their codebases.
+claim to be standards conforming.  In reality they are not, particularly when it comes to
+the very many corner cases, or implementing more recent features like processing generic
+UTF-8 source, __VA_OPT__, and handling the details of UCNs.  None make an effort at
+high-quality diagnostics and their codebases do not appeal as something to build on.
 
 To my surprise about three Python preprocessors exist as well, but from what I could see
-don't take efficiency, diagnostics or standards conformace seriously, and had other goals
-such as visualization (cpip is a cool example of this).  They don't appear to be actively
+they have similar defects to their C and C++ counterparts, and have other goals such as
+visualization (cpip is a cool example of this).  They don't appear to be actively
 maintained.
 
-I invite you to compare the expression parsing and evaluation code of other preprocessors
-with expressions.py.
+I invite you to compare the code of other preprocessors with that of kcpp.
 
 
 Goals
 =====
 
-I want this project to be a standards-conforming and efficient (to the extent possible in
-Python) preprocessor that provides extremely high quality diagnostics and is retargetable
-(in the compiler sense).  The code should be clean and easy to understand - good examples
-are kcpp's diagnostics subsystem, and expression parser and evaluator.
+This project shall develop a standards-conforming and efficient (to the extent possible in
+Python) preprocessor that provides high quality diagnostics that is host and target
+independent (in the compiler sense).  The code should be clean and easy to understand -
+good examples are kcpp's diagnostics subsystem, and expression parser and evaluator.
 
-Equally, it should be seen as a "reference implementation" that can be easily transcoded
-to a clean and efficient C or C++ implementation by a decent programmer of those
-languages.  Such an implementation should be on at least on a par with the code of Clang
-or GCC for performance and quality, but shorter and easier to understand.
+Equally, it should be a "reference implementation" that can be easily transcoded to a
+clean and efficient C or C++ implementation by a decent programmer of those languages.
+There is no reason such an implementation cannot be on at least on a par with Clang or GCC
+for performance and quality, and at the same time more compact and easier to understand.
 
 Some design choices I have made (such as treating source files as binary rather than as
 Python Unicode strings, and not using Python's built-in Unicode support) are because those
 things don't exist in C and C++.  I want it to be fairly easy to translate the Python code
 directly translate to C or C++ equivalents.
 
-I intend do such a transcoding, probably to C++, once the code is mostly complete.  This
-will be later in 2025 as part of my goal of learning C++ properly.
+I probably will do such a transcoding to C++ once the Python code is mostly complete and
+cleaned up.  This will be later in 2025 as part of my goal of learning C++ properly.
 
 
 Features that are essentially complete
 ======================================
 
 The following are bascially done and fully working, modulo small cleanups and
-improvements:
+improvements, to the C++23 specifications:
 
 - lexing
+- macro expansion, including __VA_OPT__ and whitespace correctness
+- predefined and built-in macros
 - interpretation of literals
 - expression parsing
 - expression evaluation
-- object-like macro expansion
-- display of macro expansion stack in diagnostics
-- conversion of Unicode character names to codepoints (based on the ideas described by
-  cor3ntin at https://cor3ntin.github.io/posts/cp_to_name/, but I implemented some ideas
-  of my own to achieve even tighter compaction; see unicode/cp_name_db.py)
-- the basic diagnostic framework.  Colourized output to a Unicode terminal is supported,
+- conversion of Unicode character names to codepoints.  I implemented the Python code
+  based on the ideas described by cor3ntin at
+  https://cor3ntin.github.io/posts/cp_to_name/, but added some ideas and improvements of
+  my own to achieve 20+% tighter compaction - see unicode/cp_name_db.py.
+- display of the macro expansion stack in diagnostics with precise caret locations and
+  range highlights
+- the diagnostic framework.  Colourized output to a Unicode terminal is supported,
   as are translations (none provided!).  The framework could be hooked up to an IDE.
 
 
@@ -109,25 +112,22 @@ Incomplete or Missing
 =====================
 
 The following are missing, or work in progress, but the framework is already in place so
-that adding them is not too much of a stretch:
+that adding them is pretty easy now:
 
-- functionlike macro expansion
-- predefined macros
-- some directives, particularly #line, include, #pragma
-- preprocessed output (partially done in a trivial way)
+- some directives, particularly #include, #pragma
 - _Pragma operator
 - multiple-include optimisation
 - _has_include
 - _has_cpp_attribute
+- avoidance of unwanted concatenation in preprocessed output
 
-C++ modules - I've not yet figured out how these work in C++ or how they interact with the
-preprocessor.
+C++ modules - I've not fully figured out how these work in C++ or how they interact with
+the preprocessor.  Unlikely to be tackled until some kind of real frontend exists.
 
-Precompiled headers - possibly an idea.  Again, Python is a good place to experiment
-before attempting an implementation in C++.
+Precompiled headers - possibly an idea and I suspect largely overlaps with modules.
+Again, Python is a good place to experiment before attempting an implementation in C++.
 
-Makefile output, preprocessor actions or hooks, and other features, are possibilities
-going forwards.
+Makefile output and other features are possibilities going forwards.
 
 
 Future
@@ -143,17 +143,18 @@ Feature requests are welcome.
 Documentation
 =============
 
-One day.  The code is well-commented and reasonably clean though - it shouldn't be hard to
+Soon.  The code is well-commented and reasonably clean though - it shouldn't be hard to
 figure out.
 
 
 Tests
 =====
 
-I have fairly comprehensive tests for the code, but I am keeping the testsuite private.
+I have a testuite for the code but I am keeping it private.  Test case submissions (using
+pytest) are welcome.
 
 Bug reports (for those areas in the "Features that are essentially complete" section
-above) are most welcome.
+above) are welcome.
 
 
 ChangeLog
