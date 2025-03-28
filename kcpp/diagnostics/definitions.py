@@ -35,6 +35,7 @@ class DID(IntEnum):
     brief_at_file_and_line = auto()
     brief_at_file_line_and_column = auto()
     builtin_macro_undefined = auto()
+    cannot_be_used_as_a_macro_name = auto()
     cannot_open_file = auto()
     character_does_not_exist = auto()
     character_not_single_code_unit = auto()
@@ -189,6 +190,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         '%q0 is a built-in macro and cannot be undefined',
+    ),
+    DID.cannot_be_used_as_a_macro_name: DiagnosticDefinition(
+        DID.cannot_be_used_as_a_macro_name,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        '%q0 cannot be used as a macro name',
     ),
     DID.cannot_open_file: DiagnosticDefinition(
         DID.cannot_open_file,

@@ -8,6 +8,10 @@
 # Directive diagnostics
 #
 
+cannot_be_used_as_a_macro_name:
+  severity: error
+  text: "%q0 cannot be used as a macro name"
+
 duplicate_macro_parameter:
   severity: error
   text: duplicate macro parameter %q0

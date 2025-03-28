@@ -293,10 +293,10 @@ class Preprocessor:
     def pop_source(self):
         source = self.sources.pop()
         if isinstance(source, Lexer):
+            self.predefining_macros = False
             if self.actions:
                 cursor_loc = self.sources[-1].cursor_loc()
                 self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
-            self.predefining_macros = False
         return self.sources[-1]
 
     def pass_through_eof(self, source):
@@ -649,18 +649,19 @@ class Preprocessor:
         lexer.get_token(token)
         is_macro_name = self.is_macro_name(token)
         if is_macro_name:
-            macro = token.extra.macro
-            if macro is not None:
+            if token.extra is self.expr_parser.defined:
+                self.diag(DID.cannot_be_used_as_a_macro_name, token.loc, [token.extra.spelling])
+            elif (macro := token.extra.macro) is not None:
                 if macro.is_builtin():
                     self.diag(DID.builtin_macro_undefined, token.loc, [token.extra.spelling])
                     # The #undef has no effect
                 else:
+                    token.extra.macro = None
                     if macro.is_predefined():
                         self.diag(DID.predefined_macro_undefined, token.loc, [
                             token.extra.spelling,
                             Diagnostic(DID.prior_macro_definition, macro.name_loc),
                         ])
-                    token.extra.macro = None
         self.skip_to_eod(token, is_macro_name)
 
     def on_line(self, lexer, token):
