@@ -8,10 +8,6 @@
 # Directive diagnostics
 #
 
-cannot_be_used_as_a_macro_name:
-  severity: error
-  text: "%q0 cannot be used as a macro name"
-
 duplicate_macro_parameter:
   severity: error
   text: duplicate macro parameter %q0
@@ -94,20 +90,26 @@ macro_name_whitespace:
 
 macro_redefined:
   severity: error
-  text: redefinition of%select{| predefined}0 macro %q1
+  text: redefinition of macro %q0
 
 nested_va_opt:
   severity: error
   text: "%q{__VA_OPT__} cannot appear within its own replacement tokens"
 
-predefined_macro_undefined:
+predefined_macro_redefined:
+  # Accept it with a warning
   severity: warning
-  text: "%q0 is a predefined macro"
+  text: "%select{redefinition|undefinition}1 of predefined macro %q0"
 
-builtin_macro_undefined:
+builtin_macro_redefined:
   # Always an error.
   severity: error
-  text: "%q0 is a built-in macro and cannot be undefined"
+  text: "%q0 is a built-in macro and cannot be %select{redefined|undefined}1"
+
+cannot_be_defined:
+  # Always an error
+  severity: error
+  text: "%q0 cannot be %select{defined|undefined}1"
 
 prior_macro_definition:
   severity: note

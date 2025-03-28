@@ -422,15 +422,15 @@ class Preprocessor:
     def on_define(self, lexer, token):
         '''#define directive processing.'''
         lexer.get_token(token)
-        if self.is_macro_name(token):
+        is_good = self.is_macro_name(token, 1)
+        if is_good:
             macro_ident = token.extra
             macro = self.read_macro_definition(lexer, token)
             if macro:
                 self.define_macro(macro_ident, macro)
             else:
-                self.skip_to_eod(token, False)
-        else:
-            self.skip_to_eod(token, False)
+                is_good = False
+        self.skip_to_eod(token, is_good)
 
     def read_macro_definition(self, lexer, token):
         '''Lex a macro definition.  Return a macro definition, or None.'''
@@ -616,7 +616,9 @@ class Preprocessor:
 
     def define_macro(self, macro_ident, macro):
         prior = macro_ident.macro
-        if prior is not None and not self.compare_macro_definitions(prior, macro):
+        # predefined macro redefinitions were already diagnosed
+        if (prior is not None and not prior.is_predefined() and
+               not self.compare_macro_definitions(prior, macro)):
             self.diag(DID.macro_redefined, macro.name_loc, [
                 macro_ident.spelling,
                 Diagnostic(DID.prior_macro_definition, prior.name_loc),
@@ -647,21 +649,9 @@ class Preprocessor:
     def on_undef(self, lexer, token):
         '''#undef directive processing.'''
         lexer.get_token(token)
-        is_macro_name = self.is_macro_name(token)
+        is_macro_name = self.is_macro_name(token, 2)
         if is_macro_name:
-            if token.extra is self.expr_parser.defined:
-                self.diag(DID.cannot_be_used_as_a_macro_name, token.loc, [token.extra.spelling])
-            elif (macro := token.extra.macro) is not None:
-                if macro.is_builtin():
-                    self.diag(DID.builtin_macro_undefined, token.loc, [token.extra.spelling])
-                    # The #undef has no effect
-                else:
-                    token.extra.macro = None
-                    if macro.is_predefined():
-                        self.diag(DID.predefined_macro_undefined, token.loc, [
-                            token.extra.spelling,
-                            Diagnostic(DID.prior_macro_definition, macro.name_loc),
-                        ])
+            token.extra.macro = None
         self.skip_to_eod(token, is_macro_name)
 
     def on_line(self, lexer, token):
@@ -810,10 +800,30 @@ class Preprocessor:
         self.skip_to_eod(token, int(not value.is_erroneous))
         return bool(value.value)
 
-    def is_macro_name(self, token):
-        '''Return True if token is a macro name.  If it is not a diagnostic is issued.'''
+    def is_macro_name(self, token, define_or_undef):
+        '''Return True if token is a macro name and valid for its context.  define_or_undef is 1
+        for #define, 2 for #undef, and 0 otherwise (#ifdef, unary defined etc.).  A
+        diagnostic is issued if appropriate.
+        '''
         if token.kind == TokenKind.IDENTIFIER:
+            if not define_or_undef:
+                return True
+            selector = define_or_undef - 1
+            # There are several restrictions on identifiers that are defined or undefined
+            if (ident := token.extra) is self.expr_parser.defined:
+                self.diag(DID.cannot_be_defined, token.loc, [ident.spelling, selector])
+                return False
+            if (macro := ident.macro) is None:
+                return True
+            if macro.is_builtin():
+                self.diag(DID.builtin_macro_redefined, token.loc, [ident.spelling, selector])
+                return False
+            if macro.is_predefined():
+                note = Diagnostic(DID.prior_macro_definition, macro.name_loc)
+                self.diag(DID.predefined_macro_redefined, token.loc,
+                          [ident.spelling, selector, note])
             return True
+
         if token.kind == TokenKind.EOF:
             self.diag(DID.expected_macro_name, token.loc)
         else:
@@ -824,7 +834,7 @@ class Preprocessor:
         '''Test is a macro is defined.  Return a pair (is_defined, is_macro_name).  is_macro_name
         is True if it is a valid identifier.  If it is not a diagnostic is issued.
         '''
-        is_macro_name = self.is_macro_name(token)
+        is_macro_name = self.is_macro_name(token, 0)
         if is_macro_name:
             return bool(token.extra.macro), True
         return False, False

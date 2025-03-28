@@ -34,8 +34,8 @@ class DID(IntEnum):
     at_file_line_and_column = auto()
     brief_at_file_and_line = auto()
     brief_at_file_line_and_column = auto()
-    builtin_macro_undefined = auto()
-    cannot_be_used_as_a_macro_name = auto()
+    builtin_macro_redefined = auto()
+    cannot_be_defined = auto()
     cannot_open_file = auto()
     character_does_not_exist = auto()
     character_not_single_code_unit = auto()
@@ -102,7 +102,7 @@ class DID(IntEnum):
     multicharacter_literal_truncated = auto()
     multicharacter_literal_with_prefix = auto()
     nested_va_opt = auto()
-    predefined_macro_undefined = auto()
+    predefined_macro_redefined = auto()
     prior_macro_definition = auto()
     prior_match = auto()
     right_shift_of_negative_value = auto()
@@ -185,17 +185,17 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%0:%1:%2',
     ),
-    DID.builtin_macro_undefined: DiagnosticDefinition(
-        DID.builtin_macro_undefined,
+    DID.builtin_macro_redefined: DiagnosticDefinition(
+        DID.builtin_macro_redefined,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        '%q0 is a built-in macro and cannot be undefined',
+        '%q0 is a built-in macro and cannot be %select{redefined|undefined}1',
     ),
-    DID.cannot_be_used_as_a_macro_name: DiagnosticDefinition(
-        DID.cannot_be_used_as_a_macro_name,
+    DID.cannot_be_defined: DiagnosticDefinition(
+        DID.cannot_be_defined,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        '%q0 cannot be used as a macro name',
+        '%q0 cannot be %select{defined|undefined}1',
     ),
     DID.cannot_open_file: DiagnosticDefinition(
         DID.cannot_open_file,
@@ -561,7 +561,7 @@ diagnostic_definitions = {
         DID.macro_redefined,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'redefinition of%select{| predefined}0 macro %q1',
+        'redefinition of macro %q0',
     ),
     DID.missing_digit_sequence: DiagnosticDefinition(
         DID.missing_digit_sequence,
@@ -593,11 +593,11 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%q{__VA_OPT__} cannot appear within its own replacement tokens',
     ),
-    DID.predefined_macro_undefined: DiagnosticDefinition(
-        DID.predefined_macro_undefined,
+    DID.predefined_macro_redefined: DiagnosticDefinition(
+        DID.predefined_macro_redefined,
         DiagnosticSeverity.warning,
         DiagnosticGroup.none,
-        '%q0 is a predefined macro',
+        '%select{redefinition|undefinition}1 of predefined macro %q0',
     ),
     DID.prior_macro_definition: DiagnosticDefinition(
         DID.prior_macro_definition,
