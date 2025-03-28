@@ -23,7 +23,7 @@ class MacroFlags(IntEnum):
     '''Flags on a Macro object.'''
     IS_FUNCTION_LIKE = 0x01
     IS_VARIADIC = 0x02
-    IS_BUILTIN = 0x04
+    IS_PREDEFINED = 0x04
     IS_DISABLED = 0x08
 
     @staticmethod
@@ -46,6 +46,12 @@ class BuiltinKind(IntEnum):
     FILE = auto()
     LINE = auto()
 
+    def is_predefined(self):
+        return False
+
+    def is_builtin(self):
+        return True
+
 
 @dataclass(slots=True)
 class Macro:
@@ -67,9 +73,16 @@ class Macro:
         '''Mark this macro as available for expansion (the default).'''
         self.flags &= ~MacroFlags.IS_DISABLED
 
+    def is_builtin(self):
+        return False
+
     def is_disabled(self):
         '''Return true if the macro is disabled.'''
         return bool(self.flags & MacroFlags.IS_DISABLED)
+
+    def is_predefined(self):
+        '''Return true if the macro is variadic.'''
+        return bool(self.flags & MacroFlags.IS_PREDEFINED)
 
     def is_variadic(self):
         '''Return true if the macro is variadic.'''

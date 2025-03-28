@@ -90,11 +90,20 @@ macro_name_whitespace:
 
 macro_redefined:
   severity: error
-  text: redefinition of macro %q0
+  text: redefinition of%select{| predefined}0 macro %q1
 
 nested_va_opt:
   severity: error
   text: "%q{__VA_OPT__} cannot appear within its own replacement tokens"
+
+predefined_macro_undefined:
+  severity: warning
+  text: "%q0 is a predefined macro"
+
+builtin_macro_undefined:
+  # Always an error.
+  severity: error
+  text: "%q0 is a built-in macro and cannot be undefined"
 
 prior_macro_definition:
   severity: note

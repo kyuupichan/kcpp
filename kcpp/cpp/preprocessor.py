@@ -100,6 +100,7 @@ class Preprocessor:
         self.in_filename = False
         self.in_variadic_macro_definition = False
         self.skipping = False
+        self.predefining_macros = False
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
         self.date_str = None
@@ -270,6 +271,7 @@ class Preprocessor:
         # self.push_lexer(b'', '<command line>', self.sources[-1].cursor_loc())
         raw_predefines = predefines(self).encode()
         self.push_lexer(raw_predefines, '<predefines>', self.sources[-1].cursor_loc())
+        self.predefining_macros = True
 
     def push_lexer(self, raw, name, parent_loc):
         buffer = Buffer(raw)
@@ -290,9 +292,11 @@ class Preprocessor:
 
     def pop_source(self):
         source = self.sources.pop()
-        if self.actions and isinstance(source, Lexer):
-            cursor_loc = self.sources[-1].cursor_loc()
-            self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
+        if isinstance(source, Lexer):
+            if self.actions:
+                cursor_loc = self.sources[-1].cursor_loc()
+                self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
+            self.predefining_macros = False
         return self.sources[-1]
 
     def pass_through_eof(self, source):
@@ -612,12 +616,14 @@ class Preprocessor:
 
     def define_macro(self, macro_ident, macro):
         prior = macro_ident.macro
-        if prior and not self.compare_macro_definitions(prior, macro):
+        if prior is not None and not self.compare_macro_definitions(prior, macro):
             self.diag(DID.macro_redefined, macro.name_loc, [
                 macro_ident.spelling,
                 Diagnostic(DID.prior_macro_definition, prior.name_loc),
             ])
         macro_ident.macro = macro
+        if self.predefining_macros:
+            macro.flags |= MacroFlags.IS_PREDEFINED
 
     def compare_macro_definitions(self, lhs, rhs):
         # Fast checks first.  Check flags and parameter counts match.
@@ -643,7 +649,18 @@ class Preprocessor:
         lexer.get_token(token)
         is_macro_name = self.is_macro_name(token)
         if is_macro_name:
-            token.extra.macro = None
+            macro = token.extra.macro
+            if macro is not None:
+                if macro.is_builtin():
+                    self.diag(DID.builtin_macro_undefined, token.loc, [token.extra.spelling])
+                    # The #undef has no effect
+                else:
+                    if macro.is_predefined():
+                        self.diag(DID.predefined_macro_undefined, token.loc, [
+                            token.extra.spelling,
+                            Diagnostic(DID.prior_macro_definition, macro.name_loc),
+                        ])
+                    token.extra.macro = None
         self.skip_to_eod(token, is_macro_name)
 
     def on_line(self, lexer, token):
