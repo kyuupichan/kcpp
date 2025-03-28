@@ -19,7 +19,7 @@ __all__ = ['PreprocessedOutput', 'ProcessorBase', 'FrontEnd']
 class ProcessorBase(ABC):
 
     def __init__(self):
-        pass
+        self.pp = None
 
     def diagnostic_consumer(self, pp, env):
         return UnicodeTerminal(pp, env)
@@ -27,13 +27,19 @@ class ProcessorBase(ABC):
     def sources(self, env):
         return env.command_line.files
 
-    @abstractmethod
-    def process_source(self, source):
-        pass
+    def process_source(self, pp, filename):
+        self.pp = pp
+        pp.actions = self.preprocessor_actions()
+        if not pp.push_main_source_file(filename):
+            return
+        self.process(pp)
 
-    def push_source(self, pp, filename):
-        '''Split out so it can be overridden.'''
-        pp.push_source_file(filename)
+    def preprocessor_actions(self):
+        return None
+
+    @abstractmethod
+    def process(self, pp):
+        pass
 
     def run(self, source, env):
         pp = Preprocessor(env)
@@ -56,11 +62,11 @@ class PreprocessedOutput(ProcessorBase):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
     def __init__(self):
+        super().__init__()
         self.at_bol = True
         self.write = sys.stdout.write
         self.line_number = -1
         self.filename = None
-        self.pp = None
 
     def write_line_marker(self):
         '''Write a line marker.  On return self.at_bol is True.'''
@@ -86,12 +92,12 @@ class PreprocessedOutput(ProcessorBase):
             self.write_line_marker()
         self.at_bol = True
 
-    def process_source(self, pp, filename):
-        self.pp = pp
-        pp.actions = PreprocessorActions()
-        pp.actions.source_file_changed = self.source_file_changed
-        self.push_source(pp, filename)
+    def preprocessor_actions(self):
+        actions = PreprocessorActions()
+        actions.source_file_changed = self.source_file_changed
+        return actions
 
+    def process(self, pp):
         token = Token.create()
         write = self.write
         locator = pp.locator
@@ -121,11 +127,9 @@ class FrontEnd(ProcessorBase):
     def diagnostic_consumer(self, pp, env):
         return DiagnosticPrinter()
 
-    def process_source(self, pp, filename):
+    def process(self, pp):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present
         this is used for debugging purposes.'''
-        self.push_source(pp, filename)
-
         token = Token.create()
         consume = True
         while True:

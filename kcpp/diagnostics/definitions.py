@@ -34,6 +34,7 @@ class DID(IntEnum):
     at_file_line_and_column = auto()
     brief_at_file_and_line = auto()
     brief_at_file_line_and_column = auto()
+    cannot_open_file = auto()
     character_does_not_exist = auto()
     character_not_single_code_unit = auto()
     codepoint_basic_character_set = auto()
@@ -180,6 +181,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
         '%0:%1:%2',
+    ),
+    DID.cannot_open_file: DiagnosticDefinition(
+        DID.cannot_open_file,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'cannot open file %q0: %1',
     ),
     DID.character_does_not_exist: DiagnosticDefinition(
         DID.character_does_not_exist,

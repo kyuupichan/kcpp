@@ -10,7 +10,7 @@ from enum import IntEnum, auto
 from functools import partial
 
 from ..basic import Buffer
-from ..diagnostics import DID, Diagnostic, DiagnosticEngine
+from ..diagnostics import DID, Diagnostic, DiagnosticEngine, location_command_line
 
 from .basic import (
     IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
@@ -242,25 +242,27 @@ class Preprocessor:
         return ('include define undef line error warning pragma if ifdef ifndef '
                 'elif elifdef elifndef else endif').split()
 
-    def push_source_file(self, filename):
-        '''Push a source file onto the preprocessor's source file stack.
+    def push_main_source_file(self, filename):
+        '''Push the main source file onto the preprocessor's source file stack.  Return True on
+        success.  Otherwise return False, and the caller must abandon the compilation and
+        not call get_token().
 
         filename is the path to the filename.  '-' reads from stdin (all at once -
-        processing doesn't begin until EOF).  Alternatively it can be a file-like object
-        opened for reading in binary mode.
+        processing doesn't begin until EOF).
         '''
         if filename == '-':
             raw = sys.stdin.buffer.read()
             filename = '<stdin>'
         else:
-            # FIXME: more mature error handling.
             try:
                 with open(filename, 'rb') as f:
                     raw = f.read()
             except OSError as e:
-                print(f'error: unable to open {filename}: {e}', file=sys.stderr)
-                return
-        return self.push_buffer(raw, filename, -1)
+                self.diag(DID.cannot_open_file, location_command_line, [filename, str(e)])
+                return False
+
+        self.push_buffer(raw, filename, -1)
+        return True
 
     def push_buffer(self, text, name, parent_loc):
         buffer = Buffer(text)
@@ -276,13 +278,17 @@ class Preprocessor:
         self.sources.append(source)
 
     def pop_source_and_get_token(self, token):
-        if len(self.sources) > 1:
-            self.sources.pop()
-            self.get_token(token)
+        self.pop_source()
+        self.get_token(token)
 
     def pop_source(self):
-        assert len(self.sources) > 1
-        self.sources.pop()
+        # To pop the final lexer, need to handle unterminated comments and argument
+        # collection consuming the EOF.  It's simpler and less surprising to just keep the
+        # final lexer returning EOF.
+        if len(self.sources) > 1:
+            self.sources.pop()
+            return True
+        return False
 
     def get_token(self, token):
         # Take tokens from the currently active source.

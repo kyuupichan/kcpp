@@ -258,12 +258,11 @@ class Lexer(TokenSource):
         if self.pp.in_directive:
             return TokenKind.EOF, cursor
         else:
-            # Ask the preprocessor to take tokens from the next source and return that
-            # token.  If we're the last source it simply returns, so set the kind to EOF
-            # to handle that case.
+            # Move to the next file in the include stack and take a token from there.
+            # If we're the bottom file, simply return EOF.
             token.kind = TokenKind.EOF
-            self.pp.pop_source_and_get_token(token)
-            # FIXME: this token's location will be adjusted on return...
+            if self.pp.pop_source():
+                self.pp.get_token(token)
             return token.kind, cursor
 
     def on_other(self, token, cursor):

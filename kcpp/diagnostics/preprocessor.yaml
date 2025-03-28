@@ -8,6 +8,10 @@
 # Preprocessor diagnostics
 #
 
+cannot_open_file:
+  severity: fatal
+  text: "cannot open file %q0: %1"
+
 invalid_charset:
   severity: error
   text: "%q0 encoding cannot be used for type %q1 with width %2 bits"
