@@ -223,6 +223,10 @@ class Locator:
     def new_buffer_loc(self, buffer, name, parent_loc):
         start = self.next_buffer_span_start()
         self.buffer_spans.append(BufferSpan(buffer, start, parent_loc, name))
+        # Create a scratch buffer after the initial buffer to keep first locations stable
+        # if predefines change
+        if not self.scratch_range:
+            self.scratch_range = self.create_scratch_range(0)
         return start
 
     def next_macro_span_start(self):
@@ -252,7 +256,7 @@ class Locator:
 
     def new_scratch_token(self, spelling, parent_loc, entry_kind):
         size = len(spelling)
-        if not self.scratch_range or not self.scratch_range.has_room(size):
+        if not self.scratch_range.has_room(size):
             self.scratch_range = self.create_scratch_range(size)
         return self.scratch_range.add_spelling(spelling, parent_loc, entry_kind)
 
