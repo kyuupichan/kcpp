@@ -22,7 +22,7 @@ from .literals import LiteralInterpreter
 from .locator import Locator
 from .macros import (
     Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinMacroExpansion,
-    BuiltinKind,
+    BuiltinKind, predefines,
 )
 
 
@@ -268,7 +268,8 @@ class Preprocessor:
         assert not self.sources
         self.push_lexer(raw, name, -1)
         # self.push_lexer(b'', '<command line>', self.sources[-1].cursor_loc())
-        self.push_lexer(b'', '<predefines>', self.sources[-1].cursor_loc())
+        raw_predefines = predefines(self).encode()
+        self.push_lexer(raw_predefines, '<predefines>', self.sources[-1].cursor_loc())
 
     def push_lexer(self, raw, name, parent_loc):
         buffer = Buffer(raw)

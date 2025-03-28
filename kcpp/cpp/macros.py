@@ -4,6 +4,7 @@
 #
 '''Macro expansion handling.'''
 
+import itertools
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
@@ -14,7 +15,8 @@ from .basic import Token, TokenKind, TokenFlags, quoted_string
 from .lexer import Lexer
 from .locator import ScratchEntryKind
 
-__all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion']
+__all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion',
+           'predefines']
 
 
 class MacroFlags(IntEnum):
@@ -521,3 +523,119 @@ class DiagnosticFilter:
             pass
         else:
             self.prior.emit(diagnostic)
+
+
+def predefines(pp):
+    '''Return the predefined macros as a text file.'''
+    all_macros = itertools.chain(
+        toolchain_predefines(pp),
+        standard_predefines(pp),
+        target_predefines(pp),
+    )
+    return '\n'.join(f'#define {name} {expansion}' for name, expansion in all_macros)
+
+
+def toolchain_predefines(pp):
+    '''Yield the toolchain / implementation predefined macros as (name, expansion) pairs.'''
+    from kcpp import _version, _version_str
+    major, minor = _version[:2]
+
+    # The predefines identifying the tool
+    yield '__kcpp__', '1'
+    yield '__kcpp_major__', str(major)
+    yield '__kcpp_minor__', str(minor)
+    yield '__kcpp_version__', f'kcpp {_version_str}'
+
+    # The predefines expressing what the implementation supports.  In reality these are
+    # a function of the tool, the library and perhaps the target machine as a whole.
+    yield '__STDCPP_BFLOAT16_T__', '1'
+    yield '__STDCPP_FLOAT128_T__', '1'
+    yield '__STDCPP_FLOAT16_T__', '1'
+    yield '__STDCPP_FLOAT32_T__', '1'
+    yield '__STDCPP_FLOAT64_T__', '1'
+
+
+def standard_predefines(pp):
+    '''Yield the predefined macros required by the user's selected standard as (name,
+    expansion) pairs.
+    '''
+    # We do not define __STDC__ or __STDC_VERSION__ or __STDC_ISO_10646__ when compiling
+    # C++.
+    yield '__cplusplus', '202302L'
+
+    # The values for C++23
+    yield '__cpp_aggregate_bases', '201603L'
+    yield '__cpp_aggregate_nsdmi', '201304L'
+    yield '__cpp_aggregate_paren_init', '201902L'
+    yield '__cpp_alias_templates', '200704L'
+    yield '__cpp_aligned_new', '201606L'
+    yield '__cpp_attributes', '200809L'
+    yield '__cpp_auto_cast', '202110L'
+    yield '__cpp_binary_literals', '201304L'
+    yield '__cpp_capture_star_this', '201603L'
+    yield '__cpp_char8_t', '202207L'
+    yield '__cpp_concepts', '202002L'
+    yield '__cpp_conditional_explicit', '201806L'
+    yield '__cpp_constexpr', '202306L'
+    yield '__cpp_constexpr_dynamic_alloc', '201907L'
+    yield '__cpp_constexpr_in_decltype', '201711L'
+    yield '__cpp_consteval', '202211L'
+    yield '__cpp_constinit', '201907L'
+    yield '__cpp_decltype', '200707L'
+    yield '__cpp_decltype_auto', '201304L'
+    yield '__cpp_deduction_guides', '201907L'
+    yield '__cpp_delegating_constructors', '200604L'
+    yield '__cpp_designated_initializers', '201707L'
+    yield '__cpp_enumerator_attributes', '201411L'
+    yield '__cpp_explicit_this_parameter', '202110L'
+    yield '__cpp_fold_expressions', '201603L'
+    yield '__cpp_generic_lambdas', '201707L'
+    yield '__cpp_guaranteed_copy_elision', '201606L'
+    yield '__cpp_hex_float', '201603L'
+    yield '__cpp_if_consteval', '202106L'
+    yield '__cpp_if_constexpr', '201606L'
+    yield '__cpp_impl_coroutine', '201902L'
+    yield '__cpp_impl_destroying_delete', '201806L'
+    yield '__cpp_impl_three_way_comparison', '201907L'
+    yield '__cpp_implicit_move', '202207L'
+    yield '__cpp_inheriting_constructors', '201511L'
+    yield '__cpp_init_captures', '201803L'
+    yield '__cpp_initializer_lists', '200806L'
+    yield '__cpp_inline_variables', '201606L'
+    yield '__cpp_lambdas', '200907L'
+    yield '__cpp_modules', '201907L'
+    yield '__cpp_multidimensional_subscript', '202211L'
+    yield '__cpp_named_character_escapes', '202207L'
+    yield '__cpp_namespace_attributes', '201411L'
+    yield '__cpp_noexcept_function_type', '201510L'
+    yield '__cpp_nontype_template_args', '201911L'
+    yield '__cpp_nontype_template_parameter_auto', '201606L'
+    yield '__cpp_nsdmi', '200809L'
+    yield '__cpp_pack_indexing', '202311L'
+    yield '__cpp_placeholder_variables', '202306L'
+    yield '__cpp_range_based_for', '202211L'
+    yield '__cpp_raw_strings', '200710L'
+    yield '__cpp_ref_qualifiers', '200710L'
+    yield '__cpp_return_type_deduction', '201304L'
+    yield '__cpp_rvalue_references', '200610L'
+    yield '__cpp_size_t_suffix', '202011L'
+    yield '__cpp_sized_deallocation', '201309L'
+    yield '__cpp_static_assert', '202306L'
+    yield '__cpp_static_call_operator', '202207L'
+    yield '__cpp_structured_bindings', '201606L'
+    yield '__cpp_template_template_args', '201611L'
+    yield '__cpp_threadsafe_static_init', '200806L'
+    yield '__cpp_unicode_characters', '200704L'
+    yield '__cpp_unicode_literals', '200710L'
+    yield '__cpp_user_defined_literals', '200809L'
+    yield '__cpp_using_enum', '201907L'
+    yield '__cpp_variable_templates', '201304L'
+    yield '__cpp_variadic_templates', '200704L'
+    yield '__cpp_variadic_using', '201611L'
+
+
+def target_predefines(pp):
+    '''Yield the target predefined macros as (name, expansion) pairs.'''
+    yield '__STDCPP_DEFAULT_NEW_ALIGNMENT__', '16UZ'
+    yield '__STDCPP_THREADS__', '1'
+    yield '__STDC_HOSTED__', '1'
