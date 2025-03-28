@@ -261,13 +261,19 @@ class Preprocessor:
                 self.diag(DID.cannot_open_file, location_command_line, [filename, str(e)])
                 return False
 
-        self.push_buffer(raw, filename, -1)
+        self.push_main_buffer(raw, filename)
         return True
 
-    def push_buffer(self, text, name, parent_loc):
-        buffer = Buffer(text)
+    def push_main_buffer(self, raw, name):
+        assert not self.sources
+        self.push_lexer(raw, name, -1)
+        # self.push_lexer(b'', '<command line>', self.sources[-1].cursor_loc())
+        # self.push_lexer(b'', '<predefines>', self.sources[-1].cursor_loc())
+
+    def push_lexer(self, raw, name, parent_loc):
+        buffer = Buffer(raw)
         first_loc = self.locator.new_buffer_loc(buffer, name, -1)
-        lexer = Lexer(self, text, first_loc)
+        lexer = Lexer(self, raw, first_loc)
         lexer.if_sections = []
         self.push_source(lexer)
         if self.actions:
@@ -286,7 +292,10 @@ class Preprocessor:
         # collection consuming the EOF.  It's simpler and less surprising to just keep the
         # final lexer returning EOF.
         if len(self.sources) > 1:
-            self.sources.pop()
+            source = self.sources.pop()
+            if self.actions and isinstance(source, Lexer):
+                cursor_loc = self.sources[-1].cursor_loc()
+                self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
             return True
         return False
 

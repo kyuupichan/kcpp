@@ -52,6 +52,9 @@ class Lexer(TokenSource):
         self.cursor = 0
         self.clean = True
 
+    def cursor_loc(self):
+        return self.cursor + self.start_loc
+
     def skip_bom(self):
         bom = '\ufeff'.encode()  # b'\xef\xbb\xbf'
         return len(bom) if self.buff.startswith(bom) else 0
