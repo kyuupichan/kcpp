@@ -288,16 +288,24 @@ class Preprocessor:
         self.get_token(token)
 
     def pop_source(self):
-        # To pop the final lexer, need to handle unterminated comments and argument
-        # collection consuming the EOF.  It's simpler and less surprising to just keep the
-        # final lexer returning EOF.
-        if len(self.sources) > 1:
-            source = self.sources.pop()
-            if self.actions and isinstance(source, Lexer):
-                cursor_loc = self.sources[-1].cursor_loc()
-                self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
-            return True
-        return False
+        source = self.sources.pop()
+        if self.actions and isinstance(source, Lexer):
+            cursor_loc = self.sources[-1].cursor_loc()
+            self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
+        return self.sources[-1]
+
+    def pass_through_eof(self, source):
+        # EOF is currently generated in 3 cases: 1) by the lexer at end-of-buffer, 2) by
+        # the lexer at end of directive (if pp.in_directive is true), and 3) by
+        # UnexpandedArgument, when pre-expanding a macro argument to terminate it.  We
+        # must pass through cases 2) and 3).  For case 1), we must pass it through if we
+        # are collecting arguments, or if there are no more source buffers, otherwise we
+        # remove the current source buffer and continue.
+        if isinstance(source, Lexer):
+            return self.in_directive or self.collecting_arguments or len(self.sources) == 1
+
+        # Terminate macro argument pre-expansion
+        return True
 
     def get_token(self, token):
         # Take tokens from the currently active source.
@@ -313,7 +321,13 @@ class Preprocessor:
                 assert source is self.sources[-1]
                 continue
 
-            if self.skipping and token.kind != TokenKind.EOF:
+            if token.kind == TokenKind.EOF:
+                if self.pass_through_eof(source):
+                    pass
+                else:
+                    source = self.pop_source()
+                    continue
+            elif self.skipping:
                 continue
 
             if token.kind == TokenKind.IDENTIFIER:
