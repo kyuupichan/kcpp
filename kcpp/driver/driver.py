@@ -11,7 +11,7 @@ import shlex
 from kcpp.cpp import Preprocessor, Environment
 from kcpp.diagnostics import UnicodeTerminal
 
-from .processors import PreprocessedOutput, FrontEnd
+from .frontends import PreprocessedOutput, FrontEnd
 
 
 __all__ = ['Driver', 'main_cli']

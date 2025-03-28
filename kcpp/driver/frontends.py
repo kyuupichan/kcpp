@@ -2,7 +2,7 @@
 #
 # All rights reserved.
 #
-'''Preprocessed output.'''
+'''Preprocessor frontends.'''
 
 import sys
 from abc import ABC, abstractmethod
@@ -13,10 +13,10 @@ from kcpp.cpp import (
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
 
-__all__ = ['PreprocessedOutput', 'ProcessorBase', 'FrontEnd']
+__all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
 
 
-class ProcessorBase(ABC):
+class FrontEndBase(ABC):
 
     def __init__(self):
         self.pp = None
@@ -58,7 +58,7 @@ class ProcessorBase(ABC):
         consumer.emit_error_count()
 
 
-class PreprocessedOutput(ProcessorBase):
+class PreprocessedOutput(FrontEndBase):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
     def __init__(self):
@@ -119,7 +119,7 @@ class PreprocessedOutput(ProcessorBase):
         write('\n')
 
 
-class FrontEnd(ProcessorBase):
+class FrontEnd(FrontEndBase):
     '''Simulate a compiler front end.  For now, all it does is output consumed tokens, and the
     interpretation of literals.
     '''
