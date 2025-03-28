@@ -104,21 +104,21 @@ class ScratchBufferSpan(Buffer):
         # Naturally sorted by offset.
         self.entries = []
 
-    def size(self):
-        return self.end - self.start + 1
+    def has_room(self, size):
+        return self.start + len(self.text) + size + 1 <= self.end
 
     def add_spelling(self, spelling, parent_loc, entry_kind):
-        start = len(self.buffer.text)
-        if start + len(spelling) + 1 < self.size():
-            # Add the spelling and a newline character (so it appears on its own line in
-            # diagnostics)
-            self.buffer.text.extend(spelling)
-            self.buffer.text.append(10)
-            self.entries.append(ScratchEntry(start, parent_loc, entry_kind))
-            # Clear the cached line offsets
-            self.buffer._sparse_line_offsets = None
-            return start
-        return -1
+        text = self.text
+        start = self.start + len(text)
+        # We place a newline character at the end of the spelling so it appears on its own
+        # line in diagnostics.
+        text.extend(spelling)
+        text.append(10)
+        assert start + len(text) <= self.end
+        self.entries.append(ScratchEntry(start, parent_loc, entry_kind))
+        # Clear any cached line offsets
+        self.buffer._sparse_line_offsets = None
+        return start
 
     def did_and_substitutions(self, pp, loc):
         entry = self.entry_for_loc(loc)
@@ -134,7 +134,7 @@ class ScratchBufferSpan(Buffer):
         location.  loc is an offset into the scratch buffer.
         '''
         loc -= self.start
-        assert 0 <= loc < len(self.buffer.text)
+        assert 0 <= loc < len(self.text)
         return self.entries[bisect_left(self.entries, loc + 1, key=lambda e: e.offset) - 1]
 
     def spelling_loc(self, loc):
@@ -215,13 +215,14 @@ class Locator:
         self.macro_spans = []
         self.scratch_range = None
 
+    def next_buffer_span_start(self):
+        if self.buffer_spans:
+            return self.buffer_spans[-1].end + 1
+        return self.FIRST_BUFFER_LOC
+
     def new_buffer_loc(self, buffer, name, parent_loc):
-        buffer_spans = self.buffer_spans
-        if buffer_spans:
-            start = buffer_spans[-1].end + 1
-        else:
-            start = self.FIRST_BUFFER_LOC
-        buffer_spans.append(BufferSpan(buffer, start, parent_loc, name))
+        start = self.next_buffer_span_start()
+        self.buffer_spans.append(BufferSpan(buffer, start, parent_loc, name))
         return start
 
     def next_macro_span_start(self):
@@ -242,24 +243,18 @@ class Locator:
         self.macro_spans.append(MacroArgumentSpan(parameter_loc, start, end, locations))
         return start
 
-    def new_scratch_token(self, spelling, parent_loc, entry_kind):
-        def alloc_in_current(spelling):
-            if self.scratch_range:
-                result = self.scratch_range.add_spelling(spelling, parent_loc, entry_kind)
-                if result != -1:
-                    return self.scratch_range.start + result
-            return -1
+    def create_scratch_range(self, min_size):
+        start = self.next_buffer_span_start()
+        size = max(min_size, 1_000)
+        scratch_range = ScratchBufferSpan(start, start + size - 1)
+        self.buffer_spans.append(scratch_range)
+        return scratch_range
 
-        assert isinstance(entry_kind, ScratchEntryKind)
-        loc = alloc_in_current(spelling)
-        if loc == -1:
-            size = max(len(spelling), 1_000)
-            start = self.buffer_spans[-1].end
-            self.scratch_range = ScratchBufferSpan(start, start + size - 1)
-            self.buffer_spans.append(self.scratch_range)
-            loc = alloc_in_current(spelling)
-            assert loc != -1
-        return loc
+    def new_scratch_token(self, spelling, parent_loc, entry_kind):
+        size = len(spelling)
+        if not self.scratch_range or not self.scratch_range.has_room(size):
+            self.scratch_range = self.create_scratch_range(size)
+        return self.scratch_range.add_spelling(spelling, parent_loc, entry_kind)
 
     def add_line_range(self, start_loc, name, line_number):
         span = self.lookup_span(start_loc)
