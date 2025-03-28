@@ -617,8 +617,8 @@ class Preprocessor:
     def define_macro(self, macro_ident, macro):
         prior = macro_ident.macro
         # predefined macro redefinitions were already diagnosed
-        if (prior is not None and not prior.is_predefined() and
-               not self.compare_macro_definitions(prior, macro)):
+        if (prior is not None and not prior.is_predefined()
+                and not self.compare_macro_definitions(prior, macro)):
             self.diag(DID.macro_redefined, macro.name_loc, [
                 macro_ident.spelling,
                 Diagnostic(DID.prior_macro_definition, prior.name_loc),
