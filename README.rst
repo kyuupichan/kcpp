@@ -166,3 +166,7 @@ Initial release.  Quite incomplete but progress from here should be rapid.
 0.2  2025-03-23
 
 Object-like macro expansion, and diagnostics with a macro stack, are implemented.
+
+0.3  2025-03-28
+
+Macro expansion imlementation complete.  #line implemented.
