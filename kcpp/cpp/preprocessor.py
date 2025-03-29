@@ -29,10 +29,6 @@ from .macros import (
 __all__ = ['Preprocessor', 'PreprocessorActions']
 
 
-class Keywords(IntEnum):
-    NOT_KEYWORD = 0
-
-
 @dataclass
 class IfSection:
     '''Represents a conditional preprocessing group.'''
@@ -195,7 +191,7 @@ class Preprocessor:
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)
         if not ident:
-            ident = IdentifierInfo(spelling, None, 0, 0)
+            ident = IdentifierInfo(spelling, None, 0)
             self.identifiers[spelling] = ident
         return ident
 

@@ -250,6 +250,7 @@ class TokenKind(IntEnum):
     kw_protected = auto()
     kw_public = auto()
     kw_register = auto()
+    # kw_restrict = auto()
     kw_reinterpret_cast = auto()
     kw_requires = auto()
     kw_return = auto()
@@ -270,6 +271,8 @@ class TokenKind(IntEnum):
     kw_typedef = auto()
     kw_typeid = auto()
     kw_typename = auto()
+    # kw_typeof = auto()
+    # kw_typeof_unqual = auto()
     kw_union = auto()
     kw_unsigned = auto()
     kw_using = auto()
@@ -278,6 +281,15 @@ class TokenKind(IntEnum):
     kw_volatile = auto()
     kw_wchar_t = auto()
     kw_while = auto()
+    # kw__Atomic = auto()
+    # kw__BitInt = auto()
+    # kw__Complex = auto()
+    # kw__Decimal128 = auto()
+    # kw__Decimal32 = auto()
+    # kw__Decimal64 = auto()
+    # kw__Generic = auto()
+    # kw__Imaginary = auto()
+    # kw__Noreturn = auto()
 
 
 TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL, TokenKind.STRING_LITERAL}
@@ -418,8 +430,6 @@ class IdentifierInfo:
     macro: object
     # If this identifier is "special", how so
     special: int
-    # If this identifier is a keyword, which one
-    keyword: int
 
     def __hash__(self):
         return hash(self.spelling)
@@ -449,7 +459,7 @@ class IdentifierInfo:
 
 
 # A dummy used for a lexed identifier when skipping
-IdentifierInfo.dummy = IdentifierInfo('!', None, 0, 0)
+IdentifierInfo.dummy = IdentifierInfo('!', None, 0)
 
 
 @dataclass(slots=True)
