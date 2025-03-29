@@ -120,81 +120,164 @@ class Token:
 
 class TokenKind(IntEnum):
     # These are for internal use of the preprocessor and are never returned by pp.get_token()
-    PEEK_AGAIN = 0            # Only for use in peek_token_kind().
-    WS = 1                    # whitespace
-    MACRO_PARAM = 2           # for macro replacement lists; internal use
-    STRINGIZE = 3             # stringification operator
-    PLACEMARKER = 4           # placemarker token during function-like macro expansion
+    PEEK_AGAIN = auto()          # Only for use in peek_token_kind()
+    WS = auto()                  # whitespace - internal to lexer
+    MACRO_PARAM = auto()         # only appears in macro replacement lists
+    STRINGIZE = auto()           # only appears in macro replacement lists
+    PLACEMARKER = auto()         # used in function-like macro expansion
 
     # These can all be returned by pp.get_token()
-    EOF = 5                   # end-of-file
-    OTHER = 6                 # a character that is not another token
-    HASH = 7                  # # %:
-    CONCAT = 8                # ## %:%:
-    ERROR = 9                 # Something erroneous that should not give rise to further errors
+    EOF = auto()                 # EOF to the preprocessor; end of source to a front end
+    OTHER = auto()               # a character that is not another token, e.g. @
+    HASH = auto()                # # %:
+    CONCAT = auto()              # ## %:%:
+    ERROR = auto()               # Something erroneous that should not give rise to further errors
 
-    IDENTIFIER = 10           # abc
-    NUMBER = 11               # 1.2f
-    CHARACTER_LITERAL = 12    # 'c'
-    STRING_LITERAL = 13       # "str"
+    IDENTIFIER = auto()          # abc
+    NUMBER = auto()              # 1.2f
+    CHARACTER_LITERAL = auto()   # 'c'
+    STRING_LITERAL = auto()      # "str"
 
-    BRACE_OPEN = 20           # { <%
-    BRACE_CLOSE = 21          # } %>
-    SQUARE_OPEN = 22          # [ <:
-    SQUARE_CLOSE = 23         # ] :>
-    PAREN_OPEN = 24           # (
-    PAREN_CLOSE = 25          # )
-    SEMICOLON = 26            # ;
-    QUESTION_MARK = 27        # ?
-    TILDE = 28                # ~
-    COMMA = 29                # ,
-    DOT = 30                  # .
-    DOT_STAR = 31             # .*
-    ELLIPSIS = 32             # ...
+    BRACE_OPEN = auto()          # { <%
+    BRACE_CLOSE = auto()         # } %>
+    SQUARE_OPEN = auto()         # [ <:
+    SQUARE_CLOSE = auto()        # ] :>
+    PAREN_OPEN = auto()          # (
+    PAREN_CLOSE = auto()         # )
+    SEMICOLON = auto()           # ;
+    QUESTION_MARK = auto()       # ?
+    TILDE = auto()               # ~
+    COMMA = auto()               # ,
+    DOT = auto()                 # .
+    DOT_STAR = auto()            # .*
+    ELLIPSIS = auto()            # ...
 
-    COLON = 40                # :
-    SCOPE = 41                # ::
-    DEREF = 42                # ->
-    DEREF_STAR = 43           # ->*
+    COLON = auto()               # :
+    SCOPE = auto()               # ::
+    DEREF = auto()               # ->
+    DEREF_STAR = auto()          # ->*
 
-    ASSIGN = 50               # =
-    PLUS = 51                 # +
-    PLUS_ASSIGN = 52          # +=
-    MINUS = 53                # -
-    MINUS_ASSIGN = 54         # -=
-    MULTIPLY = 55             # *
-    MULTIPLY_ASSIGN = 56      # *=
-    DIVIDE = 57               # /
-    DIVIDE_ASSIGN = 58        # /=
-    MODULUS = 59              # %
-    MODULUS_ASSIGN = 60       # %=
+    ASSIGN = auto()              # =
+    PLUS = auto()                # +
+    PLUS_ASSIGN = auto()         # +=
+    MINUS = auto()               # -
+    MINUS_ASSIGN = auto()        # -=
+    MULTIPLY = auto()            # *
+    MULTIPLY_ASSIGN = auto()     # *=
+    DIVIDE = auto()              # /
+    DIVIDE_ASSIGN = auto()       # /=
+    MODULUS = auto()             # %
+    MODULUS_ASSIGN = auto()      # %=
 
-    INCREMENT = 65            # ++
-    DECREMENT = 66            # --
+    INCREMENT = auto()           # ++
+    DECREMENT = auto()           # --
 
-    BITWISE_AND = 70          # &
-    BITWISE_AND_ASSIGN = 71   # &=
-    BITWISE_OR = 72           # |
-    BITWISE_OR_ASSIGN = 73    # |=
-    BITWISE_XOR = 74          # ^
-    BITWISE_XOR_ASSIGN = 75   # ^=
+    BITWISE_AND = auto()         # &
+    BITWISE_AND_ASSIGN = auto()  # &=
+    BITWISE_OR = auto()          # |
+    BITWISE_OR_ASSIGN = auto()   # |=
+    BITWISE_XOR = auto()         # ^
+    BITWISE_XOR_ASSIGN = auto()  # ^=
 
-    LOGICAL_AND = 80          # &&
-    LOGICAL_OR = 81           # ||
-    LOGICAL_NOT = 82          # !
+    LOGICAL_AND = auto()         # &&
+    LOGICAL_OR = auto()          # ||
+    LOGICAL_NOT = auto()         # !
 
-    LSHIFT = 90               # <<
-    LSHIFT_ASSIGN = 91        # <<=
-    RSHIFT = 92               # >>
-    RSHIFT_ASSIGN = 93        # >>=
+    LSHIFT = auto()              # <<
+    LSHIFT_ASSIGN = auto()       # <<=
+    RSHIFT = auto()              # >>
+    RSHIFT_ASSIGN = auto()       # >>=
 
-    EQ = 100                  # ==
-    NE = 101                  # !=
-    LT = 102                  # <
-    LE = 103                  # <=
-    GT = 104                  # >
-    GE = 105                  # >=
-    LEG = 106                 # <=>
+    EQ = auto()                  # ==
+    NE = auto()                  # !=
+    LT = auto()                  # <
+    LE = auto()                  # <=
+    GT = auto()                  # >
+    GE = auto()                  # >=
+    LEG = auto()                 # <=>
+
+    # Keywords
+    kw_alignas = auto()
+    kw_alignof = auto()
+    kw_asm = auto()
+    kw_auto = auto()
+    kw_bool = auto()
+    kw_break = auto()
+    kw_case = auto()
+    kw_catch = auto()
+    kw_char = auto()
+    kw_char16_t = auto()
+    kw_char32_t = auto()
+    kw_char8_t = auto()
+    kw_class = auto()
+    kw_co_await = auto()
+    kw_co_return = auto()
+    kw_co_yield = auto()
+    kw_concept = auto()
+    kw_const = auto()
+    kw_const_cast = auto()
+    kw_consteval = auto()
+    kw_constexpr = auto()
+    kw_constinit = auto()
+    kw_continue = auto()
+    kw_decltype = auto()
+    kw_default = auto()
+    kw_delete = auto()
+    kw_do = auto()
+    kw_double = auto()
+    kw_dynamic_cast = auto()
+    kw_else = auto()
+    kw_enum = auto()
+    kw_explicit = auto()
+    kw_export = auto()
+    kw_extern = auto()
+    kw_false = auto()
+    kw_float = auto()
+    kw_for = auto()
+    kw_friend = auto()
+    kw_goto = auto()
+    kw_if = auto()
+    kw_inline = auto()
+    kw_int = auto()
+    kw_long = auto()
+    kw_mutable = auto()
+    kw_namespace = auto()
+    kw_new = auto()
+    kw_noexcept = auto()
+    kw_nullptr = auto()
+    kw_operator = auto()
+    kw_private = auto()
+    kw_protected = auto()
+    kw_public = auto()
+    kw_register = auto()
+    kw_reinterpret_cast = auto()
+    kw_requires = auto()
+    kw_return = auto()
+    kw_short = auto()
+    kw_signed = auto()
+    kw_sizeof = auto()
+    kw_static = auto()
+    kw_static_assert = auto()
+    kw_static_cast = auto()
+    kw_struct = auto()
+    kw_switch = auto()
+    kw_template = auto()
+    kw_this = auto()
+    kw_thread_local = auto()
+    kw_throw = auto()
+    kw_true = auto()
+    kw_try = auto()
+    kw_typedef = auto()
+    kw_typeid = auto()
+    kw_typename = auto()
+    kw_union = auto()
+    kw_unsigned = auto()
+    kw_using = auto()
+    kw_virtual = auto()
+    kw_void = auto()
+    kw_volatile = auto()
+    kw_wchar_t = auto()
+    kw_while = auto()
 
 
 TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL, TokenKind.STRING_LITERAL}
