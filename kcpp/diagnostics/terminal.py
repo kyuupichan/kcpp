@@ -32,8 +32,11 @@ class UnicodeTerminal(DiagnosticEngine):
     )
 
     def __init__(self, pp, env, *, translations=None, file=None):
-        '''Diagnostics are written to file, with colour formatting information if
-        colours is True.  Sourcefile tabs are space-expanded to the given tabstop.'''
+        '''Diagnostics are written to file.  Colour formatting information, whether colours are
+        enabled, and the tabstop are taken from env.  Source file tabs are space-expanded
+        to the tabstop.  Diagnostics are adjusted for the terminal width, which we attempt
+        to determine from file.
+        '''
         super().__init__(pp, env, translations=translations)
         self.file = file or sys.stderr
         self.nested_indent = 4
@@ -56,10 +59,10 @@ class UnicodeTerminal(DiagnosticEngine):
         '''Terminal Select Graphic Rendition (SGR) codes.'''
         if env.command_line.colours and self.pp.host.terminal_supports_colours(env.variables):
             colour_string = env.variables.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
-            return self.parse_colours(colour_string)
+            return self.parse_sgr_code_assignments(colour_string)
         return {}
 
-    def parse_colours(self, colour_string):
+    def parse_sgr_code_assignments(self, colour_string):
         '''Parse an SGR assignments string.'''
         def hint_sgr_code_pairs(colour_string):
             '''A generator returning (hint, sgr_code) pairs.'''
