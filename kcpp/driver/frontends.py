@@ -126,7 +126,7 @@ class FrontEnd(FrontEndBase):
     interpretation of literals.
     '''
 
-    def diagnostic_consumer(self, pp, env):
+    def diagnostic_consumer(self, env):
         return DiagnosticPrinter()
 
     def process(self):
