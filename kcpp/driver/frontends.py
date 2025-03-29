@@ -21,39 +21,40 @@ class FrontEndBase(ABC):
     def __init__(self):
         self.pp = None
 
-    def diagnostic_consumer(self, pp, env):
-        return UnicodeTerminal(pp, env)
+    def diagnostic_consumer(self, env):
+        return UnicodeTerminal(self.pp, env)
 
     def sources(self, env):
         return env.command_line.files
 
-    def process_source(self, pp, filename):
-        self.pp = pp
-        pp.actions = self.preprocessor_actions()
-        if not pp.push_main_source_file(filename):
-            return
-        self.process(pp)
+    def push_source(self, filename):
+        return self.pp.push_main_source_file(filename)
+
+    def process_source(self, filename):
+        self.pp.actions = self.preprocessor_actions()
+        if self.push_source(filename):
+            self.process()
 
     def preprocessor_actions(self):
         return None
 
     @abstractmethod
-    def process(self, pp):
+    def process(self):
         pass
 
     def run(self, source, env):
-        pp = Preprocessor(env)
+        self.pp = Preprocessor(env)
 
         # Get a diagnostic consumer
-        consumer = self.diagnostic_consumer(pp, env)
-        pp.set_diagnostic_consumer(consumer)
+        consumer = self.diagnostic_consumer(env)
+        self.pp.set_diagnostic_consumer(consumer)
 
         # Emit diagnostics from processing the command line
         for diagnostic in env.diagnostics:
-            pp.emit(diagnostic)
+            self.pp.emit(diagnostic)
         # Process the source if no error
         if not consumer.error_count:
-            self.process_source(pp, source)
+            self.process_source(source)
         # Emit the error summary
         consumer.emit_error_count()
 
@@ -97,7 +98,8 @@ class PreprocessedOutput(FrontEndBase):
         actions.source_file_changed = self.source_file_changed
         return actions
 
-    def process(self, pp):
+    def process(self):
+        pp = self.pp
         token = Token.create()
         write = self.write
         locator = pp.locator
@@ -127,9 +129,10 @@ class FrontEnd(FrontEndBase):
     def diagnostic_consumer(self, pp, env):
         return DiagnosticPrinter()
 
-    def process(self, pp):
+    def process(self):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present
         this is used for debugging purposes.'''
+        pp = self.pp
         token = Token.create()
         consume = True
         while True:
