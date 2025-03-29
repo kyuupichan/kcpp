@@ -6,7 +6,6 @@
 terminal.'''
 
 import argparse
-import os
 import sys
 from bisect import bisect_left
 from dataclasses import dataclass
@@ -38,13 +37,9 @@ class UnicodeTerminal(DiagnosticEngine):
         super().__init__(pp, env, translations=translations)
         self.file = file or sys.stderr
         self.nested_indent = 4
-        self.terminal_width = 120
+        self.sgr_codes = self.sgr_codes_from_env(env)
         self.tabstop = env.command_line.tabstop
-        self.enhancement_codes = {}
-        if env.command_line.colours:
-            self.enhancement_codes = self.parse_colours(env.variables)
-        if self.file.isatty():
-            self.terminal_width = os.get_terminal_size(self.file.fileno()).columns
+        self.terminal_width = self.determine_terminal_width(self.file)
 
     @classmethod
     def add_arguments(cls, group):
@@ -52,32 +47,32 @@ class UnicodeTerminal(DiagnosticEngine):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def parse_colours(self, variables):
-        '''Parse the KCPP_COLOURS environment variable.'''
-        def terminal_supports_colours():
-            '''Return True if the terminal appears to support colours.'''
-            term = variables.get('TERM', '')
-            if term in 'ansi cygwin linux'.split():
-                return True
-            if any(term.startswith(prefix) for prefix in 'screen xterm vt100 rxvt'.split()):
-                return True
-            return term.endswith('color')
+    def determine_terminal_width(self, file):
+        if self.pp.host.is_a_tty(file):
+            return self.pp.host.terminal_width(file)
+        return 120
 
-        def colour_assignments():
-            '''A generator returning colour assignments for specified colour hint names.'''
-            if terminal_supports_colours():
-                colours = variables.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
-                parts = colours.split(':')
-                for part in parts:
-                    vals = part.split('=', maxsplit=1)
-                    if len(vals) == 2:
-                        yield vals
+    def sgr_codes_from_env(self, env):
+        '''Terminal Select Graphic Rendition (SGR) codes.'''
+        if env.command_line.colours and self.pp.host.terminal_supports_colours(env.variables):
+            colour_string = env.variables.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
+            return self.parse_colours(colour_string)
+        return {}
 
-        return {kind: value for kind, value in colour_assignments()}
+    def parse_colours(self, colour_string):
+        '''Parse an SGR assignments string.'''
+        def hint_sgr_code_pairs(colour_string):
+            '''A generator returning (hint, sgr_code) pairs.'''
+            for part in colour_string.split(':'):
+                vals = part.split('=', maxsplit=1)
+                if len(vals) == 2:
+                    yield vals
 
-    def enhance_text(self, text, kind):
-        '''Emit enhanced text if an enhancement has been assigned for the hint kind.'''
-        code = self.enhancement_codes.get(kind)
+        return {hint: sgr_code for hint, sgr_code in hint_sgr_code_pairs(colour_string)}
+
+    def enhance_text(self, text, hint):
+        '''Emit enhanced text if an SGR code has been assigned for the hint kind.'''
+        code = self.sgr_codes.get(hint)
         if code:
             return f'\x1b[{code}m{text}\x1b[0;39m'
         return text
@@ -333,8 +328,8 @@ class SourceLine:
         return cls(text, in_widths, out_widths, replacements, buffer, line_number)
 
     def source_and_highlight_lines(self, context, room, enhance_text):
-        '''Return a (source_line, highlight_line) pair of strings.  Each string contains
-        enhancement escape sequqences as specified by enhancement_codes.
+        '''Return a (source_line, highlight_line) pair of strings.  Each string contains SGR
+        escape sequqences as specified by sgr_codes.
         '''
         highlights = [context.caret_highlight] + context.highlights
         col_ranges = [self.convert_to_column_range(highlight.start, highlight.end)

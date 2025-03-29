@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..basic import Buffer
+from ..basic import Buffer, Host
 from ..diagnostics import DID, Diagnostic, DiagnosticEngine, location_command_line
 
 from .basic import (
@@ -85,6 +85,8 @@ class Preprocessor:
         # Directive handlers
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}
+        # The host abstraction
+        self.host = Host.host()
         # Token source stack
         self.sources = []
 
