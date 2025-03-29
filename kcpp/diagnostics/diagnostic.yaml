@@ -10,19 +10,19 @@
 
 at_file_end:
   severity: none
-  text: '"%0", at end of source'
+  text: '%0, at end of source'
 
 at_file_and_end_of_line:
   severity: none
-  text: '"%0", at end of line %1'
+  text: '%0, at end of line %1'
 
 at_file_and_line:
   severity: none
-  text: '"%0", line %1'
+  text: '%0, line %1'
 
 at_file_line_and_column:
   severity: none
-  text: '"%0", line %1, column %2'
+  text: '%0, line %1, column %2'
 
 brief_at_file_and_line:
   severity: none

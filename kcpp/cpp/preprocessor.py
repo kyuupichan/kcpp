@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..basic import Buffer, Host
+from ..basic import Buffer, Host, UnicodeKind
 from ..diagnostics import DID, Diagnostic, DiagnosticEngine, location_command_line
 
 from .basic import (
@@ -250,30 +250,34 @@ class Preprocessor:
         processing doesn't begin until EOF).
         '''
         if filename == '-':
+            filename_lit = '"<stdin>"'
             raw = sys.stdin.buffer.read()
-            filename = '<stdin>'
         else:
+            filename_lit = self.filename_bytes_to_string_literal(
+                filename.encode(sys.getfilesystemencoding(), 'surrogateescape'))
             try:
                 with open(filename, 'rb') as f:
                     raw = f.read()
             except OSError as e:
-                self.diag(DID.cannot_open_file, location_command_line, [filename, str(e)])
+                self.diag(DID.cannot_open_file, location_command_line, [filename_lit, str(e)])
                 return False
 
-        self.push_main_buffer(raw, filename)
+        self.push_main_buffer(raw, filename_lit)
         return True
 
-    def push_main_buffer(self, raw, name):
+    def push_main_buffer(self, raw, filename):
         assert not self.sources
-        self.push_lexer(raw, name, -1)
-        # self.push_lexer(b'', '<command line>', self.sources[-1].cursor_loc())
+        self.push_lexer(raw, filename, -1)
+        # self.push_lexer(b'', '"<command line>"', self.sources[-1].cursor_loc())
         raw_predefines = predefines(self).encode()
-        self.push_lexer(raw_predefines, '<predefines>', self.sources[-1].cursor_loc())
+        parent_loc = self.sources[-1].cursor_loc()
+        self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
         self.predefining_macros = True
 
-    def push_lexer(self, raw, name, parent_loc):
+    def push_lexer(self, raw, filename, parent_loc):
+        assert isinstance(filename, str) and filename[0] == filename[-1] == '"'
         buffer = Buffer(raw)
-        first_loc = self.locator.new_buffer_loc(buffer, name, -1)
+        first_loc = self.locator.new_buffer_loc(buffer, filename, -1)
         lexer = Lexer(self, raw, first_loc)
         lexer.if_sections = []
         self.push_source(lexer)
@@ -296,6 +300,29 @@ class Preprocessor:
                 cursor_loc = self.sources[-1].cursor_loc()
                 self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
         return self.sources[-1]
+
+    def filename_bytes_to_string_literal(self, filename):
+        '''Convert a python command-line string to a string literal.
+
+        Strings passed to the program from the environment or command line need not be
+        unicode.  Python has a nice hack (PEP 383 https://peps.python.org/pep-0383/) to
+        hide this from Python code, so strings passed to file system code (such as open())
+        the original byte sequence is recovered.  Unix permits arbirary byte sequences to
+        be file names (except that they are NUL-terminated), but some MacOSX native
+        filesystems require filenames to be valid NFD unicode (Mac OS versions 8.1 through
+        10.2.x used decompositions based on Unicode 2.1. Mac OS X version 10.3 and later
+        use decompositions based on Unicode 3.2).  Windows uses UTF-16 to encode
+        filenames.
+
+        Apart from when dealing with the filesytem, file names are stored in the
+        preprocessor as string literals.  This is the appropriate form for diagnostics and
+        __FILE__, and is what appears in #line directives (see on_line() for how they are
+        handled).
+        '''
+        assert isinstance(filename, bytes)
+        # Some language standards should degrade the UnicodeKind so the string literals
+        # can be read back in.
+        return UnicodeKind.character.bytes_to_string_literal(filename)
 
     def pass_through_eof(self, source):
         # EOF is currently generated in 3 cases: 1) by the lexer at end-of-buffer, 2) by
@@ -663,6 +690,9 @@ class Preprocessor:
                 filename = self.locator.prior_file_name
             else:
                 filename = self.literal_interpreter.interpret_filename(token)
+                if filename is not None:
+                    filename = self.filename_bytes_to_string_literal(filename)
+
         is_good = line_number != -1 and filename is not None
         self.skip_to_eod(token, is_good)
         # Have the line number take effect from the first character of the next line

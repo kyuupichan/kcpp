@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import IntEnum, auto
 
 from ..diagnostics import DID, Diagnostic
-from .basic import Token, TokenKind, TokenFlags, quoted_string
+from .basic import Token, TokenKind, TokenFlags
 from .lexer import Lexer
 from .locator import ScratchEntryKind
 
@@ -500,7 +500,7 @@ class BuiltinMacroExpansion(SimpleTokenList):
             location = self.pp.locator.presumed_location(self.parent_loc, True)
             if self.kind == BuiltinKind.LINE:
                 return str(location.line_number)
-            return quoted_string(location.filename)
+            return location.filename
 
         if self.kind == BuiltinKind.TIME or self.kind == BuiltinKind.DATE:
             if self.pp.time_str is None:

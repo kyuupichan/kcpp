@@ -153,25 +153,25 @@ diagnostic_definitions = {
         DID.at_file_and_end_of_line,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '"%0", at end of line %1',
+        '%0, at end of line %1',
     ),
     DID.at_file_and_line: DiagnosticDefinition(
         DID.at_file_and_line,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '"%0", line %1',
+        '%0, line %1',
     ),
     DID.at_file_end: DiagnosticDefinition(
         DID.at_file_end,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '"%0", at end of source',
+        '%0, at end of source',
     ),
     DID.at_file_line_and_column: DiagnosticDefinition(
         DID.at_file_line_and_column,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '"%0", line %1, column %2',
+        '%0, line %1, column %2',
     ),
     DID.brief_at_file_and_line: DiagnosticDefinition(
         DID.brief_at_file_and_line,
@@ -201,7 +201,7 @@ diagnostic_definitions = {
         DID.cannot_open_file,
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
-        'cannot open file %q0: %1',
+        'cannot open file %0: %1',
     ),
     DID.character_does_not_exist: DiagnosticDefinition(
         DID.character_does_not_exist,

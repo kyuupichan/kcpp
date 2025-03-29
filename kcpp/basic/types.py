@@ -5,12 +5,14 @@
 '''Basic types.  Should have no dependencies on external modules.'''
 
 
-__all__ = ['Buffer', 'BufferCoords', 'BufferPosition', 'PresumedLocation']
-
+__all__ = ['Buffer', 'BufferCoords', 'BufferPosition', 'PresumedLocation',
+           'UnicodeKind', 'SIMPLE_ESCAPES', 'CONTROL_CHARACTER_LETTERS']
 
 from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
+
+from ..unicode import is_control_character, is_printable, utf8_cp
 
 
 def line_offsets_gen(raw):
@@ -117,6 +119,53 @@ class Buffer:
         return memoryview(text[start:end])
 
 
+class UnicodeKind(IntEnum):
+    '''Describes how to output a unicode codepoint.'''
+    # Unicode characters themselves if printable, otherwise as_ucns.
+    character = auto()
+    # \uNNNN or \UNNNNNNNN sequences
+    ucn = auto()
+    # As hex escapes
+    hex_escape = auto()
+
+    def codepoint_or_escape(self, cp):
+        if is_control_character(cp):
+            if (esc := CONTROL_CHARACTER_LETTERS.get(cp)):
+                # If possible, control characters get output as simple escapes
+                return '\\' + esc
+        elif cp <= 0x80:
+            return chr(cp)
+
+        kind = self.value
+        if kind == UnicodeKind.character:
+            if is_printable(cp):
+                return chr(cp)
+        if kind != UnicodeKind.hex_escape and cp > 0xff:
+            if cp <= 0xffff:
+                return f'\\u{cp:04X}'
+            return f'\\U{cp:08X}'
+        return escape_bytes(chr(cp).encode(), True)
+
+    def bytes_to_string_literal(self, raw):
+        '''Convert a byte sequence to a valid C or C++ string literal, escaping characters
+        appropriately.  raw is a bytes-like object.'''
+        result = '"'
+
+        cursor = 0
+        limit = len(raw)
+        while cursor < limit:
+            cp, size = utf8_cp(raw, cursor)
+            assert size > 0
+            if cp < 0:
+                result += escape_bytes(raw[cursor: cursor + size], True)
+            else:
+                result += self.codepoint_or_escape(cp)
+            cursor += size
+
+        result += '"'
+        return result
+
+
 class BufferPosition(IntEnum):
     '''Describes a position within a buffer.'''
     WITHIN_LINE = auto()
@@ -139,7 +188,7 @@ class BufferCoords:
 
 @dataclass(slots=True)
 class PresumedLocation:
-    # The filname, potentially modified by #line
+    # The filname, a string literal, potentially modified by #line
     filename: str
     # The line number, potentially modified by #line.  1-based, but line numbers of zero
     # can happen because we accept, with a diagnostic, '#line 0'.
@@ -148,3 +197,17 @@ class PresumedLocation:
     column_offset: int
     # Where a location lies in the buffer
     buffer_position: BufferPosition
+
+
+# A map from escape letters (e.g. 't', 'n') to their unicode codepoints
+SIMPLE_ESCAPES = {ord(c): ord(d) for c, d in zip('\\\'?"abfnrtv', '\\\'?"\a\b\f\n\r\t\v')}
+
+# A map from control character codepoints to escape letters (e.g. 9 -> 't')
+CONTROL_CHARACTER_LETTERS = {d: chr(c) for c, d in SIMPLE_ESCAPES.items() if d < 32}
+
+
+def escape_bytes(raw, use_hex_escapes):
+    '''Escape a sequence of bytes as a sequence of hexadecimal or octal escapes.'''
+    if use_hex_escapes:
+        return ''.join(f'\\x{c:02x}' for c in raw)
+    return ''.join(oct(c)[2:] for c in raw)

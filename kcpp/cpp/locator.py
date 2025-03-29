@@ -27,7 +27,7 @@ class LineRange:
     created by #line directives.
     '''
     start: int         # The offset into the buffer that starts this range
-    name: str          # Normally a file name, but can be e.g. <scratch>
+    name: str          # A string literal
     line_adj: int      # Add this to the physical line number to get the presumed line number
 
 
@@ -92,8 +92,6 @@ class ScratchBufferSpan(Buffer):
     virtual tokens it creates so that the macro stack can be correctly reported.
     '''
 
-    filename = '<scratch>'
-
     def __init__(self, start, end):
         '''Create a scratch buffer with the given size.'''
         super().__init__(bytearray())
@@ -147,7 +145,8 @@ class ScratchBufferSpan(Buffer):
         '''Return a PresumedLocation instance.'''
         assert 0 <= offset <= self.end - self.start
         line_offset, line_number = self.offset_to_line_info(offset)
-        return PresumedLocation(self.filename, line_number, offset - line_offset,
+        # The filename must be a valid C string literal
+        return PresumedLocation('"<scratch>"', line_number, offset - line_offset,
                                 BufferPosition.WITHIN_LINE)
 
 

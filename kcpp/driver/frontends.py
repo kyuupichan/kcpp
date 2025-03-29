@@ -8,7 +8,7 @@ import sys
 from abc import ABC, abstractmethod
 
 from kcpp.cpp import (
-    Token, TokenKind, TokenFlags, Preprocessor, quoted_string, PreprocessorActions,
+    Token, TokenKind, TokenFlags, Preprocessor, PreprocessorActions,
 )
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
@@ -72,7 +72,7 @@ class PreprocessedOutput(FrontEndBase):
         '''Write a line marker.  On return self.at_bol is True.'''
         if not self.at_bol:
             self.write('\n')
-        self.write(f'#line {self.line_number} {quoted_string(self.filename)}\n')
+        self.write(f'#line {self.line_number} {self.filename}\n')
         self.at_bol = True
 
     def source_file_changed(self, loc, reason):

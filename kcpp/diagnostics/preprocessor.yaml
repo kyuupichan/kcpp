@@ -10,7 +10,7 @@
 
 cannot_open_file:
   severity: fatal
-  text: "cannot open file %q0: %1"
+  text: "cannot open file %0: %1"
 
 invalid_charset:
   severity: error

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from struct import Struct
 
+from ..basic import SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS
 from ..diagnostics import DID, SpellingRange, Diagnostic, location_in_args
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
@@ -16,8 +17,8 @@ from ..unicode import (
 )
 
 from .basic import (
-    HEX_DIGIT_VALUES, SIMPLE_ESCAPES, TokenKind, TokenFlags, Charset, Encoding, IdentifierInfo,
-    IntegerKind, RealKind, Token, value_width, CONTROL_CHARACTER_ESCAPES
+    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Charset, Encoding, IdentifierInfo,
+    IntegerKind, RealKind, Token, value_width
 )
 
 
@@ -109,9 +110,9 @@ class StringLiteral:
 
 def printable_form(cp):
     '''Like printable_char, except that C escape sequences are used if available.'''
-    esc = CONTROL_CHARACTER_ESCAPES.get(cp)
-    if esc:
-        return esc
+    letter = CONTROL_CHARACTER_LETTERS.get(cp)
+    if letter:
+        return '\\' + letter
     return printable_char(cp)
 
 
@@ -135,6 +136,7 @@ class NumericEscapeKind(IntEnum):
 @dataclass(slots=True)
 class ElaboratedEncoding:
     '''Details of an encoding of a string or character literal.'''
+    # The encoding prefix of a string literal
     encoding: Encoding
     # The element (character type) kind
     char_kind: IntegerKind
@@ -168,6 +170,14 @@ class ElaboratedEncoding:
         char_size = target.integer_width(kind) // 8
         pack = packing_struct(char_size, is_little_endian).pack
         return cls(encoding, kind, is_little_endian, charset, pack)
+
+    @classmethod
+    def for_filename_encoding(cls):
+        '''Appropriate values for encoding a string literal to filename bytes.  We store these as
+        internally as bytes; characters in the string literal should be stored as UTF-8.
+        '''
+        return cls(Encoding.NONE, IntegerKind.uchar, True, Charset.from_name('UTF-8'),
+                   structB.pack)
 
 
 def packing_struct(octets, is_little_endian):
@@ -326,8 +336,8 @@ class LiteralInterpreter:
         return line_number
 
     def interpret_filename(self, token):
-        '''Interpret a filename for a #line directive.  Return a string on success, or None on
-        error.
+        '''Interpret a filename for a #line directive.  Return a byte string on success, or None
+        on error.
 
         The token must be a string literal.  Encoding prefixes and user-defined suffixes
         are rejected.  No attempt is made to interpret escape sequences, etc.
@@ -342,11 +352,19 @@ class LiteralInterpreter:
         elif ud_suffix:
             selector = 1
         else:
-            return spelling[1:-1].decode()
+            selector = None
 
-        self.pp.diag(DID.invalid_in_filename, location_in_args,
-                     [self.string_spelling_range(token, selector), selector])
-        return None
+        if selector is not None:
+            self.pp.diag(DID.invalid_in_filename, location_in_args,
+                         [self.string_spelling_range(token, selector), selector])
+            return None
+
+        encoded = bytearray()
+        elab_encoding = ElaboratedEncoding.for_filename_encoding()
+        _, is_erroneous = self.encode_string(token, encoded, elab_encoding, 8)
+        if is_erroneous:
+            return None
+        return bytes(encoded)
 
     # binary-literal:
     #    0b binary-digit
@@ -597,7 +615,8 @@ class LiteralInterpreter:
         elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
 
         encoded = bytearray()
-        ud_suffix, is_erroneous = self.encode_string(token, encoded, elab_encoding)
+        char_width = self.pp.target.integer_width(elab_encoding.char_kind)
+        ud_suffix, is_erroneous = self.encode_string(token, encoded, elab_encoding, char_width)
         result = StringLiteral(encoded, elab_encoding.char_kind, None)
 
         # If we ever implement C, then it is much more relaxed than C++.  The differences
@@ -714,9 +733,10 @@ class LiteralInterpreter:
 
         # Now loop through the tokens and encode them.
         elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(common_encoding, self)
+        char_width = self.pp.target.integer_width(elab_encoding.char_kind)
         encoded = bytearray()
         for token in tokens:
-            _, token_erroneous = self.encode_string(token, encoded, elab_encoding)
+            _, token_erroneous = self.encode_string(token, encoded, elab_encoding, char_width)
             is_erroneous = is_erroneous or token_erroneous
 
         # Revert to initial shift state, and append a NUL byte to the string.
@@ -726,14 +746,15 @@ class LiteralInterpreter:
         char_kind = IntegerKind.error if is_erroneous else elab_encoding.char_kind
         return StringLiteral(encoded, char_kind, common_ud_suffix)
 
-    def encode_string(self, token, encoded, encoding):
+    def encode_string(self, token, encoded, encoding, char_width):
+        '''Encode the string literal 'token' into 'encoded', a bytearray.  'encoding' contains
+        details of the coding to use.'''
         assert isinstance(encoded, bytearray)
         assert isinstance(encoding, ElaboratedEncoding)
 
         state, cursor, ud_suffix = State.from_delimited_literal(token)
         require_single_code_unit = token.kind == TokenKind.CHARACTER_LITERAL
         is_raw = encoding.encoding.is_raw()
-        char_width = self.pp.target.integer_width(encoding.char_kind)
         mask = (1 << char_width) - 1
         is_erroneous = False
         encoder = encoding.charset.encoder
