@@ -29,7 +29,7 @@ from .macros import (
 __all__ = ['Preprocessor', 'PreprocessorActions']
 
 
-@dataclass
+@dataclass(slots=True)
 class IfSection:
     '''Represents a conditional preprocessing group.'''
     # True if the preprocessor was skipping on entry to the #if
@@ -48,7 +48,6 @@ class SourceFileChangeReason(IntEnum):
     line = auto()     # line directive
 
 
-@dataclass
 class PreprocessorActions:
     '''These functions are called when the preprocessor performs certain actions.  Subclass or
     instantiate to customize behaviour.

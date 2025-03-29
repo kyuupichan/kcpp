@@ -13,7 +13,7 @@ cannot_open_file:
   text: "cannot open file %0: %1"
 
 expected_a_header_name:
-  severity: error
+  severity: fatal
   text: 'expected a header name of the form "FILENAME" or <FILENAME>'
 
 from_formation_of_header_name:
