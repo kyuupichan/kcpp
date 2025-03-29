@@ -67,7 +67,6 @@ class Preprocessor:
 
     def __init__(self, env, *, target=None):
         self.target = target or TargetMachine.default()
-        self.configure(env)
 
         # Helper objects.
         self.identifiers = {}
@@ -101,14 +100,24 @@ class Preprocessor:
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
         self.date_str = None
+        self.command_line = self.configure(env)
 
         self.initialize()
 
     @classmethod
     def add_arguments(cls, pp_group, diag_group):
         '''Add command line arugments to the group.'''
-        pp_group.add_argument('-exec-charset', type=str)
-        pp_group.add_argument('-wide-exec-charset', type=str)
+        pp_group.add_argument('-exec-charset', type=str,
+                              help='set the narrow execution character set')
+        pp_group.add_argument('-wide-exec-charset', type=str,
+                              help='set the wide execution character set')
+        pp_group.add_argument('-D', '--define-macro', action='append', default=[],
+                              help='''In -D name[(param-list)][=def], define macro 'name' as
+                              'def'.  If 'def' is omitted 'name' is defined to 1.  Function-like
+                              macros can be defined by specifying a parameter list.''')
+        pp_group.add_argument('-U', '--undefine-macro', action='append', default=[],
+                              help='''Remove the definition of a macro.
+                              -U options are processed after all -D options.''')
         DiagnosticEngine.add_arguments(diag_group)
 
     def configure(self, env):
@@ -129,6 +138,19 @@ class Preprocessor:
 
         set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
         set_charset('wide_charset', env.command_line.wide_exec_charset, IntegerKind.wchar_t)
+
+        def buffer_lines(command_line):
+            for define in command_line.define_macro:
+                pair = define.split('=', maxsplit=1)
+                if len(pair) == 1:
+                    name, definition = pair[0], '1'
+                else:
+                    name, definition = pair
+                yield f'#define {name} {definition}'
+            for name in command_line.undefine_macro:
+                yield f'#undef {name}'
+
+        return '\n'.join(buffer_lines(env.command_line))
 
     def initialize(self):
         # The variadic macro identifiers
@@ -267,9 +289,11 @@ class Preprocessor:
     def push_main_buffer(self, raw, filename):
         assert not self.sources
         self.push_lexer(raw, filename, -1)
-        # self.push_lexer(b'', '"<command line>"', self.sources[-1].cursor_loc())
-        raw_predefines = predefines(self).encode()
         parent_loc = self.sources[-1].cursor_loc()
+        if self.command_line:
+            parent_loc = self.sources[-1].cursor_loc()
+            self.push_lexer(self.command_line.encode(), '"<command line>"', parent_loc)
+        raw_predefines = predefines(self).encode()
         self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
         self.predefining_macros = True
 
