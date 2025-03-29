@@ -57,6 +57,7 @@ class DID(IntEnum):
     error_directive = auto()
     errors_generated = auto()
     escape_sequence_value_too_large = auto()
+    expected_a_header_name = auto()
     expected_close_brace = auto()
     expected_close_paren = auto()
     expected_colon = auto()
@@ -69,6 +70,7 @@ class DID(IntEnum):
     extra_directive_tokens = auto()
     filename_should_be_string = auto()
     floating_point_in_pp_expr = auto()
+    from_formation_of_header_name = auto()
     hash_requires_macro_parameter = auto()
     hexadecimal_exponent_required = auto()
     identifier_in_pp_expr = auto()
@@ -323,6 +325,12 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%select{octal|hexadecimal}0 escape sequence value %1 is too large for type %q2',
     ),
+    DID.expected_a_header_name: DiagnosticDefinition(
+        DID.expected_a_header_name,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'expected a header name of the form "FILENAME" or <FILENAME>',
+    ),
     DID.expected_close_brace: DiagnosticDefinition(
         DID.expected_close_brace,
         DiagnosticSeverity.error,
@@ -394,6 +402,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'floating point numbers are not permitted in preprocessor expressions',
+    ),
+    DID.from_formation_of_header_name: DiagnosticDefinition(
+        DID.from_formation_of_header_name,
+        DiagnosticSeverity.note,
+        DiagnosticGroup.none,
+        'from formation of header name',
     ),
     DID.hash_requires_macro_parameter: DiagnosticDefinition(
         DID.hash_requires_macro_parameter,

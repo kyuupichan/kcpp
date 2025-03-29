@@ -12,7 +12,6 @@ from enum import IntEnum, auto
 
 from ..diagnostics import DID, Diagnostic
 from .basic import Token, TokenKind, TokenFlags
-from .lexer import Lexer
 from .locator import ScratchEntryKind
 
 __all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion',
@@ -192,8 +191,8 @@ class SimpleTokenList:
             assert lhs.kind == rhs.kind == TokenKind.PLACEMARKER
             return True
 
-        token, all_consumed = self.lex_from_scratch(spelling, concat_loc,
-                                                    ScratchEntryKind.concatenate)
+        token, all_consumed = self.pp.lex_from_scratch(spelling, concat_loc,
+                                                       ScratchEntryKind.concatenate)
         if token.kind == TokenKind.EOF or not all_consumed:
             self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
             return False
@@ -204,21 +203,6 @@ class SimpleTokenList:
         token.copy_spacing_flags_from(lhs.flags)
         lhs.set_to(token, token.loc)
         return True
-
-    def lex_from_scratch(self, spelling, operator_loc, kind):
-        '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
-        all_consumed is True if lexing consumed the whole spelling.'''
-        # Get a scratch buffer location for the new token
-        scratch_loc = self.pp.locator.new_scratch_token(spelling, operator_loc, kind)
-        lexer = Lexer(self.pp, spelling, scratch_loc)
-        token = Token.create()
-        dfilter = DiagnosticFilter()
-        dfilter.prior = self.pp.set_diagnostic_consumer(dfilter)
-        lexer.get_token(token)
-        # Remove the fake BOL flag
-        token.flags &= ~TokenFlags.BOL
-        self.pp.set_diagnostic_consumer(dfilter.prior)
-        return token, lexer.cursor == len(spelling)
 
 
 class ObjectLikeExpansion(SimpleTokenList):
@@ -454,8 +438,8 @@ class FunctionLikeExpansion(SimpleTokenList):
             else:
                 spelling.extend(token_spelling)
         spelling.append(34)    # '"'
-        token, all_consumed = self.lex_from_scratch(spelling, stringize_loc,
-                                                    ScratchEntryKind.stringize)
+        token, all_consumed = self.pp.lex_from_scratch(spelling, stringize_loc,
+                                                       ScratchEntryKind.stringize)
         assert all_consumed
 
         if token.kind == TokenKind.ERROR:
@@ -516,26 +500,11 @@ class BuiltinMacroExpansion(SimpleTokenList):
 
     def get_token(self, token):
         spelling = self.spelling()
-        btoken, all_consumed = self.lex_from_scratch(spelling.encode(), self.parent_loc,
-                                                     ScratchEntryKind.builtin)
+        btoken, all_consumed = self.pp.lex_from_scratch(spelling.encode(), self.parent_loc,
+                                                        ScratchEntryKind.builtin)
         assert all_consumed
         token.set_to(btoken, btoken.loc)
         self.pp.pop_source()
-
-
-class DiagnosticFilter:
-    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
-
-    def __init__(self):
-        self.prior = None
-
-    def emit(self, diagnostic):
-        # These are diagnosed as invalid concatenations
-        if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
-                              DID.unterminated_literal):
-            pass
-        else:
-            self.prior.emit(diagnostic)
 
 
 def predefines(pp):

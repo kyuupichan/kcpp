@@ -124,8 +124,11 @@ class ScratchBufferSpan(Buffer):
             return DID.in_token_concatenation, []
         elif entry.kind == ScratchEntryKind.stringize:
             return DID.in_argument_stringizing, []
-        else:
+        elif entry.kind == ScratchEntryKind.builtin:
             return DID.in_expansion_of_builtin, [pp.token_spelling_at_loc(entry.parent_loc)]
+        elif entry.kind == ScratchEntryKind.header:
+            return DID.from_formation_of_header_name, []
+        raise RuntimeError('unknown ScratchEntryKind')
 
     def entry_for_loc(self, loc):
         '''Return the parent location (i.e. the location of the ## or # token) of a scratch buffer
@@ -154,6 +157,7 @@ class ScratchEntryKind(IntEnum):
     concatenate = auto()
     stringize = auto()
     builtin = auto()
+    header = auto()
 
 
 @dataclass(slots=True)

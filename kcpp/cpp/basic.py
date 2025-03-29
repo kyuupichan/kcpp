@@ -124,6 +124,7 @@ class TokenKind(IntEnum):
     MACRO_PARAM = auto()         # only appears in macro replacement lists
     STRINGIZE = auto()           # only appears in macro replacement lists
     PLACEMARKER = auto()         # used in function-like macro expansion
+    HEADER_NAME = auto()         # A header-name
 
     # These can all be returned by pp.get_token()
     EOF = auto()                 # EOF to the preprocessor; end of source to a front end
@@ -291,7 +292,8 @@ class TokenKind(IntEnum):
     # kw__Noreturn = auto()
 
 
-TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL, TokenKind.STRING_LITERAL}
+TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.HEADER_NAME, TokenKind.CHARACTER_LITERAL,
+                           TokenKind.STRING_LITERAL}
 
 
 class TokenFlags(IntEnum):

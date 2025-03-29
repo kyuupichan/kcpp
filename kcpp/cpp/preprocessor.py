@@ -19,7 +19,7 @@ from .basic import (
 from .expressions import ExprParser
 from .lexer import Lexer
 from .literals import LiteralInterpreter
-from .locator import Locator
+from .locator import Locator, ScratchEntryKind
 from .macros import (
     Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinMacroExpansion,
     BuiltinKind, predefines,
@@ -95,7 +95,7 @@ class Preprocessor:
         self.directive_name_loc = None
         self.expand_macros = True
         self.in_directive = False
-        self.in_filename = False
+        self.in_header_name = False
         self.in_variadic_macro_definition = False
         self.skipping = False
         self.predefining_macros = False
@@ -438,11 +438,48 @@ class Preprocessor:
 
     def on_include(self, lexer, token):
         self.expand_macros = True
-        self.in_filename = True
-        self.get_token(token)
-        self.in_filename = False
-        # FIXME
-        self.skip_to_eod(token, False)
+        header_token = self.get_header_name(token, self.get_token)
+        self.skip_to_eod(token, header_token.kind == TokenKind.HEADER_NAME)
+
+    def get_header_name(self, token, get_token):
+        self.in_header_name = True
+        get_token(token)
+        self.in_header_name = False
+        diag_loc = token.loc
+        if token.kind == TokenKind.HEADER_NAME:
+            header_token = copy(token)
+        else:
+            # Try to construct a header name from the spelling of individual tokens
+            parent_loc = token.loc
+            spelling = bytearray()
+            while token.kind != TokenKind.EOF:
+                if spelling and token.flags & TokenFlags.WS:
+                    spelling.append(32)
+                spelling.extend(self.token_spelling(token))
+                get_token(token)
+            self.in_header_name = True
+            header_token, all_consumed = self.lex_from_scratch(spelling, parent_loc,
+                                                               ScratchEntryKind.header)
+            self.in_header_name = False
+            if header_token.kind != TokenKind.HEADER_NAME or not all_consumed:
+                self.diag(DID.expected_a_header_name, diag_loc)
+                header_token.kind = TokenKind.ERROR
+        return header_token
+
+    def lex_from_scratch(self, spelling, parent_loc, kind):
+        '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
+        all_consumed is True if lexing consumed the whole spelling.'''
+        # Get a scratch buffer location for the new token
+        scratch_loc = self.locator.new_scratch_token(spelling, parent_loc, kind)
+        lexer = Lexer(self, spelling, scratch_loc)
+        token = Token.create()
+        dfilter = DiagnosticFilter()
+        dfilter.prior = self.set_diagnostic_consumer(dfilter)
+        lexer.get_token(token)
+        # Remove the fake BOL flag
+        token.flags &= ~TokenFlags.BOL
+        self.set_diagnostic_consumer(dfilter.prior)
+        return token, lexer.cursor == len(spelling)
 
     def on_define(self, lexer, token):
         '''#define directive processing.'''
@@ -872,3 +909,18 @@ class Preprocessor:
         is_defined, is_macro_name = self.is_defined(token)
         self.skip_to_eod(token, is_macro_name)
         return not is_defined if negate else bool(is_defined)
+
+
+class DiagnosticFilter:
+    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
+
+    def __init__(self):
+        self.prior = None
+
+    def emit(self, diagnostic):
+        # These are diagnosed as invalid concatenations
+        if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
+                              DID.unterminated_literal):
+            pass
+        else:
+            self.prior.emit(diagnostic)

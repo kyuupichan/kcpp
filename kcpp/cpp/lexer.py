@@ -354,6 +354,12 @@ class Lexer(TokenSource):
             c, cursor = self.read_logical_byte(cursor)
             return c == 58 or c == 62  # ':' or '>'
 
+        # An angled header?
+        if self.pp.in_header_name:
+            kind, ncursor = self.on_delimited_literal(token, cursor)
+            if kind == TokenKind.HEADER_NAME:
+                return kind, ncursor
+
         c, ncursor = self.read_logical_byte(cursor)
         if c == 61:  # '='
             c, cursor = self.read_logical_byte(ncursor)
@@ -679,11 +685,15 @@ class Lexer(TokenSource):
         '''The encoding prefix, if any, and the opening quote are already lexed.'''
         buff = self.buff
         delimeter = buff[cursor - 1]
+        in_header = self.pp.in_header_name
 
-        if delimeter == 34:   # '"'
-            kind = TokenKind.STRING_LITERAL
-        elif delimeter == 39:  # "'"
+        if delimeter == 34:     # '"'
+            kind = TokenKind.HEADER_NAME if in_header else TokenKind.STRING_LITERAL
+        elif delimeter == 39:   # "'"
             kind = TokenKind.CHARACTER_LITERAL
+        elif delimeter == 60:   # '<'
+            kind = TokenKind.HEADER_NAME
+            delimeter = 62      # '>'
         else:
             raise RuntimeError
 
@@ -693,9 +703,9 @@ class Lexer(TokenSource):
             if c == 92:  # '\\'
                 # Handle escaped newlines
                 c, cursor = self.read_logical_byte(cursor - 1)
-                if c == 92:
-                    # An escape sequence or UCN; we do not check syntax.  We want to skip
-                    # the next logical character
+                # Skip escape sequences or UCNs unless in a header.  We do not check
+                # syntax.
+                if c == 92 and not in_header:
                     c, cursor = self.read_logical_char(cursor)
                     continue
             if c >= 0x80:
@@ -709,13 +719,18 @@ class Lexer(TokenSource):
                 break
 
         if c != delimeter:
-            if not self.pp.skipping:
+            # Don't diagnose unterminated headers
+            if not in_header and not self.pp.skipping:
                 selector = 0 if kind == TokenKind.CHARACTER_LITERAL else 1
                 self.diag(DID.unterminated_literal, token.loc, [selector])
             # Unterminated literals become the error token
             return TokenKind.ERROR, cursor
 
-        ud_suffix, cursor = self.maybe_user_defined_suffix(token, cursor)
+        # Header names have no ud_suffix
+        if in_header:
+            ud_suffix = None
+        else:
+            ud_suffix, cursor = self.maybe_user_defined_suffix(token, cursor)
         if not self.pp.skipping:
             spelling = self.fast_utf8_spelling(token.loc, cursor)
             token.extra = (spelling, ud_suffix)

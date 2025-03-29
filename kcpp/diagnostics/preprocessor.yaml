@@ -12,6 +12,14 @@ cannot_open_file:
   severity: fatal
   text: "cannot open file %0: %1"
 
+expected_a_header_name:
+  severity: error
+  text: 'expected a header name of the form "FILENAME" or <FILENAME>'
+
+from_formation_of_header_name:
+  severity: note
+  text: from formation of header name
+
 invalid_charset:
   severity: error
   text: "%q0 encoding cannot be used for type %q1 with width %2 bits"
