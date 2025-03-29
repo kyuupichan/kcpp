@@ -41,14 +41,14 @@ class Driver:
         environ = os.environ if environ is None else environ
         return Environment(command_line, environ, [])
 
-    def processor(self, env):
+    def frontend(self, env):
         return FrontEnd() if env.command_line.fe else PreprocessedOutput()
 
-    def run(self, argv=None, environ=None, processor=None):
+    def run(self, argv=None, environ=None, frontend=None):
         env = self.environment(argv, environ)
-        processor = processor or self.processor(env)
-        for source in processor.sources(env):
-            processor.run(source, env)
+        frontend = frontend or self.frontend(env)
+        for source in frontend.sources(env):
+            frontend.run(source, env)
 
 
 def main_cli():

@@ -114,7 +114,7 @@ Incomplete or Missing
 The following are missing, or work in progress, but the framework is already in place so
 that adding them is pretty easy now:
 
-- some directives, particularly #include, #pragma
+- #include, #pragma
 - _Pragma operator
 - multiple-include optimisation
 - _has_include
@@ -150,11 +150,10 @@ figure out.
 Tests
 =====
 
-I have a testuite for the code but I am keeping it private.  Test case submissions (using
-pytest) are welcome.
+I have a testuite for the code but I am keeping it private.  Test case submissions for the
+public repo (using pytest) are welcome.
 
-Bug reports (for those areas in the "Features that are essentially complete" section
-above) are welcome.
+Bug reports are also welcome.
 
 
 ChangeLog
