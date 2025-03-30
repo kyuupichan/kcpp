@@ -41,12 +41,15 @@ class BufferSpan:
     '''
 
     def __init__(self, buffer, start, parent_loc, name):
-        self.buffer = buffer
+        self._buffer = buffer
         self.start = start
         # End is inclusive, so this permits an end-of-buffer location
         self.end = start + len(buffer.text)
         self._parent_loc = parent_loc
         self.line_ranges = [LineRange(0, name, 0)]
+
+    def buffer_object(self):
+        return self._buffer
 
     def macro_parent_loc(self, loc):
         assert self.start <= loc <= self.end
@@ -60,7 +63,7 @@ class BufferSpan:
         if name is Locator.prior_file_name:
             name = self.line_ranges[-1].name
         offset = start_loc - self.start
-        _, line_number = self.buffer.offset_to_line_info(offset)
+        _, line_number = self._buffer.offset_to_line_info(offset)
         self.line_ranges.append(LineRange(offset, name, presumed_line_number - line_number))
 
     def presumed_location(self, offset):
@@ -68,10 +71,10 @@ class BufferSpan:
         assert 0 <= offset <= self.end - self.start
         index = bisect_left(self.line_ranges, offset + 1, key=lambda lr: lr.start) - 1
         line_range = self.line_ranges[index]
-        line_offset, line_number = self.buffer.offset_to_line_info(offset)
+        line_offset, line_number = self._buffer.offset_to_line_info(offset)
         presumed_line_number = line_number + line_range.line_adj
 
-        return PresumedLocation(self.buffer, line_range.name, presumed_line_number,
+        return PresumedLocation(self._buffer, line_range.name, presumed_line_number,
                                 line_number, offset - line_offset, line_offset)
 
 
@@ -89,11 +92,13 @@ class ScratchBufferSpan(Buffer):
         '''Create a scratch buffer with the given size.'''
         super().__init__(bytearray())
         assert start <= end
-        self.buffer = self
         self.start = start
         self.end = end
         # Naturally sorted by offset.
         self.entries = []
+
+    def buffer_object(self):
+        return self
 
     def has_room(self, size):
         return self.start + len(self.text) + size + 1 <= self.end
@@ -108,7 +113,7 @@ class ScratchBufferSpan(Buffer):
         assert start + len(text) <= self.end
         self.entries.append(ScratchEntry(start, parent_loc, entry_kind))
         # Clear any cached line offsets
-        self.buffer._sparse_line_offsets = None
+        self._sparse_line_offsets = None
         return start
 
     def did_and_substitutions(self, pp, loc):
@@ -287,7 +292,7 @@ class Locator:
     def spelling_buffer_and_offset(self, loc):
         '''Return a buffer and offset into it so that the token can be lexed.'''
         span, offset = self.spelling_span_and_offset(loc)
-        return span.buffer, offset
+        return span.buffer_object(), offset
 
     def buffer_span_loc(self, loc):
         '''Step up through the parents of a location until a BufferSpan is reached, and return the
