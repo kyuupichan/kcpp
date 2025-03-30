@@ -9,6 +9,7 @@ be an abstraction layer.
 
 import abc
 import os
+import stat
 
 __all__ = ['Host']
 
@@ -44,6 +45,52 @@ class Host(abc.ABC):
         if any(term.startswith(prefix) for prefix in 'screen xterm vt100 rxvt'.split()):
             return True
         return term.endswith('color')
+
+    def path_dirname(self, path):
+        return os.path.dirname(path)
+
+    def path_is_absolute(self, path):
+        return os.path.isabs(path)
+
+    def path_join(self, lhs, rhs):
+        return os.path.join(lhs, rhs)
+
+    def path_splitext(self, path):
+        return os.path.splitext(path)
+
+    def stat(self, path):
+        try:
+            return os.stat(path, follow_symlinks=True)
+        except OSError:
+            return None
+
+    def fstat(self, fileno):
+        return os.fstat(fileno)
+
+    def stat_is_directory(self, stat_result):
+        return stat.S_ISDIR(stat_result.mode)
+
+    def stat_is_regular_file(self, stat_result):
+        return stat.S_ISREG(stat_result.mode)
+
+    def stat_mtime_ns(self, stat_result):
+        return stat_result.mtime_ns
+
+    def stat_file_size(self, stat_result):
+        return stat_result.st_size
+
+    def read_file_contents(self, path):
+        try:
+            with open(path, 'rb') as f:
+                stat_result = self.fstat(f)
+                if not self.stat_is_regular_file(stat_result):
+                    return (DID.cannot_open_file,
+                # TODO: memory mapped files
+                if stat_result.st_size > 16_384:
+                    pass
+                return f.read()
+        except OSError as e:
+            return (DID.cannot_open_file, str(e))
 
 
 class HostPosix(Host):

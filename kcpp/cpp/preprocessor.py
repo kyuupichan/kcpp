@@ -67,7 +67,6 @@ class Preprocessor:
 
     def __init__(self, env, *, target=None):
         self.target = target or TargetMachine.default()
-        self.configure(env)
 
         # Helper objects.
         self.identifiers = {}
@@ -86,6 +85,8 @@ class Preprocessor:
                          for name in self.directive_names()}
         # The host abstraction
         self.host = Host.host()
+        # Manages files and header search
+        self.file_manager = FileManager(self.host)
         # Token source stack
         self.sources = []
 
@@ -98,10 +99,12 @@ class Preprocessor:
         self.in_variadic_macro_definition = False
         self.skipping = False
         self.predefining_macros = False
+
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
         self.date_str = None
 
+        self.configure(env)
         self.initialize()
 
     @classmethod
