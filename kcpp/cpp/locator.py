@@ -48,7 +48,7 @@ class BufferSpan:
         self._parent_loc = parent_loc
         self.line_ranges = [LineRange(0, name, 0)]
 
-    def buffer_object(self):
+    def buffer(self):
         return self._buffer
 
     def macro_parent_loc(self, loc):
@@ -97,7 +97,7 @@ class ScratchBufferSpan(Buffer):
         # Naturally sorted by offset.
         self.entries = []
 
-    def buffer_object(self):
+    def buffer(self):
         return self
 
     def has_room(self, size):
@@ -289,10 +289,10 @@ class Locator:
                 continue
             return span, loc - span.start
 
-    def spelling_buffer_and_offset(self, loc):
-        '''Return a buffer and offset into it so that the token can be lexed.'''
+    def buffer_text_and_offset(self, loc):
+        '''Return a buffer's text and offset into it so that the token can be lexed.'''
         span, offset = self.spelling_span_and_offset(loc)
-        return span.buffer_object(), offset
+        return span.buffer().text, offset
 
     def buffer_span_loc(self, loc):
         '''Step up through the parents of a location until a BufferSpan is reached, and return the

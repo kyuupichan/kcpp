@@ -234,8 +234,8 @@ class Preprocessor:
 
     def lexer_at_loc(self, loc):
         '''Return a new lexer ready to lex the spelling of the token at loc.'''
-        buffer, offset = self.locator.spelling_buffer_and_offset(loc)
-        lexer = Lexer(self, buffer.text, loc - offset)
+        text, offset = self.locator.buffer_text_and_offset(loc)
+        lexer = Lexer(self, text, loc - offset)
         lexer.cursor = offset
         return lexer
 
