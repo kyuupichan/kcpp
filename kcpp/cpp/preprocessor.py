@@ -121,6 +121,10 @@ class Preprocessor:
         DiagnosticEngine.add_arguments(diag_group)
 
     def configure(self, env):
+        # Don't require a specific env setup
+        if not env:
+            return ''
+
         def set_charset(attrib, charset_name, integer_kind):
             if charset_name:
                 try:

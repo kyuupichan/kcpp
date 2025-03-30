@@ -18,8 +18,12 @@ __all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
 
 class FrontEndBase(ABC):
 
-    def __init__(self):
+    def __init__(self, env):
         self.pp = None
+
+    @classmethod
+    def update_argument_parser(cls, parser):
+        pass
 
     def diagnostic_consumer(self, env):
         return UnicodeTerminal(self.pp, env)
@@ -59,18 +63,26 @@ class FrontEndBase(ABC):
 class PreprocessedOutput(FrontEndBase):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, env):
+        super().__init__(env)
         self.at_bol = True
         self.write = sys.stdout.write
         self.line_number = -1   # Presumed line number
         self.filename = None
+        self.suppress_linemarkers = env.command_line.P
+
+    @classmethod
+    def update_argument_parser(cls, parser):
+        group = parser.add_argument_group(title='preprocessed output')
+        group.add_argument('-P', help='suppress generation of linemarkers', action='store_true',
+                           default=False)
 
     def write_line_marker(self):
         '''Write a line marker.  On return self.at_bol is True.'''
         if not self.at_bol:
             self.write('\n')
-        self.write(f'#line {self.line_number} {self.filename}\n')
+        if not self.suppress_linemarkers:
+            self.write(f'#line {self.line_number} {self.filename}\n')
         self.at_bol = True
 
     def source_file_changed(self, loc, reason):
@@ -81,10 +93,12 @@ class PreprocessedOutput(FrontEndBase):
 
     def move_to_line_number(self, line_number):
         count = line_number - self.line_number
+        assert count >= 0
         self.line_number = line_number
 
-        assert count >= 0
-        if count < 8:
+        if self.suppress_linemarkers:
+            self.write('\n')
+        elif count < 8:
             self.write('\n' * count)
         else:
             self.write_line_marker()
@@ -108,8 +122,8 @@ class PreprocessedOutput(FrontEndBase):
             location = locator.presumed_location(token.loc, True)
             if location.presumed_line_number != self.line_number:
                 self.move_to_line_number(location.presumed_line_number)
-                if location.column_offset > 1:
-                    write(' ' * location.column_offset)
+            if self.at_bol and location.column_offset > 1:
+                write(' ' * location.column_offset)
             elif token.flags & TokenFlags.WS:
                 write(' ')
             write(pp.token_spelling(token).decode())
