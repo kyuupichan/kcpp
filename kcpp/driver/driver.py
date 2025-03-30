@@ -47,7 +47,8 @@ class Driver:
     def run(self, argv=None, environ=None, frontend=None):
         env = self.environment(argv, environ)
         frontend = frontend or self.frontend(env)
-        for source in env.command_line.files:
+        sources = env.command_line.files
+        for source in sources:
             frontend.run(source, env)
 
 

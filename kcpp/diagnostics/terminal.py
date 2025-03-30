@@ -42,22 +42,26 @@ class UnicodeTerminal(DiagnosticEngine):
         self.nested_indent = 4
         self.sgr_codes = self.sgr_codes_from_env(env)
         self.tabstop = env.command_line.tabstop
-        self.terminal_width = self.determine_terminal_width(self.file)
+        self.terminal_width = self.determine_terminal_width()
 
     @classmethod
     def add_arguments(cls, group):
         '''Add command line arugments to the group.'''
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
-        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
+        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=None)
 
-    def determine_terminal_width(self, file):
-        if self.pp.host.is_a_tty(file):
-            return self.pp.host.terminal_width(file)
+    def determine_terminal_width(self):
+        if self.pp.host.is_a_tty(self.file):
+            return self.pp.host.terminal_width(self.file)
         return 120
 
     def sgr_codes_from_env(self, env):
         '''Terminal Select Graphic Rendition (SGR) codes.'''
-        if env.command_line.colours and self.pp.host.terminal_supports_colours(env.variables):
+        colours = env.command_line.colours
+        if colours is None:
+            colours = (self.pp.host.is_a_tty(self.file)
+                       and self.pp.host.terminal_supports_colours(env.variables))
+        if colours:
             colour_string = env.variables.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
             return self.parse_sgr_code_assignments(colour_string)
         return {}
