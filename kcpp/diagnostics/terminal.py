@@ -11,7 +11,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate
 
-from ..basic import Buffer, BufferCoords
+from ..basic import Buffer, PresumedLocation
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )
@@ -131,14 +131,14 @@ class UnicodeTerminal(DiagnosticEngine):
 
         start, end = context.caret_highlight.start, context.caret_highlight.end
         lines = self.source_lines(start, end)
-        for line_number, line in enumerate(lines, start=start.line_number):
+        for line_number, line in enumerate(lines, start=start.presumed_line_number):
             margins = line_margins(line_number)
             room = self.terminal_width - 1 - len(margins[0])
             texts = line.source_and_highlight_lines(context, room, self.enhance_text)
             for margin, text in zip(margins, texts):
                 yield margin + text
 
-    def source_lines(self, start: BufferCoords, end: BufferCoords):
+    def source_lines(self, start: PresumedLocation, end: PresumedLocation):
         '''Return a list of SourceLine objects, one for each line between start and end inclusive.
         Each contains printable text, with replacements for unprintable characters and bad
         encodings, and tabs have been replaced with spaces.
@@ -228,7 +228,7 @@ class SourceLine:
 
         return text_column
 
-    def convert_to_column_range(self, start: BufferCoords, end: BufferCoords):
+    def convert_to_column_range(self, start: PresumedLocation, end: PresumedLocation):
         '''Given start and end coordinates, return a (start, end) pair of terminal columns based
         on where that range intersects this source line.  If it does not intersect this
         line then end == start == -1, otherwise end >= start.

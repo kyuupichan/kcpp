@@ -7,7 +7,7 @@
 import re
 from dataclasses import dataclass
 
-from ..basic import BufferPosition, BufferCoords
+from ..basic import BufferPosition, PresumedLocation
 
 from .definitions import (
     DID, DiagnosticSeverity, diagnostic_definitions,
@@ -71,14 +71,14 @@ class SpellingRange:
 
 @dataclass(slots=True)
 class RangeCoords:
-    '''A source range where both start and end are instances of BufferCoords.
+    '''A source range where both start and end are instances of PresumedLocation.
     Diagnostics issued by the preprocessor will always have start and end in the same
     buffer (ignoring the issue of scratch buffers used during macro expansion.  However
     diagnostics issued by a front end can have their start and end in different buffers
     owing to #include, so do not assume start and end lie in the same buffer.
     '''
-    start: BufferCoords
-    end: BufferCoords
+    start: PresumedLocation
+    end: PresumedLocation
 
 
 @dataclass(slots=True)
@@ -226,7 +226,7 @@ class DiagnosticListener(DiagnosticConsumer):
 
 
 class DiagnosticPrinter(DiagnosticConsumer):
-    '''A simple diagnostic consumer that prints the emitted diagnostics.'''
+    '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.'''
 
     def emit(self, diagnostic):
         print(diagnostic.to_short_text())
@@ -262,12 +262,14 @@ class DiagnosticEngine(DiagnosticConsumer):
         otherwise something like '"file_name": line 25: " for file locations.
         '''
         location = self.pp.locator.presumed_location(caret_loc, False)
-        arguments = [location.filename, location.line_number, location.column_offset + 1]
+        arguments = [location.presumed_filename, location.presumed_line_number,
+                     location.column_offset + 1]
 
         if self.worded_locations:
-            if location.buffer_position == BufferPosition.END_OF_SOURCE:
+            buffer_position = location.buffer_position()
+            if buffer_position == BufferPosition.END_OF_SOURCE:
                 did = DID.at_file_end
-            elif location.buffer_position == BufferPosition.END_OF_LINE:
+            elif buffer_position == BufferPosition.END_OF_LINE:
                 did = DID.at_file_and_end_of_line
             elif self.show_columns:
                 did = DID.at_file_line_and_column

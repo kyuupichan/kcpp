@@ -483,8 +483,8 @@ class BuiltinMacroExpansion(SimpleTokenList):
         if self.kind == BuiltinKind.LINE or self.kind == BuiltinKind.FILE:
             location = self.pp.locator.presumed_location(self.parent_loc, True)
             if self.kind == BuiltinKind.LINE:
-                return str(location.line_number)
-            return location.filename
+                return str(location.presumed_line_number)
+            return location.presumed_filename
 
         if self.kind == BuiltinKind.TIME or self.kind == BuiltinKind.DATE:
             if self.pp.time_str is None:

@@ -66,7 +66,7 @@ class PreprocessedOutput(FrontEndBase):
         super().__init__()
         self.at_bol = True
         self.write = sys.stdout.write
-        self.line_number = -1
+        self.line_number = -1   # Presumed line number
         self.filename = None
 
     def write_line_marker(self):
@@ -78,8 +78,8 @@ class PreprocessedOutput(FrontEndBase):
 
     def source_file_changed(self, loc, reason):
         location = self.pp.locator.presumed_location(loc, True)
-        self.line_number = location.line_number
-        self.filename = location.filename
+        self.line_number = location.presumed_line_number
+        self.filename = location.presumed_filename
         self.write_line_marker()
 
     def move_to_line_number(self, line_number):
@@ -109,8 +109,8 @@ class PreprocessedOutput(FrontEndBase):
                 break
 
             location = locator.presumed_location(token.loc, True)
-            if location.line_number != self.line_number:
-                self.move_to_line_number(location.line_number)
+            if location.presumed_line_number != self.line_number:
+                self.move_to_line_number(location.presumed_line_number)
                 if location.column_offset > 1:
                     write(' ' * location.column_offset)
             elif token.flags & TokenFlags.WS:

@@ -5,7 +5,7 @@
 '''Basic types.  Should have no dependencies on external modules.'''
 
 
-__all__ = ['Buffer', 'BufferCoords', 'BufferPosition', 'PresumedLocation',
+__all__ = ['Buffer', 'BufferPosition', 'PresumedLocation',
            'UnicodeKind', 'SIMPLE_ESCAPES', 'CONTROL_CHARACTER_LETTERS']
 
 from bisect import bisect_left
@@ -174,29 +174,35 @@ class BufferPosition(IntEnum):
 
 
 @dataclass(slots=True)
-class BufferCoords:
-    '''Represents a physical location in a buffer as a line number and column offset.'''
+class PresumedLocation:
+    '''The physical and presumed location in a buffer.'''
     # The buffer
     buffer: Buffer
-    # Line number in the buffer (1-based)
+    # The filname, a string literal, potentially modified by #line
+    presumed_filename: str
+    # The presumed line number, potentially modified by #line.  1-based, but line numbers
+    # of zero can happen because we accept, with a diagnostic, '#line 0'.
+    presumed_line_number: int
+    # The physical line number, 1-based
     line_number: int
     # Byte offset of the location from the start of the line (0-based)
     column_offset: int
     # Byte offset of the start of the line in the buffer
     line_offset: int
 
+    def offset(self):
+        '''The offset of this location in the buffer.'''
+        return self.line_offset + self.column_offset
 
-@dataclass(slots=True)
-class PresumedLocation:
-    # The filname, a string literal, potentially modified by #line
-    filename: str
-    # The line number, potentially modified by #line.  1-based, but line numbers of zero
-    # can happen because we accept, with a diagnostic, '#line 0'.
-    line_number: int
-    # Byte offset of the location from the start of the line (0-based)
-    column_offset: int
-    # Where a location lies in the buffer
-    buffer_position: BufferPosition
+    def buffer_position(self):
+        '''Where this location lies in the buffer.'''
+        text = self.buffer.text
+        offset = self.offset()
+        if offset == len(text):
+            return BufferPosition.END_OF_SOURCE
+        elif text[offset] in {10, 13}:
+            return BufferPosition.END_OF_LINE
+        return BufferPosition.WITHIN_LINE
 
 
 # A map from escape letters (e.g. 't', 'n') to their unicode codepoints

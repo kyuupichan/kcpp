@@ -10,7 +10,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..basic import Buffer, BufferCoords, BufferPosition, PresumedLocation
+from ..basic import Buffer, BufferPosition, PresumedLocation
 from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
     RangeCoords
@@ -70,16 +70,9 @@ class BufferSpan:
         line_range = self.line_ranges[index]
         line_offset, line_number = self.buffer.offset_to_line_info(offset)
         presumed_line_number = line_number + line_range.line_adj
-        text = self.buffer.text
-        if offset == len(text):
-            buffer_position = BufferPosition.END_OF_SOURCE
-        elif text[offset] in {10, 13}:
-            buffer_position = BufferPosition.END_OF_LINE
-        else:
-            buffer_position = BufferPosition.WITHIN_LINE
 
-        return PresumedLocation(line_range.name, presumed_line_number, offset - line_offset,
-                                buffer_position)
+        return PresumedLocation(self.buffer, line_range.name, presumed_line_number,
+                                line_number, offset - line_offset, line_offset)
 
 
 class ScratchBufferSpan(Buffer):
@@ -149,8 +142,8 @@ class ScratchBufferSpan(Buffer):
         assert 0 <= offset <= self.end - self.start
         line_offset, line_number = self.offset_to_line_info(offset)
         # The filename must be a valid C string literal
-        return PresumedLocation('"<scratch>"', line_number, offset - line_offset,
-                                BufferPosition.WITHIN_LINE)
+        return PresumedLocation(self, '"<scratch>"', line_number, line_number,
+                                offset - line_offset, line_offset)
 
 
 class ScratchEntryKind(IntEnum):
@@ -311,13 +304,11 @@ class Locator:
             loc = parent_loc
 
     def spelling_coords(self, loc, token_end=False):
-        '''Convert a location to a BufferCoords instance.'''
+        '''Convert a location to a PresumedLocation instance.'''
         span, offset = self.spelling_span_and_offset(loc)
         if token_end:
             offset += self.token_length(span.start + offset)
-        buffer = span.buffer
-        line_offset, line_number = buffer.offset_to_line_info(offset)
-        return BufferCoords(buffer, line_number, offset - line_offset, line_offset)
+        return span.presumed_location(offset)
 
     def token_length(self, loc):
         '''The length of the token in bytes in the source file.  This incldues, e.g., escaped
