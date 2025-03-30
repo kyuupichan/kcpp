@@ -48,7 +48,7 @@ class UnicodeTerminal(DiagnosticEngine):
     def add_arguments(cls, group):
         '''Add command line arugments to the group.'''
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
-        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=None)
+        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
     def determine_terminal_width(self):
         if self.pp.host.is_a_tty(self.file):
@@ -57,11 +57,7 @@ class UnicodeTerminal(DiagnosticEngine):
 
     def sgr_codes_from_env(self, env):
         '''Terminal Select Graphic Rendition (SGR) codes.'''
-        colours = env.command_line.colours
-        if colours is None:
-            colours = (self.pp.host.is_a_tty(self.file)
-                       and self.pp.host.terminal_supports_colours(env.variables))
-        if colours:
+        if env.command_line.colours and self.pp.host.terminal_supports_colours(env.variables):
             colour_string = env.variables.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
             return self.parse_sgr_code_assignments(colour_string)
         return {}
