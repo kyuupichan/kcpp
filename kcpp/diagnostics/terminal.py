@@ -124,15 +124,17 @@ class UnicodeTerminal(DiagnosticEngine):
         Other highlights appear only to the extent the intersect the first highlight's
         source lines.
         '''
-        def line_margins(line_number):
+        def line_margins(line_number, number_width):
             '''Return the text margin to show at the beginning of the line.'''
-            margin = f'{line_number:5d}'
+            margin = f'{line_number:{number_width}d}'
             return margin + ' | ', ' ' * len(margin) + ' | '
 
         start, end = context.caret_highlight.start, context.caret_highlight.end
         lines = self.source_lines(start, end)
+        max_line_number = start.presumed_line_number + len(lines) - 1
+        number_width = max(5, len(str(max_line_number)))
         for line_number, line in enumerate(lines, start=start.presumed_line_number):
-            margins = line_margins(line_number)
+            margins = line_margins(line_number, number_width)
             room = self.terminal_width - 1 - len(margins[0])
             texts = line.source_and_highlight_lines(context, room, self.enhance_text)
             for margin, text in zip(margins, texts):
