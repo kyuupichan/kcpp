@@ -24,9 +24,6 @@ class FrontEndBase(ABC):
     def diagnostic_consumer(self, env):
         return UnicodeTerminal(self.pp, env)
 
-    def sources(self, env):
-        return env.command_line.files
-
     def push_source(self, filename):
         return self.pp.push_main_source_file(filename)
 
