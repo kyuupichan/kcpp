@@ -70,43 +70,58 @@ class PreprocessedOutput(FrontEndBase):
         self.line_number = -1   # Presumed line number
         self.filename = None
         self.suppress_linemarkers = env.command_line.P
+        self.list_macros = env.command_line.list_macros
 
     @classmethod
     def update_argument_parser(cls, parser):
         group = parser.add_argument_group(title='preprocessed output')
         group.add_argument('-P', help='suppress generation of linemarkers', action='store_true',
                            default=False)
+        group.add_argument('--list-macros', help='output macro definitions', action='store_true',
+                           default=False)
+
+    def finish_line(self):
+        if not self.at_bol:
+            self.write('\n')
+            self.line_number += 1
+        self.at_bol = True
 
     def write_line_marker(self):
         '''Write a line marker.  On return self.at_bol is True.'''
-        if not self.at_bol:
-            self.write('\n')
         if not self.suppress_linemarkers:
             self.write(f'#line {self.line_number} {self.filename}\n')
-        self.at_bol = True
 
     def source_file_changed(self, loc, reason):
+        self.finish_line()
         location = self.pp.locator.presumed_location(loc, True)
         self.line_number = location.presumed_line_number
         self.filename = location.presumed_filename
         self.write_line_marker()
 
+    def macro_defined(self, macro):
+        self.finish_line()
+        macro_name = macro.macro_name(self.pp).decode()
+        self.write(f'#define {macro_name}{macro.definition_text(self.pp)}\n')
+        self.line_number += 1
+        self.at_bol = True
+
     def move_to_line_number(self, line_number):
+        self.finish_line()
         count = line_number - self.line_number
         assert count >= 0
         self.line_number = line_number
 
-        if self.suppress_linemarkers:
-            self.write('\n')
-        elif count < 8:
-            self.write('\n' * count)
-        else:
-            self.write_line_marker()
-        self.at_bol = True
+        if not self.suppress_linemarkers:
+            if count < 8:
+                self.write('\n' * count)
+            else:
+                self.write_line_marker()
 
     def preprocessor_actions(self):
         actions = PreprocessorActions()
         actions.source_file_changed = self.source_file_changed
+        if self.list_macros:
+            actions.macro_defined = self.macro_defined
         return actions
 
     def process(self):
@@ -129,7 +144,7 @@ class PreprocessedOutput(FrontEndBase):
             write(pp.token_spelling(token).decode())
             self.at_bol = False
 
-        write('\n')
+        self.finish_line()
 
 
 class FrontEnd(FrontEndBase):

@@ -61,7 +61,7 @@ class Macro:
     flags: int
     # The replacement list of tokens.
     replacement_list: list
-    # Space-separated parameter names.  Anonymous variable arguments apprear as __VA_ARGS__.
+    # ', '-joined parameter names.  Anonymous variable arguments appear as __VA_ARGS__.
     param_names: str
 
     def disable(self):
@@ -87,6 +87,10 @@ class Macro:
         '''Return true if the macro is variadic.'''
         return bool(self.flags & MacroFlags.IS_VARIADIC)
 
+    def is_function_like(self):
+        '''Return true if the macro is variadic.'''
+        return bool(self.flags & MacroFlags.IS_FUNCTION_LIKE)
+
     def param_count(self):
         '''Return the parameter count (a variable argument is counted).'''
         return self.flags >> 8
@@ -99,6 +103,21 @@ class Macro:
     def macro_name(self, pp):
         '''Return the macro name (as UTF-8).'''
         return pp.token_spelling_at_loc(self.name_loc)
+
+    def definition_text(self, pp):
+        '''Return what appeared after the macro name (including the parameter list) in
+        its definition.'''
+        def parts(self, pp):
+            if self.is_function_like():
+                yield '('
+                yield self.param_names.replace('__VA_ARGS__', '...')
+                yield ')'
+            for token in self.replacement_list:
+                if token.flags & TokenFlags.WS:
+                    yield ' '
+                yield pp.token_spelling(token).decode()
+
+        return ''.join(parts(self, pp))
 
     def collect_arguments(self, pp, name_token):
         paren_depth = 0

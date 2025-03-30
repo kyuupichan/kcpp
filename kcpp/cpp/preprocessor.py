@@ -59,6 +59,10 @@ class PreprocessorActions:
         context, and reason is a SourcefileChangeReason.'''
         pass
 
+    def macro_defined(self, macro):
+        '''Called when a macro is defined.'''
+        pass
+
 
 class Preprocessor:
 
@@ -517,6 +521,8 @@ class Preprocessor:
             macro = self.read_macro_definition(lexer, token)
             if macro:
                 self.define_macro(macro_ident, macro)
+                if self.actions:
+                    self.actions.macro_defined(macro)
             else:
                 is_good = False
         self.skip_to_eod(token, is_good)
@@ -567,7 +573,7 @@ class Preprocessor:
 
         if is_function_like:
             sorted_params = sorted((n, ident.spelling) for ident, n in params.items())
-            macro.param_names = b' '.join(spelling for _, spelling in sorted_params)
+            macro.param_names = ', '.join(spelling.decode() for _, spelling in sorted_params)
         return macro
 
     def check_va_opt_syntax(self, tokens, pos, va_opt):
