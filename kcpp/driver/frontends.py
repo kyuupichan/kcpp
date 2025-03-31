@@ -8,8 +8,9 @@ import sys
 from abc import ABC, abstractmethod
 
 from kcpp.cpp import (
-    Token, TokenKind, TokenFlags, Preprocessor, PreprocessorActions,
+    Token, TokenKind, TokenFlags, Preprocessor, PreprocessorActions, Lexer,
 )
+from kcpp.cpp.locator import BufferSpan
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
 
@@ -120,6 +121,9 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         token = Token.create()
         write = self.write
         locator = pp.locator
+        prior_loc = None
+        prior_spelling = None
+
         while True:
             pp.get_token(token)
             if token.kind == TokenKind.EOF:
@@ -128,15 +132,51 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             location = locator.presumed_location(token.loc, True)
             if location.presumed_line_number != self.line_number:
                 self.move_to_line_number(location.presumed_line_number)
-            if self.at_bol and location.column_offset > 1:
-                write(' ' * location.column_offset)
+            if self.at_bol:
+                if location.column_offset > 1:
+                    write(' ' * location.column_offset)
             elif token.flags & TokenFlags.WS:
                 write(' ')
-            write(pp.token_spelling(token).decode())
+            elif self.separate_tokens(prior_loc, prior_spelling, token):
+                write(' ')
+
+            prior_loc = token.loc
+            prior_spelling = pp.token_spelling(token)
+            write(prior_spelling.decode())
             self.at_bol = False
 
         self.finish_line()
 
+    def separate_tokens(self, lhs_loc, lhs_spelling, rhs):
+        '''Return True if a space should be output to separate two tokens.'''
+        # We must separate the tokens if:
+        # 1) spellings that lex to a different token to LHS (or start a comment)
+        # 2) spellings that lex to LHS but could become part of a longer token if more
+        #    were concatenated
+        #
+        # Many casees for 1): // /* += --
+        # Three cases for 2):  ..  %:% <NUMBER><CHARACTER_LITERAL>
+        spelling = lhs_spelling + self.pp.token_spelling(rhs)
+        lexer = Lexer(self.pp, spelling, 1)
+        token = Token.create()
+        prior = self.pp.set_diagnostic_consumer(None)
+        lexer.get_token(token)
+        self.pp.set_diagnostic_consumer(prior)
+
+        # If it formed a different token we need a space
+        if lexer.cursor != len(lhs_spelling):
+            return True
+
+        # Case 2 above
+        case2 = (lhs_spelling == b'.' and rhs.kind == TokenKind.DOT
+                 or (lhs_spelling == b'%:' and rhs.kind == TokenKind.MODULUS)
+                 or (token.kind == TokenKind.NUMBER and rhs.kind == TokenKind.CHARACTER_LITERAL))
+        if case2:
+            # Only let this through if the tokens were adjacent in the original source
+            lhs_span, lhs_offset = self.pp.locator.spelling_span_and_offset(lhs_loc)
+            rhs_span, rhs_offset = self.pp.locator.spelling_span_and_offset(rhs.loc)
+            return lhs_span != rhs_span or rhs_offset != lhs_offset + len(lhs_spelling)
+        return False
 
 class FrontEnd(FrontEndBase):
     '''Simulate a compiler front end.  For now, all it does is output consumed tokens, and the
