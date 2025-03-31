@@ -192,13 +192,14 @@ class Preprocessor:
                 try:
                     charset = Charset.from_name(charset_name)
                 except LookupError:
-                    env.diag(DID.unknown_charset, [charset_name])
+                    self.diag(DID.unknown_charset, location_command_line, [charset_name])
                     return
 
                 encoding_unit_size = charset.encoding_unit_size()
                 unit_width = self.target.integer_width(integer_kind)
                 if encoding_unit_size * 8 != unit_width:
-                    env.diag(DID.invalid_charset, [charset_name, integer_kind.name, unit_width])
+                    self.diag(DID.invalid_charset, location_command_line,
+                              [charset_name, integer_kind.name, unit_width])
                     return
                 setattr(self.target, attrib, charset)
 

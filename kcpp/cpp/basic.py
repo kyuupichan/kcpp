@@ -31,14 +31,6 @@ class Environment:
     command_line: Namespace
     # A dictionary of environment variables
     variables: dict
-    # A list of Diagnostic objects issued when processing the above.  It is the
-    # responsibility of the creator of the Environment object to pass these diagnostics to
-    # a DiagnosticConsumer at the appropriate time.
-    diagnostics: list
-
-    def diag(self, did, args):
-        from ..diagnostics import Diagnostic, location_command_line
-        self.diagnostics.append(Diagnostic(did, location_command_line, args))
 
 
 class TokenSource(ABC):

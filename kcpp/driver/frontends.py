@@ -40,15 +40,10 @@ class FrontEndBase(ABC):
         self.env = env
 
     def run(self, source):
+        # Set up the diagnostic consumer before processing the command line
+        self.pp.set_diagnostic_consumer(self.diagnostic_consumer(self.env))
         self.pp.initialize(self.env)
 
-        # Get a diagnostic consumer
-        consumer = self.diagnostic_consumer(self.env)
-        self.pp.set_diagnostic_consumer(consumer)
-
-        # Emit diagnostics from processing the command line
-        for diagnostic in self.env.diagnostics:
-            self.pp.emit(diagnostic)
         # Process the source
         if self.push_source(source):
             self.process()

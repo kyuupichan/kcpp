@@ -47,7 +47,7 @@ class Driver:
         parser = self.parser(frontend)
         command_line = parser.parse_args(argv)
         environ = os.environ if environ is None else environ
-        return Environment(command_line, environ, [])
+        return Environment(command_line, environ)
 
     def run(self, argv=None, environ=None, frontend_class=None):
         assert isinstance(argv, (str, list, type(None)))
