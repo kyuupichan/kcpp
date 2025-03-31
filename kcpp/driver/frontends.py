@@ -155,27 +155,29 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         #
         # Many casees for 1): // /* += --
         # Three cases for 2):  ..  %:% <NUMBER><CHARACTER_LITERAL>
-        spelling = lhs_spelling + self.pp.token_spelling(rhs)
+
+        # If they were adjacent in the source code, no space is needed
+        lhs_span, lhs_offset = self.pp.locator.spelling_span_and_offset(lhs_loc)
+        rhs_span, rhs_offset = self.pp.locator.spelling_span_and_offset(rhs.loc)
+        if lhs_span == rhs_span and rhs_offset == lhs_offset + len(lhs_spelling):
+            return False
+
+        rhs_spelling = self.pp.token_spelling(rhs)
+        spelling = lhs_spelling + rhs_spelling
         lexer = Lexer(self.pp, spelling, 1)
         token = Token.create()
         prior = self.pp.set_diagnostic_consumer(None)
         lexer.get_token(token)
         self.pp.set_diagnostic_consumer(prior)
 
-        # If it formed a different token we need a space
+        # Case 1: if it formed a different token we need a space
         if lexer.cursor != len(lhs_spelling):
             return True
 
         # Case 2 above
-        case2 = (lhs_spelling == b'.' and rhs.kind == TokenKind.DOT
-                 or (lhs_spelling == b'%:' and rhs.kind == TokenKind.MODULUS)
-                 or (token.kind == TokenKind.NUMBER and rhs.kind == TokenKind.CHARACTER_LITERAL))
-        if case2:
-            # Only let this through if the tokens were adjacent in the original source
-            lhs_span, lhs_offset = self.pp.locator.spelling_span_and_offset(lhs_loc)
-            rhs_span, rhs_offset = self.pp.locator.spelling_span_and_offset(rhs.loc)
-            return lhs_span != rhs_span or rhs_offset != lhs_offset + len(lhs_spelling)
-        return False
+        return (lhs_spelling == b'.' and rhs.kind == TokenKind.DOT
+                or (lhs_spelling == b'%:' and rhs.kind == TokenKind.MODULUS)
+                or (token.kind == TokenKind.NUMBER and rhs.kind == TokenKind.CHARACTER_LITERAL))
 
 
 class FrontEnd(FrontEndBase):
