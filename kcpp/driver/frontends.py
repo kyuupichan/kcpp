@@ -18,9 +18,9 @@ __all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
 
 class FrontEndBase(ABC):
 
-    def __init__(self, env):
+    def __init__(self):
         super().__init__()
-        self.pp = None
+        self.pp = Preprocessor()
 
     @classmethod
     def update_argument_parser(cls, parser):
@@ -32,26 +32,26 @@ class FrontEndBase(ABC):
     def push_source(self, filename):
         return self.pp.push_main_source_file(filename)
 
-    def process_source(self, filename):
-        if self.push_source(filename):
-            self.process()
-
     @abstractmethod
     def process(self):
         pass
 
-    def run(self, source, env):
-        self.pp = Preprocessor(env)
+    def customize(self, env):
+        self.env = env
+
+    def run(self, source):
+        self.pp.initialize(self.env)
 
         # Get a diagnostic consumer
-        consumer = self.diagnostic_consumer(env)
+        consumer = self.diagnostic_consumer(self.env)
         self.pp.set_diagnostic_consumer(consumer)
 
         # Emit diagnostics from processing the command line
-        for diagnostic in env.diagnostics:
+        for diagnostic in self.env.diagnostics:
             self.pp.emit(diagnostic)
         # Process the source
-        self.process_source(source)
+        if self.push_source(source):
+            self.process()
         # Tidy up
         return self.pp.finish()
 
@@ -59,14 +59,15 @@ class FrontEndBase(ABC):
 class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def __init__(self, env):
-        super().__init__(env)
-        self.at_bol = True
-        self.write = sys.stdout.write
+    def __init__(self):
+        super().__init__()
+        self.at_bol = False
+        self.write = None
         self.line_number = -1   # Presumed line number
         self.filename = None
-        self.suppress_linemarkers = env.command_line.P
-        self.list_macros = env.command_line.list_macros
+        # Controlled from the command line
+        self.suppress_linemarkers = False
+        self.list_macros = False
 
     @classmethod
     def update_argument_parser(cls, parser):
@@ -75,6 +76,11 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                            default=False)
         group.add_argument('--list-macros', help='output macro definitions', action='store_true',
                            default=False)
+
+    def customize(self, env):
+        super().customize(env)
+        self.suppress_linemarkers = env.command_line.P
+        self.list_macros = env.command_line.list_macros
 
     def finish_line(self):
         if not self.at_bol:
@@ -115,6 +121,9 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 self.write_line_marker()
 
     def process(self):
+        self.write = sys.stdout.write
+        self.at_bol = True
+
         pp = self.pp
         pp.actions = self
         token = Token.create()

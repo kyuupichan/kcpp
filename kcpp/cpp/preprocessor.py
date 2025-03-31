@@ -71,21 +71,27 @@ class Preprocessor:
     handlers = {}
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
 
-    def __init__(self, env, *, target=None):
-        self.target = target or TargetMachine.default()
-
+    def __init__(self):
+        '''Perform initialization that is not dependent on customization of, e.g., choice of
+        language standard or target.  Such context-sensitive initialization is done by the
+        caller calling initialize(), which must happen before pushing the main file.
+        '''
         # Helper objects.
         self.identifiers = {}
         # Tracks locations
         self.locator = Locator(self)
-        # Parses and evaluates preprocessor expressions
-        self.expr_parser = ExprParser(self)
-        # Interprets literals as they would be for a front-end
-        self.literal_interpreter = LiteralInterpreter(self, False)
         # Diagnostics are sent here
         self.diagnostic_consumer = None
         # Action listener
         self.actions = None
+        # The expression parser parses and evaluates preprocessor expressions.  The
+        # literal interpreter interprets literal values as they would be for a front-end.
+        # Both are depdendent on the compilation target so their initialization is
+        # deferred to initialize().
+        self.target = None
+        self.expr_parser = None                 # Deferred
+        self.literal_interpreter = None         # Deferred
+
         # Directive handlers
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}
@@ -111,9 +117,7 @@ class Preprocessor:
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
         self.date_str = None
-        self.command_line = self.configure(env)
-
-        self.initialize()
+        self.command_line_buffer = None
 
     @classmethod
     def add_arguments(cls, pp_group, diag_group):
@@ -131,43 +135,12 @@ class Preprocessor:
                               -U options are processed after all -D options.''')
         DiagnosticEngine.add_arguments(diag_group)
 
-    def configure(self, env):
-        # Don't require a specific env setup
-        if not env:
-            return ''
+    def initialize(self, env=None, target=None):
+        # Initialization dependent on target.
+        self.target = target or TargetMachine.default()
+        self.literal_interpreter = LiteralInterpreter(self, False)
+        self.expr_parser = ExprParser(self)
 
-        def set_charset(attrib, charset_name, integer_kind):
-            if charset_name:
-                try:
-                    charset = Charset.from_name(charset_name)
-                except LookupError:
-                    env.diag(DID.unknown_charset, [charset_name])
-                    return
-
-                encoding_unit_size = charset.encoding_unit_size()
-                unit_width = self.target.integer_width(integer_kind)
-                if encoding_unit_size * 8 != unit_width:
-                    env.diag(DID.invalid_charset, [charset_name, integer_kind.name, unit_width])
-                    return
-                setattr(self.target, attrib, charset)
-
-        set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
-        set_charset('wide_charset', env.command_line.wide_exec_charset, IntegerKind.wchar_t)
-
-        def buffer_lines(command_line):
-            for define in command_line.define_macro:
-                pair = define.split('=', maxsplit=1)
-                if len(pair) == 1:
-                    name, definition = pair[0], '1'
-                else:
-                    name, definition = pair
-                yield f'#define {name} {definition}'
-            for name in command_line.undefine_macro:
-                yield f'#undef {name}'
-
-        return '\n'.join(buffer_lines(env.command_line))
-
-    def initialize(self):
         # The variadic macro identifiers
         for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
             self.get_identifier(spelling).set_special(SpecialKind.VA_IDENTIFIER)
@@ -209,6 +182,43 @@ class Preprocessor:
         self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
         self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
+
+        if not env:
+            return
+
+        # Initialization based on the environment
+        def set_charset(attrib, charset_name, integer_kind):
+            if charset_name:
+                try:
+                    charset = Charset.from_name(charset_name)
+                except LookupError:
+                    env.diag(DID.unknown_charset, [charset_name])
+                    return
+
+                encoding_unit_size = charset.encoding_unit_size()
+                unit_width = self.target.integer_width(integer_kind)
+                if encoding_unit_size * 8 != unit_width:
+                    env.diag(DID.invalid_charset, [charset_name, integer_kind.name, unit_width])
+                    return
+                setattr(self.target, attrib, charset)
+
+        def buffer_lines(command_line):
+            for define in command_line.define_macro:
+                pair = define.split('=', maxsplit=1)
+                if len(pair) == 1:
+                    name, definition = pair[0], '1'
+                else:
+                    name, definition = pair
+                yield f'#define {name} {definition}'
+            for name in command_line.undefine_macro:
+                yield f'#undef {name}'
+
+        # Set up execution character sets if specified
+        set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
+        set_charset('wide_charset', env.command_line.wide_exec_charset, IntegerKind.wchar_t)
+
+        # The command line buffer is processed when the main buffer is pushed.
+        self.command_line_buffer = '\n'.join(buffer_lines(env.command_line)).encode()
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
@@ -321,9 +331,9 @@ class Preprocessor:
             self.halt_compilation()
         else:
             parent_loc = self.sources[-1].cursor_loc()
-            if self.command_line:
+            if self.command_line_buffer:
                 parent_loc = self.sources[-1].cursor_loc()
-                self.push_lexer(self.command_line.encode(), '"<command line>"', parent_loc)
+                self.push_lexer(self.command_line_buffer, '"<command line>"', parent_loc)
             raw_predefines = predefines(self).encode()
             self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
             self.predefining_macros = True
