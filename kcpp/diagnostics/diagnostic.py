@@ -196,12 +196,10 @@ class DiagnosticConsumer:
         self.error_count = 0
         self.fatal_error_count = 0
 
-    def emit(self, diagnostic: Diagnostic):
-        '''Emit a diagnostic.  Return True if compilation should stop.'''
-        # In the base class we simply update the statistics
-        severity_enum = diagnostic_definitions[diagnostic.did].severity
-        if severity_enum >= DiagnosticSeverity.error:
-            if severity_enum == DiagnosticSeverity.fatal:
+    def update_error_counts(self, severity):
+        '''Call this to update the error counts.'''
+        if severity >= DiagnosticSeverity.error:
+            if severity == DiagnosticSeverity.fatal:
                 self.fatal_error_count += 1
             else:
                 self.error_count += 1
@@ -216,7 +214,6 @@ class DiagnosticListener(DiagnosticConsumer):
 
     def emit(self, diagnostic):
         self.diagnostics.append(diagnostic)
-        super().emit(diagnostic)
 
 
 class DiagnosticPrinter(DiagnosticConsumer):
@@ -226,7 +223,6 @@ class DiagnosticPrinter(DiagnosticConsumer):
         # Don't emit compilation summary, etc.
         if diagnostic.loc != location_none:
             print(diagnostic.to_short_text())
-            super().emit(diagnostic)
 
 
 class DiagnosticEngine(DiagnosticConsumer):
@@ -294,6 +290,8 @@ class DiagnosticEngine(DiagnosticConsumer):
         # Determine the message.  The location is determined by the main highlight,
         # which is the first one in the list.
         severity_enum = diagnostic_definitions[diagnostic_context.did].severity
+        self.update_error_counts(severity_enum)
+
         text = self.translations.diagnostic_text(diagnostic_context.did)
         caret_range = diagnostic_context.caret_range
         caret_loc = caret_range.caret_loc()
