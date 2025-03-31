@@ -32,9 +32,25 @@ brief_at_file_line_and_column:
   severity: none
   text: '%0:%1:%2'
 
-errors_generated:
+compilation_halted:
   severity: none
-  text: "%plural{1:error|:errors}0 generated."
+  text: Compilation halted.
+
+error_limit_reached:
+  severity: none
+  text: Error limit reached.
+
+error_summary:
+  severity: none
+  text: "%plural{1:error|:errors}0 generated compiling %1."
+
+fatal_error_summary:
+  severity: none
+  text: 1 fatal error generated compiling %0.
+
+fatal_error_and_error_summary:
+  severity: none
+  text: 1 fatal error and %plural{1:error|:errors}0 generated compiling %1.
 
 severity_remark:
   severity: none

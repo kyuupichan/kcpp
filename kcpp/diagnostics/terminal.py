@@ -82,9 +82,9 @@ class UnicodeTerminal(DiagnosticEngine):
 
     def emit(self, diagnostic: Diagnostic):
         '''Called when the preprocessor emits a diagnostic.'''
-        super().emit(diagnostic)
         # Elaborate it, and emit it recursively.
         self.emit_recursive(self.elaborate(diagnostic), 0)
+        return super().emit(diagnostic)
 
     def emit_recursive(self, elaborated_diagnostic, indent):
         '''Emit the top-level diagnostic at the given indentation level.  Then emit nested

@@ -45,6 +45,7 @@ class DID(IntEnum):
     codepoint_control_character = auto()
     codepoint_invalid = auto()
     codepoint_surrogate = auto()
+    compilation_halted = auto()
     delimeter_invalid_character = auto()
     delimeter_too_long = auto()
     division_by_zero = auto()
@@ -55,7 +56,8 @@ class DID(IntEnum):
     empty_character_literal = auto()
     endif_without_if = auto()
     error_directive = auto()
-    errors_generated = auto()
+    error_limit_reached = auto()
+    error_summary = auto()
     escape_sequence_value_too_large = auto()
     expected_a_header_name = auto()
     expected_close_brace = auto()
@@ -68,6 +70,8 @@ class DID(IntEnum):
     expected_open_brace = auto()
     expected_open_paren = auto()
     extra_directive_tokens = auto()
+    fatal_error_and_error_summary = auto()
+    fatal_error_summary = auto()
     filename_should_be_string = auto()
     floating_point_in_pp_expr = auto()
     from_formation_of_header_name = auto()
@@ -253,6 +257,12 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%q0 is a surrogate codepoint',
     ),
+    DID.compilation_halted: DiagnosticDefinition(
+        DID.compilation_halted,
+        DiagnosticSeverity.none,
+        DiagnosticGroup.none,
+        'Compilation halted.',
+    ),
     DID.delimeter_invalid_character: DiagnosticDefinition(
         DID.delimeter_invalid_character,
         DiagnosticSeverity.error,
@@ -313,11 +323,17 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%0',
     ),
-    DID.errors_generated: DiagnosticDefinition(
-        DID.errors_generated,
+    DID.error_limit_reached: DiagnosticDefinition(
+        DID.error_limit_reached,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '%plural{1:error|:errors}0 generated.',
+        'Error limit reached.',
+    ),
+    DID.error_summary: DiagnosticDefinition(
+        DID.error_summary,
+        DiagnosticSeverity.none,
+        DiagnosticGroup.none,
+        '%plural{1:error|:errors}0 generated compiling %1.',
     ),
     DID.escape_sequence_value_too_large: DiagnosticDefinition(
         DID.escape_sequence_value_too_large,
@@ -327,7 +343,7 @@ diagnostic_definitions = {
     ),
     DID.expected_a_header_name: DiagnosticDefinition(
         DID.expected_a_header_name,
-        DiagnosticSeverity.error,
+        DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'expected a header name of the form "FILENAME" or <FILENAME>',
     ),
@@ -390,6 +406,18 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'extra tokens at end of #%0 directive',
+    ),
+    DID.fatal_error_and_error_summary: DiagnosticDefinition(
+        DID.fatal_error_and_error_summary,
+        DiagnosticSeverity.none,
+        DiagnosticGroup.none,
+        '1 fatal error and %plural{1:error|:errors}0 generated compiling %1.',
+    ),
+    DID.fatal_error_summary: DiagnosticDefinition(
+        DID.fatal_error_summary,
+        DiagnosticSeverity.none,
+        DiagnosticGroup.none,
+        '1 fatal error generated compiling %0.',
     ),
     DID.filename_should_be_string: DiagnosticDefinition(
         DID.filename_should_be_string,

@@ -91,11 +91,14 @@ class Preprocessor:
         self.host = Host.host()
         # Token source stack
         self.sources = []
+        # The primary source file
+        self.main_filename = None
 
         # Internal state
         self.collecting_arguments = False
         self.directive_name_loc = None
         self.expand_macros = True
+        self.halt = False
         self.in_directive = False
         self.in_header_name = False
         self.in_variadic_macro_definition = False
@@ -216,8 +219,11 @@ class Preprocessor:
         self.emit(Diagnostic(did, loc, args))
 
     def emit(self, diagnostic):
-        if self.diagnostic_consumer:
-            self.diagnostic_consumer.emit(diagnostic)
+        # Suppress diagnostics with source locations
+        if not self.halt or diagnostic.loc >= 0:
+            consumer = self.diagnostic_consumer
+            if consumer and consumer.emit(diagnostic):
+                self.halt_compilation()
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)
@@ -296,27 +302,37 @@ class Preprocessor:
 
     def push_main_buffer(self, raw, filename):
         assert not self.sources
+        self.main_filename = filename
         self.push_lexer(raw, filename, -1)
-        parent_loc = self.sources[-1].cursor_loc()
-        if self.command_line:
+        if self.halt:
+            self.halt_compilation()
+        else:
             parent_loc = self.sources[-1].cursor_loc()
-            self.push_lexer(self.command_line.encode(), '"<command line>"', parent_loc)
-        raw_predefines = predefines(self).encode()
-        self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
-        self.predefining_macros = True
+            if self.command_line:
+                parent_loc = self.sources[-1].cursor_loc()
+                self.push_lexer(self.command_line.encode(), '"<command line>"', parent_loc)
+            raw_predefines = predefines(self).encode()
+            self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
+            self.predefining_macros = True
+
+    def halt_compilation(self):
+        self.halt = True
+        if not self.sources:
+            # push_main_buffer() will call us back
+            return
+        # Move the main lexer to EOF and drop other token sources, so that frontends exit
+        # immediately
+        lexer = self.sources[0]
+        lexer.cursor = len(lexer.buff)
+        self.sources = [lexer]
 
     def finish(self):
         '''Emit a compilation summary and return an exit code.
 
         The preprocessor frontend should call this when it has finished processing, and it will
         no longer call get_token().'''
-        assert len(self.sources) <= 1
-        self.diagnostic_consumer.emit_compilation_summary()
-        if self.diagnostic_consumer.fatal_count:
-            return 4
-        if self.diagnostic_consumer.error_count:
-            return 2
-        return 0
+        assert len(self.sources) == 1
+        return self.diagnostic_consumer.emit_compilation_summary(self.main_filename)
 
     def push_lexer(self, raw, filename, parent_loc):
         assert isinstance(filename, str) and filename[0] == filename[-1] == '"'

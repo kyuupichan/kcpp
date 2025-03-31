@@ -33,12 +33,8 @@ class FrontEndBase(ABC):
         return self.pp.push_main_source_file(filename)
 
     def process_source(self, filename):
-        self.pp.actions = self.preprocessor_actions()
         if self.push_source(filename):
             self.process()
-
-    def preprocessor_actions(self):
-        return None
 
     @abstractmethod
     def process(self):
@@ -54,9 +50,8 @@ class FrontEndBase(ABC):
         # Emit diagnostics from processing the command line
         for diagnostic in env.diagnostics:
             self.pp.emit(diagnostic)
-        # Process the source if no error
-        if not consumer.error_count:
-            self.process_source(source)
+        # Process the source
+        self.process_source(source)
         # Tidy up
         return self.pp.finish()
 

@@ -10,7 +10,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..basic import Buffer, BufferPosition, PresumedLocation
+from ..basic import Buffer, PresumedLocation
 from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
     RangeCoords

@@ -194,23 +194,36 @@ class DiagnosticConsumer:
     '''
     def __init__(self):
         self.error_count = 0
-        self.fatal_count = 0
+        self.fatal_error = False
+        self.error_limit = 2
 
     def emit(self, diagnostic: Diagnostic):
-        '''Emit a diagnostic.'''
+        '''Emit a diagnostic.  Return True if compilation should stop.'''
         # In the base class we simply update the statistics
-        self.update_statistics(diagnostic.did)
-
-    def emit_compilation_summary(self):
-        if self.error_count:
-            self.emit(Diagnostic(DID.errors_generated, location_none, [self.error_count]))
-
-    def update_statistics(self, did):
-        severity_enum = diagnostic_definitions[did].severity
+        severity_enum = diagnostic_definitions[diagnostic.did].severity
         if severity_enum >= DiagnosticSeverity.error:
-            self.error_count += 1
             if severity_enum == DiagnosticSeverity.fatal:
-                self.fatal_count += 1
+                self.fatal_error = True
+            else:
+                self.error_count += 1
+        return self.fatal_error or self.error_count >= self.error_limit
+
+    def emit_compilation_summary(self, filename):
+        '''Emit a compilation summary and return an exit code.'''
+        if self.fatal_error:
+            self.emit(Diagnostic(DID.compilation_halted, location_none))
+            if self.error_count:
+                self.emit(Diagnostic(DID.fatal_error_and_error_summary, location_none,
+                                     [self.error_count, filename]))
+            else:
+                self.emit(Diagnostic(DID.fatal_error_summary, location_none, [filename]))
+            return 4
+        if self.error_count:
+            if self.error_count >= self.error_limit:
+                self.emit(Diagnostic(DID.error_limit_reached, location_none))
+            self.emit(Diagnostic(DID.error_summary, location_none, [self.error_count, filename]))
+            return 2
+        return 0
 
 
 class DiagnosticListener(DiagnosticConsumer):
@@ -221,16 +234,16 @@ class DiagnosticListener(DiagnosticConsumer):
         self.diagnostics = []
 
     def emit(self, diagnostic):
-        super().emit(diagnostic)
         self.diagnostics.append(diagnostic)
+        return super().emit(diagnostic)
 
 
 class DiagnosticPrinter(DiagnosticConsumer):
     '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.'''
 
     def emit(self, diagnostic):
-        super().emit(diagnostic)
         print(diagnostic.to_short_text())
+        return super().emit(diagnostic)
 
     def emit_compilation_summary(self):
         pass
