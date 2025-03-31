@@ -194,8 +194,7 @@ class DiagnosticConsumer:
     '''
     def __init__(self):
         self.error_count = 0
-        self.fatal_error = False
-        self.error_limit = 20
+        self.fatal_error_count = 0
 
     def emit(self, diagnostic: Diagnostic):
         '''Emit a diagnostic.  Return True if compilation should stop.'''
@@ -203,27 +202,9 @@ class DiagnosticConsumer:
         severity_enum = diagnostic_definitions[diagnostic.did].severity
         if severity_enum >= DiagnosticSeverity.error:
             if severity_enum == DiagnosticSeverity.fatal:
-                self.fatal_error = True
+                self.fatal_error_count += 1
             else:
                 self.error_count += 1
-        return self.fatal_error or self.error_count >= self.error_limit
-
-    def emit_compilation_summary(self, filename):
-        '''Emit a compilation summary and return an exit code.'''
-        if self.fatal_error:
-            self.emit(Diagnostic(DID.compilation_halted, location_none))
-            if self.error_count:
-                self.emit(Diagnostic(DID.fatal_error_and_error_summary, location_none,
-                                     [self.error_count, filename]))
-            else:
-                self.emit(Diagnostic(DID.fatal_error_summary, location_none, [filename]))
-            return 4
-        if self.error_count:
-            if self.error_count >= self.error_limit:
-                self.emit(Diagnostic(DID.error_limit_reached, location_none))
-            self.emit(Diagnostic(DID.error_summary, location_none, [self.error_count, filename]))
-            return 2
-        return 0
 
 
 class DiagnosticListener(DiagnosticConsumer):
@@ -235,23 +216,22 @@ class DiagnosticListener(DiagnosticConsumer):
 
     def emit(self, diagnostic):
         self.diagnostics.append(diagnostic)
-        return super().emit(diagnostic)
+        super().emit(diagnostic)
 
 
 class DiagnosticPrinter(DiagnosticConsumer):
     '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.'''
 
     def emit(self, diagnostic):
-        print(diagnostic.to_short_text())
-        return super().emit(diagnostic)
-
-    def emit_compilation_summary(self, filename):
-        return 0
+        # Don't emit compilation summary, etc.
+        if diagnostic.loc != location_none:
+            print(diagnostic.to_short_text())
+            super().emit(diagnostic)
 
 
 class DiagnosticEngine(DiagnosticConsumer):
 
-    formatting_code = re.compile('%(([a-z]+)({.+})?)?([0-9]?)')
+    formatting_code = re.compile('%(([a-z]+)({.[^}]*})?)?([0-9]?)')
     severity_map = {
         DiagnosticSeverity.remark: (DID.severity_remark, 'remark'),
         DiagnosticSeverity.note: (DID.severity_note, 'note'),

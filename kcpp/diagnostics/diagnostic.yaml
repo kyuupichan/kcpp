@@ -46,11 +46,12 @@ error_summary:
 
 fatal_error_summary:
   severity: none
-  text: 1 fatal error generated compiling %0.
+  text: "%plural{1:fatal error|:fatal errors}0 generated compiling %1."
 
 fatal_error_and_error_summary:
   severity: none
-  text: 1 fatal error and %plural{1:error|:errors}0 generated compiling %1.
+  text:  "%plural{1:fatal error|:fatal errors}0 and %plural{1:error|:errors}1 \
+    generated compiling %2."
 
 severity_remark:
   severity: none

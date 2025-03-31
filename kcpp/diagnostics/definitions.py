@@ -411,13 +411,13 @@ diagnostic_definitions = {
         DID.fatal_error_and_error_summary,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '1 fatal error and %plural{1:error|:errors}0 generated compiling %1.',
+        '%plural{1:fatal error|:fatal errors}0 and %plural{1:error|:errors}1 generated compiling %2.',
     ),
     DID.fatal_error_summary: DiagnosticDefinition(
         DID.fatal_error_summary,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '1 fatal error generated compiling %0.',
+        '%plural{1:fatal error|:fatal errors}0 generated compiling %1.',
     ),
     DID.filename_should_be_string: DiagnosticDefinition(
         DID.filename_should_be_string,

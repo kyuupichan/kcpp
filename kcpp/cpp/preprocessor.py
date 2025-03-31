@@ -10,7 +10,9 @@ from enum import IntEnum, auto
 from functools import partial
 
 from ..basic import Buffer, Host, UnicodeKind
-from ..diagnostics import DID, Diagnostic, DiagnosticEngine, location_command_line
+from ..diagnostics import (
+    DID, Diagnostic, DiagnosticEngine, location_command_line, location_none,
+)
 
 from .basic import (
     IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
@@ -97,11 +99,13 @@ class Preprocessor:
         # Internal state
         self.collecting_arguments = False
         self.directive_name_loc = None
+        self.error_limit = 20
         self.expand_macros = True
         self.halt = False
         self.in_directive = False
         self.in_header_name = False
         self.in_variadic_macro_definition = False
+        self.lexing_scratch = False
         self.skipping = False
         self.predefining_macros = False
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
@@ -220,9 +224,18 @@ class Preprocessor:
 
     def emit(self, diagnostic):
         # Suppress diagnostics with source locations
-        if not self.halt or diagnostic.loc >= 0:
-            consumer = self.diagnostic_consumer
-            if consumer and consumer.emit(diagnostic):
+        if self.halt and diagnostic.loc >= 0:
+            return
+        # Emit these instead as invalid token concatentation or stringizing
+        if self.lexing_scratch and diagnostic.did in (
+                DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
+                DID.unterminated_literal):
+            return False
+
+        consumer = self.diagnostic_consumer
+        if consumer:
+            consumer.emit(diagnostic)
+            if consumer.fatal_error_count or consumer.error_count >= self.error_limit:
                 self.halt_compilation()
 
     def get_identifier(self, spelling):
@@ -332,7 +345,25 @@ class Preprocessor:
         The preprocessor frontend should call this when it has finished processing, and it will
         no longer call get_token().'''
         assert len(self.sources) == 1
-        return self.diagnostic_consumer.emit_compilation_summary(self.main_filename)
+
+        fatal_error_count = self.diagnostic_consumer.fatal_error_count
+        error_count = self.diagnostic_consumer.error_count
+        if fatal_error_count:
+            self.emit(Diagnostic(DID.compilation_halted, location_none))
+            if error_count:
+                self.emit(Diagnostic(DID.fatal_error_and_error_summary, location_none,
+                                     [fatal_error_count, error_count, self.main_filename]))
+            else:
+                self.emit(Diagnostic(DID.fatal_error_summary, location_none,
+                                     [fatal_error_count, self.main_filename]))
+            return 4
+        if error_count:
+            if error_count >= self.error_limit:
+                self.emit(Diagnostic(DID.error_limit_reached, location_none))
+            self.emit(Diagnostic(DID.error_summary, location_none,
+                                 [error_count, self.main_filename]))
+            return 2
+        return 0
 
     def push_lexer(self, raw, filename, parent_loc):
         assert isinstance(filename, str) and filename[0] == filename[-1] == '"'
@@ -533,12 +564,11 @@ class Preprocessor:
         scratch_loc = self.locator.new_scratch_token(spelling, parent_loc, kind)
         lexer = Lexer(self, spelling, scratch_loc)
         token = Token.create()
-        dfilter = DiagnosticFilter()
-        dfilter.prior = self.set_diagnostic_consumer(dfilter)
+        self.lexing_scratch = True
         lexer.get_token(token)
+        self.lexing_scratch = False
         # Remove the fake BOL flag
         token.flags &= ~TokenFlags.BOL
-        self.set_diagnostic_consumer(dfilter.prior)
         return token, lexer.cursor == len(spelling)
 
     def on_define(self, lexer, token):
@@ -971,18 +1001,3 @@ class Preprocessor:
         is_defined, is_macro_name = self.is_defined(token)
         self.skip_to_eod(token, is_macro_name)
         return not is_defined if negate else bool(is_defined)
-
-
-class DiagnosticFilter:
-    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
-
-    def __init__(self):
-        self.prior = None
-
-    def emit(self, diagnostic):
-        # These are diagnosed as invalid concatenations
-        if diagnostic.did in (DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
-                              DID.unterminated_literal):
-            pass
-        else:
-            self.prior.emit(diagnostic)
