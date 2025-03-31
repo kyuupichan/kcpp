@@ -411,7 +411,8 @@ diagnostic_definitions = {
         DID.fatal_error_and_error_summary,
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
-        '%plural{1:fatal error|:fatal errors}0 and %plural{1:error|:errors}1 generated compiling %2.',
+        '%plural{1:fatal error|:fatal errors}0 and %plural{1:error|:errors}1 generated compil'
+        'ing %2.',
     ),
     DID.fatal_error_summary: DiagnosticDefinition(
         DID.fatal_error_summary,
@@ -705,7 +706,8 @@ diagnostic_definitions = {
         DID.string_concatenation_conflict,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'string concatenation with different %select{encoding prefixes|user-defined suffixes}0',
+        'string concatenation with different %select{encoding prefixes|user-defined suffixes}'
+        '0',
     ),
     DID.string_concatenation_prior: DiagnosticDefinition(
         DID.string_concatenation_prior,

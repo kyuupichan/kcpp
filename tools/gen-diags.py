@@ -73,17 +73,26 @@ def group_lines(defns):
                      for n, group in enumerate(sorted(groups), start=1))
 
 
+def chunks(items, size):
+    '''Break up items, an iterable, into chunks of length size.'''
+    assert size > 0
+    for i in range(0, len(items), size):
+        yield items[i: i + size]
+
+
 def defns_lines(defns):
     def key_text(key):
         defn = defns[key]
         group = defn.get('group', 'none')
         if ' ' in group:
             print(f'ERROR: bad group name: {group}', file=sys.stderr)
+        text_parts = list(chunks(defn["text"], 84))
         yield f'    DID.{key}: DiagnosticDefinition('
         yield f'        DID.{key},'
         yield f'        DiagnosticSeverity.{defn["severity"]},'
         yield f'        DiagnosticGroup.{group},'
-        yield f'        {defn["text"]!r},'
+        for n, part in enumerate(text_parts, start=1):
+            yield f'        {part!r}' + (',' if n == len(text_parts) else '')
         yield '    ),'
 
     return '\n'.join(itertools.chain(*(key_text(key) for key in sorted(defns))))
