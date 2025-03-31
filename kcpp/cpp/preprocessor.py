@@ -53,13 +53,13 @@ class PreprocessorActions:
     instantiate to customize behaviour.
     '''
 
-    def source_file_changed(self, loc, reason):
+    def on_source_file_change(self, loc, reason):
         '''Called when entering a new soure file, leaving a source file, or on a #line directive
         (even if the file name remains unchanged).  loc is the first location of the new
         context, and reason is a SourcefileChangeReason.'''
         pass
 
-    def macro_defined(self, macro):
+    def on_macro_defined(self, macro):
         '''Called when a macro is defined.'''
         pass
 
@@ -313,7 +313,7 @@ class Preprocessor:
         lexer.if_sections = []
         self.push_source(lexer)
         if self.actions:
-            self.actions.source_file_changed(first_loc, SourceFileChangeReason.enter)
+            self.actions.on_source_file_change(first_loc, SourceFileChangeReason.enter)
         return lexer
 
     def push_source(self, source):
@@ -329,7 +329,7 @@ class Preprocessor:
             self.predefining_macros = False
             if self.actions:
                 cursor_loc = self.sources[-1].cursor_loc()
-                self.actions.source_file_changed(cursor_loc, SourceFileChangeReason.leave)
+                self.actions.on_source_file_change(cursor_loc, SourceFileChangeReason.leave)
         return self.sources[-1]
 
     def filename_bytes_to_string_literal(self, filename):
@@ -522,7 +522,7 @@ class Preprocessor:
             if macro:
                 self.define_macro(macro_ident, macro)
                 if self.actions:
-                    self.actions.macro_defined(macro)
+                    self.actions.on_macro_defined(macro)
             else:
                 is_good = False
         self.skip_to_eod(token, is_good)
@@ -770,7 +770,7 @@ class Preprocessor:
             start_loc = token.loc + 1
             self.locator.add_line_range(start_loc, filename, line_number)
             if self.actions:
-                self.actions.source_file_changed(start_loc, SourceFileChangeReason.line)
+                self.actions.on_source_file_change(start_loc, SourceFileChangeReason.line)
 
     def on_error(self, lexer, token):
         self.diagnostic_directive(lexer, token, DID.error_directive)

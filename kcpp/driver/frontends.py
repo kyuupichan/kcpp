@@ -19,6 +19,7 @@ __all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
 class FrontEndBase(ABC):
 
     def __init__(self, env):
+        super().__init__()
         self.pp = None
 
     @classmethod
@@ -60,7 +61,7 @@ class FrontEndBase(ABC):
         consumer.emit_error_count()
 
 
-class PreprocessedOutput(FrontEndBase):
+class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
     def __init__(self, env):
@@ -91,14 +92,16 @@ class PreprocessedOutput(FrontEndBase):
         if not self.suppress_linemarkers:
             self.write(f'#line {self.line_number} {self.filename}\n')
 
-    def source_file_changed(self, loc, reason):
+    def on_source_file_change(self, loc, reason):
         self.finish_line()
         location = self.pp.locator.presumed_location(loc, True)
         self.line_number = location.presumed_line_number
         self.filename = location.presumed_filename
         self.write_line_marker()
 
-    def macro_defined(self, macro):
+    def on_macro_defined(self, macro):
+        if not self.list_macros:
+            return
         self.finish_line()
         macro_name = macro.macro_name(self.pp).decode()
         self.write(f'#define {macro_name}{macro.definition_text(self.pp)}\n')
@@ -110,22 +113,15 @@ class PreprocessedOutput(FrontEndBase):
         count = line_number - self.line_number
         assert count >= 0
         self.line_number = line_number
-
         if not self.suppress_linemarkers:
             if count < 8:
                 self.write('\n' * count)
             else:
                 self.write_line_marker()
 
-    def preprocessor_actions(self):
-        actions = PreprocessorActions()
-        actions.source_file_changed = self.source_file_changed
-        if self.list_macros:
-            actions.macro_defined = self.macro_defined
-        return actions
-
     def process(self):
         pp = self.pp
+        pp.actions = self
         token = Token.create()
         write = self.write
         locator = pp.locator
