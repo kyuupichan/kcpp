@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 from kcpp.cpp import (
     Token, TokenKind, TokenFlags, Preprocessor, PreprocessorActions, Lexer,
 )
-from kcpp.cpp.locator import BufferSpan
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
 
@@ -177,6 +176,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             rhs_span, rhs_offset = self.pp.locator.spelling_span_and_offset(rhs.loc)
             return lhs_span != rhs_span or rhs_offset != lhs_offset + len(lhs_spelling)
         return False
+
 
 class FrontEnd(FrontEndBase):
     '''Simulate a compiler front end.  For now, all it does is output consumed tokens, and the
