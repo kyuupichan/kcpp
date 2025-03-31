@@ -94,6 +94,7 @@ class DiagnosticContext:
     diagnostic's definition text.
     '''
     did: DID
+    severity: DiagnosticSeverity
     substitutions: list
     caret_range: object
     source_ranges: list
@@ -158,7 +159,7 @@ class Diagnostic:
     def to_short_text(self):
         return f'Diagnostic({self.did.name}, {self.loc}, {self.arguments!r})'
 
-    def decompose(self):
+    def decompose(self, severity):
         '''Decompose a diagnostic and return a pair (diagnostic_context, nested_diagnostics).'''
         substitutions = []
         source_ranges = []
@@ -183,7 +184,7 @@ class Diagnostic:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
         assert caret_range
-        context = DiagnosticContext(self.did, substitutions, caret_range, source_ranges)
+        context = DiagnosticContext(self.did, severity, substitutions, caret_range, source_ranges)
         return context, nested_diagnostics
 
 
@@ -196,13 +197,20 @@ class DiagnosticConsumer:
         self.error_count = 0
         self.fatal_error_count = 0
 
-    def update_error_counts(self, severity):
-        '''Call this to update the error counts.'''
+    def remap_diagnostic_severity(self, diagnostic):
+        '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
+        severity = diagnostic_definitions[diagnostic.did].severity
+
+        if diagnostic.loc == location_command_line and severity is DiagnosticSeverity.error:
+            severity = DiagnosticSeverity.fatal
+
+        # Update the error counts we maintain
         if severity >= DiagnosticSeverity.error:
             if severity == DiagnosticSeverity.fatal:
                 self.fatal_error_count += 1
             else:
                 self.error_count += 1
+        return severity
 
 
 class DiagnosticListener(DiagnosticConsumer):
@@ -213,6 +221,7 @@ class DiagnosticListener(DiagnosticConsumer):
         self.diagnostics = []
 
     def emit(self, diagnostic):
+        self.remap_diagnostic_severity(diagnostic)
         self.diagnostics.append(diagnostic)
 
 
@@ -220,6 +229,7 @@ class DiagnosticPrinter(DiagnosticConsumer):
     '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.'''
 
     def emit(self, diagnostic):
+        self.remap_diagnostic_severity(diagnostic)
         # Don't emit compilation summary, etc.
         if diagnostic.loc != location_none:
             print(diagnostic.to_short_text())
@@ -279,7 +289,8 @@ class DiagnosticEngine(DiagnosticConsumer):
 
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
-        diagnostic_context, nested_diagnostics = diagnostic.decompose()
+        severity = self.remap_diagnostic_severity(diagnostic)
+        diagnostic_context, nested_diagnostics = diagnostic.decompose(severity)
         message_contexts = [self.message_context(dc) for
                             dc in self.pp.locator.diagnostic_contexts(diagnostic_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
@@ -289,9 +300,6 @@ class DiagnosticEngine(DiagnosticConsumer):
         '''Convert a diagnostic into text (a MessageContext object). '''
         # Determine the message.  The location is determined by the main highlight,
         # which is the first one in the list.
-        severity_enum = diagnostic_definitions[diagnostic_context.did].severity
-        self.update_error_counts(severity_enum)
-
         text = self.translations.diagnostic_text(diagnostic_context.did)
         caret_range = diagnostic_context.caret_range
         caret_loc = caret_range.caret_loc()
@@ -304,8 +312,9 @@ class DiagnosticEngine(DiagnosticConsumer):
                 location_text = self.location_text(caret_loc)
             text_parts.append((location_text + ': ', 'path'))
         # Add the severity text unless it is none
-        if severity_enum != DiagnosticSeverity.none:
-            severity_did, hint = self.severity_map[severity_enum]
+        severity = diagnostic_context.severity
+        if severity != DiagnosticSeverity.none:
+            severity_did, hint = self.severity_map[severity]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
 

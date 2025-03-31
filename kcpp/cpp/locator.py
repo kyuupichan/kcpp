@@ -13,7 +13,7 @@ from enum import IntEnum, auto
 from ..basic import Buffer, PresumedLocation
 from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
-    RangeCoords
+    RangeCoords, DiagnosticSeverity,
 )
 
 
@@ -478,14 +478,18 @@ class Locator:
         for n, ((span, caret_loc), caret_range) in enumerate(zip(caret_spans_and_locs,
                                                                  caret_ranges)):
             if isinstance(span, BufferSpan):
+                severity = context.severity
                 did, substitutions = context.did, context.substitutions
             else:
+                severity = DiagnosticSeverity.note
                 did, substitutions = span.did_and_substitutions(self.pp, caret_loc)
 
             source_ranges = [source_ranges_item[n] for source_ranges_item in source_ranges_list]
 
-            # We finally have the new context; add it to the list
-            contexts.append(DiagnosticContext(did, substitutions, caret_range, source_ranges))
+            # We finally have the new context; add it to the list.  Macro contexts are
+            # always notes.
+            contexts.append(DiagnosticContext(did, severity, substitutions,
+                                              caret_range, source_ranges))
 
         contexts.reverse()
         return contexts
