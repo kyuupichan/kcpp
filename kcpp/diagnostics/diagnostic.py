@@ -195,7 +195,7 @@ class DiagnosticConsumer:
     def __init__(self):
         self.error_count = 0
         self.fatal_error = False
-        self.error_limit = 2
+        self.error_limit = 20
 
     def emit(self, diagnostic: Diagnostic):
         '''Emit a diagnostic.  Return True if compilation should stop.'''
@@ -245,8 +245,8 @@ class DiagnosticPrinter(DiagnosticConsumer):
         print(diagnostic.to_short_text())
         return super().emit(diagnostic)
 
-    def emit_compilation_summary(self):
-        pass
+    def emit_compilation_summary(self, filename):
+        return 0
 
 
 class DiagnosticEngine(DiagnosticConsumer):
