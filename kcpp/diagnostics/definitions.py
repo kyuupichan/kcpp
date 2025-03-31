@@ -36,7 +36,7 @@ class DID(IntEnum):
     brief_at_file_line_and_column = auto()
     builtin_macro_redefined = auto()
     cannot_be_defined = auto()
-    cannot_open_file = auto()
+    cannot_read_file = auto()
     character_does_not_exist = auto()
     character_not_single_code_unit = auto()
     codepoint_basic_character_set = auto()
@@ -203,11 +203,11 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%q0 cannot be %select{defined|undefined}1',
     ),
-    DID.cannot_open_file: DiagnosticDefinition(
-        DID.cannot_open_file,
+    DID.cannot_read_file: DiagnosticDefinition(
+        DID.cannot_read_file,
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
-        'cannot open file %0: %1',
+        'cannot read file %0: %1',
     ),
     DID.character_does_not_exist: DiagnosticDefinition(
         DID.character_does_not_exist,

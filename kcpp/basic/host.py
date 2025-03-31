@@ -45,6 +45,46 @@ class Host(abc.ABC):
             return True
         return term.endswith('color')
 
+    def path_dirname(self, path):
+        return os.path.dirname(path)
+
+    def path_is_absolute(self, path):
+        return os.path.isabs(path)
+
+    def path_join(self, lhs, rhs):
+        return os.path.join(lhs, rhs)
+
+    def path_splitext(self, path):
+        return os.path.splitext(path)
+
+    def stat(self, path):
+        try:
+            return os.stat(path, follow_symlinks=True)
+        except OSError:
+            return None
+
+    def fstat(self, fileno):
+        return os.fstat(fileno)
+
+    def stat_is_directory(self, stat_result):
+        return stat.S_ISDIR(stat_result.mode)
+
+    def stat_is_regular_file(self, stat_result):
+        return stat.S_ISREG(stat_result.mode)
+
+    def stat_mtime_ns(self, stat_result):
+        return stat_result.mtime_ns
+
+    def stat_file_size(self, stat_result):
+        return stat_result.st_size
+
+    def read_file(self, path):
+        try:
+            with open(path, 'rb') as f:
+                return f.read()
+        except OSError as e:
+            return e.strerror
+
 
 class HostPosix(Host):
     pass

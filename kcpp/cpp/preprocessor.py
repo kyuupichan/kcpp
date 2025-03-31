@@ -19,6 +19,7 @@ from .basic import (
     TargetMachine, IntegerKind, Charset
 )
 from .expressions import ExprParser
+from .file_manager import FileManager
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator, ScratchEntryKind
@@ -78,8 +79,12 @@ class Preprocessor:
         '''
         # Helper objects.
         self.identifiers = {}
+        # The host abstraction
+        self.host = Host.host()
         # Tracks locations
         self.locator = Locator(self)
+        # Caches header lookups and file contents
+        self.file_manager = FileManager(self.host)
         # Diagnostics are sent here
         self.diagnostic_consumer = None
         # Action listener
@@ -95,8 +100,6 @@ class Preprocessor:
         # Directive handlers
         self.handlers = {name.encode(): getattr(self, f'on_{name}')
                          for name in self.directive_names()}
-        # The host abstraction
-        self.host = Host.host()
         # Token source stack
         self.sources = []
         # The primary source file
@@ -300,6 +303,16 @@ class Preprocessor:
         return ('include define undef line error warning pragma if ifdef ifndef '
                 'elif elifdef elifndef else endif').split()
 
+    def read_file(self, path, diag_loc):
+        filename_literal = self.filename_bytes_to_string_literal(
+            path.encode(sys.getfilesystemencoding(), 'surrogateescape'))
+        raw = self.file_manager.read_file(path)
+        if isinstance(raw, str):
+            error_str = raw
+            self.diag(DID.cannot_read_file, diag_loc, [filename_literal, error_str])
+            raw = b''
+        return raw, filename_literal
+
     def push_main_source_file(self, filename):
         '''Push the main source file onto the preprocessor's source file stack.  Return True on
         success.  Otherwise return False, and the caller must abandon the compilation and
@@ -309,19 +322,10 @@ class Preprocessor:
         processing doesn't begin until EOF).
         '''
         if filename == '-':
-            filename_lit = '"<stdin>"'
-            raw = sys.stdin.buffer.read()
+            raw, filename_literal = '"<stdin>"', sys.stdin.buffer.read()
         else:
-            filename_lit = self.filename_bytes_to_string_literal(
-                filename.encode(sys.getfilesystemencoding(), 'surrogateescape'))
-            try:
-                with open(filename, 'rb') as f:
-                    raw = f.read()
-            except OSError as e:
-                self.diag(DID.cannot_open_file, location_command_line, [filename_lit, str(e)])
-                return False
-
-        self.push_main_buffer(raw, filename_lit)
+            raw, filename_literal = self.read_file(filename, location_command_line)
+        self.push_main_buffer(raw, filename_literal)
         return True
 
     def push_main_buffer(self, raw, filename):
