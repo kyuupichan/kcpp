@@ -6,6 +6,7 @@
 
 import argparse
 import os
+import sys
 import shlex
 
 from kcpp.cpp import Preprocessor, Environment
@@ -58,10 +59,12 @@ class Driver:
     def run(self, argv=None, environ=None, frontend_class=None):
         frontend, env = self.frontend_class_and_environment(argv, environ, frontend_class)
         sources = env.command_line.files
+        exit_code = 0
         for source in sources:
-            frontend.run(source, env)
+            exit_code = max(exit_code, frontend.run(source, env))
+        return exit_code
 
 
 def main_cli():
     driver = Driver()
-    driver.run()
+    sys.exit(driver.run())

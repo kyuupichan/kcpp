@@ -57,8 +57,8 @@ class FrontEndBase(ABC):
         # Process the source if no error
         if not consumer.error_count:
             self.process_source(source)
-        # Emit the error summary
-        consumer.emit_error_count()
+        # Tidy up
+        return self.pp.finish()
 
 
 class PreprocessedOutput(FrontEndBase, PreprocessorActions):

@@ -305,6 +305,19 @@ class Preprocessor:
         self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
         self.predefining_macros = True
 
+    def finish(self):
+        '''Emit a compilation summary and return an exit code.
+
+        The preprocessor frontend should call this when it has finished processing, and it will
+        no longer call get_token().'''
+        assert len(self.sources) <= 1
+        self.diagnostic_consumer.emit_compilation_summary()
+        if self.diagnostic_consumer.fatal_count:
+            return 4
+        if self.diagnostic_consumer.error_count:
+            return 2
+        return 0
+
     def push_lexer(self, raw, filename, parent_loc):
         assert isinstance(filename, str) and filename[0] == filename[-1] == '"'
         buffer = Buffer(raw)

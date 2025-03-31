@@ -201,7 +201,7 @@ class DiagnosticConsumer:
         # In the base class we simply update the statistics
         self.update_statistics(diagnostic.did)
 
-    def emit_error_count(self):
+    def emit_compilation_summary(self):
         if self.error_count:
             self.emit(Diagnostic(DID.errors_generated, location_none, [self.error_count]))
 
@@ -229,7 +229,11 @@ class DiagnosticPrinter(DiagnosticConsumer):
     '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.'''
 
     def emit(self, diagnostic):
+        super().emit(diagnostic)
         print(diagnostic.to_short_text())
+
+    def emit_compilation_summary(self):
+        pass
 
 
 class DiagnosticEngine(DiagnosticConsumer):
