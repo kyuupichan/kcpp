@@ -19,14 +19,6 @@ from .literals import printable_form
 __all__ = ['Lexer']
 
 
-def read_byte(buff, cursor):
-    try:
-        return buff[cursor], cursor + 1
-    except IndexError:
-        return EOF_CHAR, cursor
-
-
-EOF_CHAR = -1
 ASCII_DIGITS = {ord(c) for c in '0123456789'}
 ASCII_IDENT_START = set(ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz')
 ASCII_IDENT_CONTINUE = set.union(ASCII_IDENT_START, ASCII_DIGITS)
@@ -44,8 +36,9 @@ class Lexer(TokenSource):
 
     # The preprocessor is necessary to look up e.g. if an identifier is special, or
     # an alternative token, or language options.
-    def __init__(self, pp, buff, start_loc, *, quiet=False):
+    def __init__(self, pp, buff, start_loc):
         assert isinstance(buff, (bytes, bytearray, memoryview))
+        assert buff and buff[-1] == 0
         self.pp = pp
         self.buff = buff
         self.start_loc = start_loc
@@ -71,7 +64,7 @@ class Lexer(TokenSource):
         for c in ASCII_DIGITS:
             on_char[c] = Lexer.on_number
         on_char.update({
-            EOF_CHAR: Lexer.on_eof,
+            0: Lexer.on_nul,
             ord(' '): Lexer.on_ws,
             ord('\t'): Lexer.on_ws,
             ord('\f'): Lexer.on_vertical_ws,
@@ -126,7 +119,8 @@ class Lexer(TokenSource):
         # Return the next byte skipping escaped newlines
         buff = self.buff
         while True:
-            c, cursor = read_byte(buff, cursor)
+            c = buff[cursor]
+            cursor += 1
             if c != 92:    # '\\'
                 break
             is_nl, ncursor = self.skip_escaped_newline(cursor)
@@ -144,16 +138,17 @@ class Lexer(TokenSource):
         saved_cursor = cursor
         buff = self.buff
         while True:
-            c, cursor = read_byte(buff, cursor)
+            c = buff[cursor]
+            cursor += 1
             if c in NON_NL_WS:
                 continue
             if c in NL_WS:
                 break
             return False, saved_cursor
 
-        d, ncursor = read_byte(buff, cursor)
+        d = buff[cursor]
         if c == 13 and d == 10:  # '\r' and '\n'
-            cursor = ncursor
+            cursor += 1
         self.clean = False
         return True, cursor
 
@@ -162,15 +157,11 @@ class Lexer(TokenSource):
 
         If the encoding is invalid, return REPLACEMENT_CHAR and cursor such that progress
         will be made.
-
-        If EOF is reached, return (EOF_CHAR, end-of-buff).
         '''
         c, size = utf8_cp(self.buff, cursor)
+        assert size
         if c >= 0:
             return c, cursor + size
-
-        if not size:
-            return EOF_CHAR, cursor
 
         if c == -1:
             did = DID.utf8_invalid
@@ -209,8 +200,8 @@ class Lexer(TokenSource):
             # get_token() and by Lexer.diag.
             self.clean = True
             token.loc = cursor
-            c, cursor = read_byte(buff, cursor)
-            kind, cursor = self.on_char[c](self, token, cursor)
+            c = buff[cursor]
+            kind, cursor = self.on_char[c](self, token, cursor + 1)
             if kind != TokenKind.WS:
                 break
 
@@ -257,8 +248,10 @@ class Lexer(TokenSource):
         token.flags |= TokenFlags.BOL
         return TokenKind.WS, cursor
 
-    def on_eof(self, token, cursor):
-        return TokenKind.EOF, cursor
+    def on_nul(self, token, cursor):
+        if cursor == len(self.buff):
+            return TokenKind.EOF, cursor - 1
+        return self.on_other(token, cursor)
 
     def on_other(self, token, cursor):
         return TokenKind.OTHER, cursor
@@ -456,36 +449,30 @@ class Lexer(TokenSource):
         return TokenKind.HASH, ncursor
 
     def on_line_comment(self, token, cursor):
-        # A line comment.  We lex to the newline but do not consume it.
-        # Skip to the newline and consume it.
+        # A line comment.  Delegate handling of EOF and newlines.
         while True:
-            c, cursor = read_byte(self.buff, cursor)
-            if c == 92:    # '\\'
-                is_escaped_nl, cursor = self.skip_escaped_newline(cursor)
-                if is_escaped_nl:
-                    continue
+            c, cursor = self.read_logical_char(cursor)
             if c in NL_WS:
                 return self.on_nl_ws(token, cursor)
-            # Not sure if it's worth treating this differently...
-            if c == EOF_CHAR:
-                return self.on_eof(token, cursor)
-            if c >= 0x80:
-                c, cursor = self.read_char(cursor - 1, -1)
+            if c == 0 and cursor == len(self.buff):
+                return self.on_nul(token, cursor)
 
     def on_block_comment(self, token, cursor, start):
         # A block comment.
         token.flags |= TokenFlags.WS
         end = cursor
+        buff = self.buff
         while True:
-            c, cursor = read_byte(self.buff, cursor)
+            c = buff[cursor]
+            cursor += 1
             while c == 42:  # '*'
                 c, cursor = self.read_logical_byte(cursor)
                 if c == 47:  # '/'
                     return TokenKind.WS, cursor
-            if c == EOF_CHAR:
+            if c == 0 and cursor == len(buff):
                 self.diag_range(DID.unterminated_block_comment, start, end)
                 # Return WS so the EOF token gets the correct placement
-                return TokenKind.WS, cursor
+                return TokenKind.WS, cursor - 1
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1, -1)
 
@@ -542,7 +529,8 @@ class Lexer(TokenSource):
         while True:
             prevc = c
             saved_cursor = cursor
-            c, cursor = read_byte(buff, cursor)
+            c = buff[cursor]
+            cursor += 1
 
             # Fast-track standard ASCII numbers
             if c in ASCII_IDENT_CONTINUE:
@@ -569,8 +557,8 @@ class Lexer(TokenSource):
     def continues_identifier(self, token, cursor, is_ident_start, c):
         '''Return a triple (is_valid, code_point, cursor).
 
-        If it is not lexically an identifier (e.g. a backslash, or a double quote, or
-        EOF_CHAR), is_valid is False and code_point is the character concerned.
+        If it is not lexically an identifier (e.g. a backslash, or a double quote,
+        is_valid is False and code_point is the character concerned.
 
         If it is lexically an identifier (e.g. it starts a UCN) then is_valid is true even
         if lexically incomplete.  code_point is -1 if lexically incomplete, or if the
@@ -647,7 +635,8 @@ class Lexer(TokenSource):
         quick_chars = ASCII_IDENT_START
 
         while True:
-            c, ncursor = read_byte(buff, cursor)
+            c = buff[cursor]
+            ncursor = cursor + 1
             # Fast-track standard ASCII identifiers
             if c not in quick_chars:
                 is_valid, _c, ncursor = self.continues_identifier(token, ncursor, is_start, c)
@@ -699,19 +688,24 @@ class Lexer(TokenSource):
 
         while True:
             # Fast-track standard ASCII contents
-            c, cursor = read_byte(buff, cursor)
+            c = buff[cursor]
             if c == 92:  # '\\'
                 # Handle escaped newlines
-                c, cursor = self.read_logical_byte(cursor - 1)
+                c, cursor = self.read_logical_byte(cursor)
                 # Skip escape sequences or UCNs unless in a header.  We do not check
                 # syntax.
                 if c == 92 and not in_header:
                     c, cursor = self.read_logical_char(cursor)
                     continue
+            else:
+                cursor += 1
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1)
                 # No need to validate the character - it is always valid in a literal
-            elif c == delimeter or c == EOF_CHAR:
+            elif c == delimeter:
+                break
+            elif c == 0 and cursor == len(self.buff):
+                cursor -= 1
                 break
             elif c == 10 or c == 13:  # '\n' '\r'
                 # Don't swallow the newline indicator
@@ -773,9 +767,10 @@ class Lexer(TokenSource):
         def lex_delimeter(buff, cursor):
             '''Return the byte terminating the delimeter, and the cursor position beyond it.'''
             while True:
-                c, cursor = read_byte(buff, cursor)
+                c = buff[cursor]
                 if c not in DCHARS:
                     return c, cursor
+                cursor += 1
 
         # Raw string spellings cannot simply be taken from the buffer
         self.clean = False
@@ -783,36 +778,37 @@ class Lexer(TokenSource):
         diagnose = not self.pp.skipping
         delim_start = cursor
         c, cursor = lex_delimeter(buff, cursor)
-        delimeter = buff[delim_start: cursor - 1]
+        delimeter = buff[delim_start: cursor]
         # This seems arbitrary and pointless requirement...
         if len(delimeter) > 16 and diagnose:
-            self.diag_range(DID.delimeter_too_long, delim_start, cursor - 1)
+            self.diag_range(DID.delimeter_too_long, delim_start, cursor)
 
         if c == 40:  # '(':
             # Lex the raw part
             delimeter += bytes([34])  # '"'
+            cursor += 1
             while True:
                 c, cursor = self.read_char(cursor)
-                if c == EOF_CHAR:
+                if c == 0 and cursor == len(self.buff):
                     if diagnose:
                         self.diag(DID.unterminated_literal, token.loc, [2])
                     # Unterminated literals become the error token
-                    return TokenKind.ERROR, cursor
+                    return TokenKind.ERROR, cursor - 1
                 # ')'
                 if c == 41 and buff[cursor: cursor + len(delimeter)] == delimeter:
                     cursor += len(delimeter)
                     break
         elif diagnose:
-            bad_loc = cursor - (c != EOF_CHAR)
-            if c == EOF_CHAR:
+            is_eof = c == 0 and cursor + 1 == len(self.buff)
+            bad_loc = cursor
+            if is_eof:
                 c = 10
             else:
-                c, cursor = self.read_char(bad_loc)
+                c, cursor = self.read_char(cursor)
             self.diag_range(DID.delimeter_invalid_character, bad_loc, bad_loc,
                             [printable_form(c)])
-            # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed
-            # UTF-8, unlike read_byte().
-            while c != EOF_CHAR and c != 10 and c != 13:
+            # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed UTF-8.
+            while c != 10 and c != 13 and cursor != len(self.buff):
                 c, cursor = self.read_char(cursor)
             # Unterminated literals become the error token
             return TokenKind.ERROR, cursor
@@ -868,7 +864,7 @@ class Lexer(TokenSource):
                 if count:
                     break
             else:
-                cursor -= c != EOF_CHAR
+                cursor -= 1
 
             return -1, cursor
 
@@ -891,13 +887,16 @@ class Lexer(TokenSource):
         '''
         c, cursor = self.read_logical_byte(cursor)
         if c != 123:  # '{'
-            cursor -= c != EOF_CHAR
+            cursor -= 1
         else:
             name = ''
             name_loc = cursor
             while True:
                 c, cursor = self.read_logical_byte(cursor)
-                if c == 125 or c == EOF_CHAR:  # '}'
+                if c == 125:  # '}'
+                    break
+                if c == 0 and cursor == len(self.buff):
+                    cursor -= 1
                     break
                 if c == 10 or c == 13:  # '\n' '\r'
                     # Don't swallow the newline sequence

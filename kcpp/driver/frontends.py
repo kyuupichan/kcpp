@@ -168,7 +168,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
 
         rhs_spelling = self.pp.token_spelling(rhs)
         spelling = lhs_spelling + rhs_spelling
-        lexer = Lexer(self.pp, spelling, 1)
+        lexer = Lexer(self.pp, spelling + b'\0', 1)
         token = Token.create()
         prior = self.pp.set_diagnostic_consumer(None)
         lexer.get_token(token)

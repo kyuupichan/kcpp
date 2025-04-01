@@ -264,7 +264,7 @@ class Preprocessor:
         '''Returns an IdentifierInfo is spelling is the spelling of a valid identifier, otherwise
         None.
         '''
-        lexer = Lexer(self, spelling, 1)
+        lexer = Lexer(self, spelling + b'\0', 1)
         token = Token.create()
         prior = self.set_diagnostic_consumer(None)
         lexer.get_token(token)
@@ -277,7 +277,7 @@ class Preprocessor:
     def lexer_at_loc(self, loc):
         '''Return a new lexer ready to lex the spelling of the token at loc.'''
         text, offset = self.locator.buffer_text_and_offset(loc)
-        lexer = Lexer(self, text, loc - offset)
+        lexer = Lexer(self, text + b'\0', loc - offset)
         lexer.cursor = offset
         return lexer
 
@@ -352,7 +352,7 @@ class Preprocessor:
         # Move the main lexer to EOF and drop other token sources, so that frontends exit
         # immediately
         lexer = self.sources[0]
-        lexer.cursor = len(lexer.buff)
+        lexer.cursor = len(lexer.buff) - 1  # The NUL byte
         self.sources = [lexer]
 
     def finish(self):
@@ -383,6 +383,7 @@ class Preprocessor:
 
     def push_lexer(self, raw, filename, parent_loc):
         assert isinstance(filename, str) and filename[0] == filename[-1] == '"'
+        raw += b'\0'
         buffer = Buffer(raw)
         first_loc = self.locator.new_buffer_loc(buffer, filename, -1)
         lexer = Lexer(self, raw, first_loc)
@@ -578,14 +579,14 @@ class Preprocessor:
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token
         scratch_loc = self.locator.new_scratch_token(spelling, parent_loc, kind)
-        lexer = Lexer(self, spelling, scratch_loc)
+        lexer = Lexer(self, spelling + b'\0', scratch_loc)
         token = Token.create()
         self.lexing_scratch = True
         lexer.get_token(token)
         self.lexing_scratch = False
         # Remove the fake BOL flag
         token.flags &= ~TokenFlags.BOL
-        return token, lexer.cursor == len(spelling)
+        return token, lexer.cursor >= len(spelling)
 
     def on_define(self, lexer, token):
         '''#define directive processing.'''
