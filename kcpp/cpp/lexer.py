@@ -19,7 +19,6 @@ from .literals import printable_form
 __all__ = ['Lexer']
 
 
-EOF_CHAR = 0
 ASCII_DIGITS = {ord(c) for c in '0123456789'}
 ASCII_IDENT_START = set(ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz')
 ASCII_IDENT_CONTINUE = set.union(ASCII_IDENT_START, ASCII_DIGITS)
@@ -65,7 +64,7 @@ class Lexer(TokenSource):
         for c in ASCII_DIGITS:
             on_char[c] = Lexer.on_number
         on_char.update({
-            EOF_CHAR: Lexer.on_nul,
+            0: Lexer.on_nul,
             ord(' '): Lexer.on_ws,
             ord('\t'): Lexer.on_ws,
             ord('\f'): Lexer.on_vertical_ws,
@@ -463,7 +462,7 @@ class Lexer(TokenSource):
             if c in NL_WS:
                 return self.on_nl_ws(token, cursor)
             # Not sure if it's worth treating this differently...
-            if c == EOF_CHAR and cursor == len(buff):
+            if c == 0 and cursor == len(buff):
                 return self.on_nul(token, cursor)
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1, -1)
@@ -480,7 +479,7 @@ class Lexer(TokenSource):
                 c, cursor = self.read_logical_byte(cursor)
                 if c == 47:  # '/'
                     return TokenKind.WS, cursor
-            if c == EOF_CHAR and cursor == len(buff):
+            if c == 0 and cursor == len(buff):
                 self.diag_range(DID.unterminated_block_comment, start, end)
                 # Return WS so the EOF token gets the correct placement
                 return TokenKind.WS, cursor - 1
@@ -715,7 +714,7 @@ class Lexer(TokenSource):
                 # No need to validate the character - it is always valid in a literal
             elif c == delimeter:
                 break
-            elif c == EOF_CHAR and cursor == len(self.buff):
+            elif c == 0 and cursor == len(self.buff):
                 cursor -= 1
                 break
             elif c == 10 or c == 13:  # '\n' '\r'
@@ -800,7 +799,7 @@ class Lexer(TokenSource):
             cursor += 1
             while True:
                 c, cursor = self.read_char(cursor)
-                if c == EOF_CHAR and cursor == len(self.buff):
+                if c == 0 and cursor == len(self.buff):
                     if diagnose:
                         self.diag(DID.unterminated_literal, token.loc, [2])
                     # Unterminated literals become the error token
@@ -810,7 +809,7 @@ class Lexer(TokenSource):
                     cursor += len(delimeter)
                     break
         elif diagnose:
-            is_eof = c == EOF_CHAR and cursor + 1 == len(self.buff)
+            is_eof = c == 0 and cursor + 1 == len(self.buff)
             bad_loc = cursor
             if is_eof:
                 c = 10
@@ -906,7 +905,7 @@ class Lexer(TokenSource):
                 c, cursor = self.read_logical_byte(cursor)
                 if c == 125:  # '}'
                     break
-                if c == EOF_CHAR and cursor == len(self.buff):
+                if c == 0 and cursor == len(self.buff):
                     cursor -= 1
                     break
                 if c == 10 or c == 13:  # '\n' '\r'
