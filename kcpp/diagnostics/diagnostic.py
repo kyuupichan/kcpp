@@ -254,11 +254,6 @@ class DiagnosticEngine(DiagnosticConsumer):
         self.worded_locations = True
         self.show_columns = False
 
-    @classmethod
-    def add_arguments(cls, group):
-        '''Add command line arugments to the group.'''
-        pass
-
     def location_text(self, caret_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
         with no location, something like '<command line>: ' for command-line errors, and

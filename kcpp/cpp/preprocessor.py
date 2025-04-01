@@ -11,7 +11,7 @@ from functools import partial
 
 from ..basic import Buffer, Host, UnicodeKind
 from ..diagnostics import (
-    DID, Diagnostic, DiagnosticEngine, location_command_line, location_none,
+    DID, Diagnostic, location_command_line, location_none,
 )
 
 from .basic import (
@@ -117,22 +117,6 @@ class Preprocessor:
         self.time_str = None
         self.date_str = None
         self.command_line_buffer = None
-
-    @classmethod
-    def add_arguments(cls, pp_group, diag_group):
-        '''Add command line arugments to the group.'''
-        pp_group.add_argument('-exec-charset', type=str,
-                              help='set the narrow execution character set')
-        pp_group.add_argument('-wide-exec-charset', type=str,
-                              help='set the wide execution character set')
-        pp_group.add_argument('-D', '--define-macro', action='append', default=[],
-                              help='''In -D name[(param-list)][=def], define macro 'name' as
-                              'def'.  If 'def' is omitted 'name' is defined to 1.  Function-like
-                              macros can be defined by specifying a parameter list.''')
-        pp_group.add_argument('-U', '--undefine-macro', action='append', default=[],
-                              help='''Remove the definition of a macro.
-                              -U options are processed after all -D options.''')
-        DiagnosticEngine.add_arguments(diag_group)
 
     def initialize(self, env=None, target=None):
         # Initialization dependent on target.

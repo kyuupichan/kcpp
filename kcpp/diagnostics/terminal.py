@@ -5,7 +5,6 @@
 '''Handle the details of outputting diagnostics to an ASCII, or unicode-aware,
 terminal.'''
 
-import argparse
 import sys
 from bisect import bisect_left
 from dataclasses import dataclass
@@ -43,12 +42,6 @@ class UnicodeTerminal(DiagnosticEngine):
         self.sgr_codes = self.sgr_codes_from_env(env)
         self.tabstop = env.command_line.tabstop
         self.terminal_width = self.determine_terminal_width()
-
-    @classmethod
-    def add_arguments(cls, group):
-        '''Add command line arugments to the group.'''
-        group.add_argument('--tabstop', nargs='?', default=8, type=int)
-        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
     def determine_terminal_width(self):
         if self.pp.host.is_a_tty(self.file):

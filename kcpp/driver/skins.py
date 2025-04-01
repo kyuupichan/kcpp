@@ -6,8 +6,7 @@
 
 import argparse
 
-from kcpp.cpp import Environment, Preprocessor
-from kcpp.diagnostics import UnicodeTerminal
+from kcpp.cpp import Environment
 
 from .frontends import PreprocessedOutput, FrontEnd
 
@@ -57,8 +56,6 @@ class Skin:
         diag_group = parser.add_argument_group(title='diagnostics')
         self.add_diagnostic_commands(diag_group)
 
-        Preprocessor.add_arguments(pp_group, diag_group)
-        UnicodeTerminal.add_arguments(diag_group)
         return parser
 
 
@@ -71,10 +68,22 @@ class KCPP(Skin):
                            default=False)
 
     def add_frontend_commands(self, group):
+        # There are none
         pass
 
     def add_preprocessor_commands(self, group):
-        pass
+        group.add_argument('-exec-charset', type=str,
+                           help='set the narrow execution character set')
+        group.add_argument('-wide-exec-charset', type=str,
+                           help='set the wide execution character set')
+        group.add_argument('-D', '--define-macro', action='append', default=[],
+                           help='''In -D name[(param-list)][=def], define macro 'name' as
+                           'def'.  If 'def' is omitted 'name' is defined to 1.  Function-like
+                           macros can be defined by specifying a parameter list.''')
+        group.add_argument('-U', '--undefine-macro', action='append', default=[],
+                           help='''Remove the definition of a macro.
+                           -U options are processed after all -D options.''')
 
     def add_diagnostic_commands(self, group):
-        pass
+        group.add_argument('--tabstop', nargs='?', default=8, type=int)
+        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
