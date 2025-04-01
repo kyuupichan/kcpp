@@ -196,8 +196,8 @@ class SimpleTokenList:
 
     def concatenate_tokens(self, lhs, concat_loc, rhs):
         '''Concatenate lhs and rhs; rhs must not be modified.  Return True on success and replace
-        lhs with the result, except lhs must retain its WS and BOL flags.  Return False on
-        failure and leave lhs and rhs unmodified.
+        lhs with the result, except lhs must retain its WS flag.  Return False on failure
+        and leave lhs and rhs unmodified.
 
         concat_loc is the macro location of the ## or %:%: token.
         '''

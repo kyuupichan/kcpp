@@ -453,7 +453,7 @@ class Lexer(TokenSource):
         while True:
             c, cursor = self.read_logical_char(cursor)
             if c in NL_WS:
-                return self.on_nl_ws(token, cursor)
+                return TokenKind.WS, cursor - 1
             if c == 0 and cursor == len(self.buff):
                 return self.on_nul(token, cursor)
 
