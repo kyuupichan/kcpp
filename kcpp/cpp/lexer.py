@@ -148,9 +148,8 @@ class Lexer(TokenSource):
             return False, saved_cursor
 
         d = buff[cursor]
-        ncursor = cursor + 1
         if c == 13 and d == 10:  # '\r' and '\n'
-            cursor = ncursor
+            cursor += 1
         self.clean = False
         return True, cursor
 
@@ -203,8 +202,7 @@ class Lexer(TokenSource):
             self.clean = True
             token.loc = cursor
             c = buff[cursor]
-            cursor += 1
-            kind, cursor = self.on_char[c](self, token, cursor)
+            kind, cursor = self.on_char[c](self, token, cursor + 1)
             if kind != TokenKind.WS:
                 break
 
@@ -702,15 +700,16 @@ class Lexer(TokenSource):
         while True:
             # Fast-track standard ASCII contents
             c = buff[cursor]
-            cursor += 1
             if c == 92:  # '\\'
                 # Handle escaped newlines
-                c, cursor = self.read_logical_byte(cursor - 1)
+                c, cursor = self.read_logical_byte(cursor)
                 # Skip escape sequences or UCNs unless in a header.  We do not check
                 # syntax.
                 if c == 92 and not in_header:
                     c, cursor = self.read_logical_char(cursor)
                     continue
+            else:
+                cursor += 1
             if c >= 0x80:
                 c, cursor = self.read_char(cursor - 1)
                 # No need to validate the character - it is always valid in a literal
@@ -780,9 +779,9 @@ class Lexer(TokenSource):
             '''Return the byte terminating the delimeter, and the cursor position beyond it.'''
             while True:
                 c = buff[cursor]
-                cursor += 1
                 if c not in DCHARS:
                     return c, cursor
+                cursor += 1
 
         # Raw string spellings cannot simply be taken from the buffer
         self.clean = False
@@ -790,14 +789,15 @@ class Lexer(TokenSource):
         diagnose = not self.pp.skipping
         delim_start = cursor
         c, cursor = lex_delimeter(buff, cursor)
-        delimeter = buff[delim_start: cursor - 1]
+        delimeter = buff[delim_start: cursor]
         # This seems arbitrary and pointless requirement...
         if len(delimeter) > 16 and diagnose:
-            self.diag_range(DID.delimeter_too_long, delim_start, cursor - 1)
+            self.diag_range(DID.delimeter_too_long, delim_start, cursor)
 
         if c == 40:  # '(':
             # Lex the raw part
             delimeter += bytes([34])  # '"'
+            cursor += 1
             while True:
                 c, cursor = self.read_char(cursor)
                 if c == EOF_CHAR and cursor == len(self.buff):
@@ -810,8 +810,7 @@ class Lexer(TokenSource):
                     cursor += len(delimeter)
                     break
         elif diagnose:
-            is_eof = c == EOF_CHAR and cursor == len(self.buff)
-            cursor -= 1
+            is_eof = c == EOF_CHAR and cursor + 1 == len(self.buff)
             bad_loc = cursor
             if is_eof:
                 c = 10
