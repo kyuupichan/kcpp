@@ -1,7 +1,7 @@
 import pytest
 
 
-from kcpp.cpp import Lexer, Preprocessor
+from kcpp.cpp import Preprocessor
 
 
 class TestLexer:

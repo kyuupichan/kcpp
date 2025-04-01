@@ -9,6 +9,7 @@ be an abstraction layer.
 
 import abc
 import os
+import stat
 
 __all__ = ['Host']
 
