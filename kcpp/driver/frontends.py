@@ -8,7 +8,7 @@ import sys
 from abc import ABC, abstractmethod
 
 from kcpp.cpp import (
-    Token, TokenKind, TokenFlags, Preprocessor, PreprocessorActions, Lexer,
+    Token, TokenKind, TokenFlags, PreprocessorActions, Lexer,
 )
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 

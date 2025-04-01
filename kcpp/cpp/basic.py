@@ -9,7 +9,6 @@ Should not import other cpp modules.
 '''
 
 from abc import ABC, abstractmethod
-from argparse import Namespace
 from codecs import getincrementalencoder
 from dataclasses import dataclass
 from enum import IntEnum, auto
@@ -20,17 +19,8 @@ from ..unicode import REPLACEMENT_CHAR
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'SpecialKind', 'TargetMachine', 'Environment',
+    'IdentifierInfo', 'SpecialKind', 'TargetMachine',
 ]
-
-
-@dataclass(slots=True)
-class Environment:
-    '''The command line and environment variables passed to kcpp.'''
-    # Command line arguments
-    command_line: Namespace
-    # A dictionary of environment variables
-    variables: dict
 
 
 class TokenSource(ABC):

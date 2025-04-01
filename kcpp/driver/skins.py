@@ -6,7 +6,7 @@
 
 import argparse
 
-from kcpp.cpp import Environment, Preprocessor
+from kcpp.cpp import Preprocessor
 from kcpp.diagnostics import UnicodeTerminal
 
 from .frontends import PreprocessedOutput, FrontEnd
