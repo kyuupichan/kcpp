@@ -40,6 +40,10 @@ in_token_concatenation:
   severity: note
   text: in result of token concatenation
 
+macro_produced_defined:
+  severity: error
+  text: macro expansion producing operator %q{defined} is ill-formed
+
 macro_defined_here:
   severity: note
   text: macro %q0 was defined here

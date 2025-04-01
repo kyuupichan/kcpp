@@ -102,6 +102,7 @@ class DID(IntEnum):
     macro_definition_starts_with_concat = auto()
     macro_name_not_identifier = auto()
     macro_name_whitespace = auto()
+    macro_produced_defined = auto()
     macro_redefined = auto()
     missing_digit_sequence = auto()
     multicharacter_literal = auto()
@@ -599,6 +600,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'macro name should be followed by whitespace',
+    ),
+    DID.macro_produced_defined: DiagnosticDefinition(
+        DID.macro_produced_defined,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'macro expansion producing operator %q{defined} is ill-formed',
     ),
     DID.macro_redefined: DiagnosticDefinition(
         DID.macro_redefined,

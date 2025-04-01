@@ -149,7 +149,7 @@ class ExprParser:
         '''
         state.token = token
         stopping_tokens = {context.metadata.want_kind for context in state.context_stack}
-        stopping_tokens.add(TokenKind.EOD)
+        stopping_tokens.add(TokenKind.EOF)
         while True:
             token = self.get_token(state)
             if token.kind in stopping_tokens:
@@ -266,6 +266,9 @@ class ExprParser:
 
     def parse_defined_macro_expr(self, state, defined):
         '''Parse a 'defined' macro expression.'''
+        # Diagnose if "defined" came from a macro expansion
+        if self.pp.locator.derives_from_macro_expansion(defined.loc):
+            self.diag(DID.macro_produced_defined, defined.loc)
         self.pp.expand_macros = False
         paren = False
         token = self.get_token(state)

@@ -294,6 +294,10 @@ class Locator:
         span, offset = self.spelling_span_and_offset(loc)
         return span.buffer().text, offset
 
+    def derives_from_macro_expansion(self, loc):
+        '''Return True if loc is from a macro expansion.'''
+        return not isinstance(self.lookup_span(loc), BufferSpan)
+
     def buffer_span_loc(self, loc):
         '''Step up through the parents of a location until a BufferSpan is reached, and return the
         location there.
