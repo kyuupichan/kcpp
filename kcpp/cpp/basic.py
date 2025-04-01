@@ -410,11 +410,11 @@ Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKi
 class SpecialKind(IntEnum):
     '''These act as independent flags; more than one may be set (e.g. 'if').  High bits of
     the 'special' can encode more information.'''
-    # e.g. 'if', 'error', 'define'.  High bits encode if it is a condition directive.
+    # e.g. 'if', 'error', 'define'.  High bits unused.
     DIRECTIVE = 0x01
     # e.g. 'if', 'const', 'double'.  High bits encode the token kind.
     KEYWORD = 0x02
-    # '__VA_ARGS__' or '__VA_OPT__'.  Nothing stored in the high bits.
+    # '__VA_ARGS__' or '__VA_OPT__'.  High bits unused.
     VA_IDENTIFIER = 0x04
     # e.g. 'not', 'and', 'xor_eq'.  High bits encode the token kind.
     ALT_TOKEN = 0x08
