@@ -140,14 +140,10 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
 
         rhs_spelling = self.pp.token_spelling(rhs)
         spelling = lhs_spelling + rhs_spelling
-        lexer = Lexer(self.pp, spelling + b'\0', 1)
-        token = Token.create()
-        prior = self.pp.set_diagnostic_consumer(None)
-        lexer.get_token(token)
-        self.pp.set_diagnostic_consumer(prior)
+        token, consumed = self.pp.lex_spelling_quietly(spelling)
 
         # Case 1: if it formed a different token we need a space
-        if lexer.cursor != len(lhs_spelling):
+        if consumed != len(lhs_spelling):
             return True
 
         # Case 2 above

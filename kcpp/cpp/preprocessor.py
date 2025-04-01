@@ -244,17 +244,22 @@ class Preprocessor:
             self.identifiers[spelling] = ident
         return ident
 
-    def maybe_identifier(self, spelling):
-        '''Returns an IdentifierInfo is spelling is the spelling of a valid identifier, otherwise
-        None.
-        '''
+    def lex_spelling_quietly(self, spelling):
+        '''Lex a token from the spelling.  Return the token and the number of bytes consumed.'''
         lexer = Lexer(self, spelling + b'\0', 1)
         token = Token.create()
         prior = self.set_diagnostic_consumer(None)
         lexer.get_token(token)
         self.set_diagnostic_consumer(prior)
+        return token, lexer.cursor
+
+    def maybe_identifier(self, spelling):
+        '''Returns an IdentifierInfo is spelling is the spelling of a valid identifier, otherwise
+        None.
+        '''
         # It must be an identifier and have consumed the entire spelling.
-        if token.kind == TokenKind.IDENTIFIER and lexer.cursor == len(spelling):
+        token, consumed = self.lex_spelling_quietly(spelling)
+        if token.kind == TokenKind.IDENTIFIER and consumed == len(spelling):
             return token.extra
         return None
 
