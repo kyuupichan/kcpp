@@ -218,8 +218,8 @@ class SimpleTokenList:
         # Do not produce concat operators through concatenation
         if token.kind == TokenKind.CONCAT:
             token.kind = TokenKind.OTHER
-        # Preserve the spacing flags and copy the token with its new macro location
-        token.copy_spacing_flags_from(lhs.flags)
+        if lhs.flags & TokenFlags.WS:
+            token.flags |= TokenFlags.WS
         lhs.set_to(token, token.loc)
         return True
 
@@ -250,8 +250,11 @@ class ObjectLikeExpansion(SimpleTokenList):
 
         token.set_to(tokens[cursor], self.base_loc + cursor)
         if cursor == 0:
-            # Copy spacing flags of the parent token
-            token.copy_spacing_flags_from(self.parent_flags)
+            # Take whitespace from the invocation token
+            if self.parent_flags & TokenFlags.WS:
+                token.flags |= TokenFlags.WS
+            else:
+                token.flags &= ~TokenFlags.WS
         cursor += 1
 
         while cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
@@ -316,7 +319,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                 string = self.stringize_argument(argument_tokens, new_token_loc)
                 if ws:
                     string.flags |= TokenFlags.WS
-                ws = False
+                    ws = False
                 result.append(string)
                 cursor += 1 + va_opt_count
                 continue
@@ -349,11 +352,11 @@ class FunctionLikeExpansion(SimpleTokenList):
                 continue
 
             token = copy(token)
-            if cursor == starting_cursor:
-                token.flags &= ~TokenFlags.WS
-            elif ws:
+            if ws:
                 token.flags |= TokenFlags.WS
                 ws = False
+            elif cursor == starting_cursor:
+                token.flags &= ~TokenFlags.WS
             token.loc = new_token_loc
             result.append(token)
             cursor += 1
