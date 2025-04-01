@@ -58,15 +58,14 @@ class Skin:
 
     def run(self, source):
         pp = Preprocessor()
-
-        # Set up diagnostics first so that all diagnostics, even in early setup, are
-        # customized.  The front end gives the preprocessor its own diagnostic consumer
+        # Set up diagnostics first so that they are customized as early as possible.
         frontend = self.frontend_class(pp)
-        self.customize_diagnostics(pp.diagnostic_consumer, pp.host)
+        consumer = frontend.diagnostic_class(pp)
+        pp.set_diagnostic_consumer(consumer)
+        self.customize_diagnostics(consumer, pp.host)
 
         # Next customize the preprocessor and then initialize it
-        self.customize_preprocessor(pp)
-        pp.initialize()
+        self.customize_and_initialize_preprocessor(pp)
 
         # Finally customize the front end
         self.customize_frontend(frontend)
@@ -88,7 +87,7 @@ class KCPP(Skin):
     )
 
     def add_frontend_commands(self, group, frontend_class):
-        if frontend_class is PreprocessedOutput:
+        if issubclass(frontend_class, PreprocessedOutput):
             group.add_argument('-P', help='suppress generation of linemarkers',
                                action='store_true', default=False)
             group.add_argument('--list-macros', help='output macro definitions',
@@ -111,14 +110,11 @@ class KCPP(Skin):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def customize_preprocessor(self, pp):
-        # Set up execution character sets if specified
-        if self.command_line.exec_charset:
-            pp.set_charset(True, self.command_line.exec_charset)
-        if self.command_line.wide_exec_charset:
-            pp.set_charset(False, self.command_line.wide_exec_charset)
+    def customize_and_initialize_preprocessor(self, pp):
         pp.set_command_line_macros(self.command_line.define_macro,
                                    self.command_line.undefine_macro)
+        pp.initialize(exec_charset=self.command_line.exec_charset,
+                      wide_exec_charset=self.command_line.wide_exec_charset)
 
     def customize_frontend(self, frontend):
         if isinstance(frontend, PreprocessedOutput):

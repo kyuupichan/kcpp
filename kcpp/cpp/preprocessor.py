@@ -118,11 +118,33 @@ class Preprocessor:
         self.date_str = None
         self.command_line_buffer = None
 
-    def initialize(self, target=None):
-        # Initialization dependent on target.
+    def initialize(self, target=None, exec_charset=None, wide_exec_charset=None):
+        def set_charset(attrib, charset_name, integer_kind):
+            if charset_name:
+                try:
+                    charset = Charset.from_name(charset_name)
+                except LookupError:
+                    self.diag(DID.unknown_charset, location_command_line, [charset_name])
+                    return
+
+                encoding_unit_size = charset.encoding_unit_size()
+                unit_width = self.target.integer_width(integer_kind)
+                if encoding_unit_size * 8 != unit_width:
+                    self.diag(DID.invalid_charset, location_command_line,
+                              [charset_name, integer_kind.name, unit_width])
+                    return
+                setattr(self.target, attrib, charset)
+
+        # Set the target first
         self.target = target or TargetMachine.default()
+
+        # These are dependent on target so must come later
         self.literal_interpreter = LiteralInterpreter(self, False)
         self.expr_parser = ExprParser(self)
+        if exec_charset:
+            set_charset('narrow_charset', exec_charset, IntegerKind.char)
+        if wide_exec_charset:
+            set_charset('wide_charset', wide_exec_charset, IntegerKind.wchar_t)
 
         # Alt tokens, encoding prefixes and directive names can all be modified by
         # language options
@@ -170,28 +192,6 @@ class Preprocessor:
         self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
         self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
-
-    def set_charset(self, is_narrow, charset):
-        def set_charset(attrib, charset_name, integer_kind):
-            if charset_name:
-                try:
-                    charset = Charset.from_name(charset_name)
-                except LookupError:
-                    self.diag(DID.unknown_charset, location_command_line, [charset_name])
-                    return
-
-                encoding_unit_size = charset.encoding_unit_size()
-                unit_width = self.target.integer_width(integer_kind)
-                if encoding_unit_size * 8 != unit_width:
-                    self.diag(DID.invalid_charset, location_command_line,
-                              [charset_name, integer_kind.name, unit_width])
-                    return
-                setattr(self.target, attrib, charset)
-
-        if is_narrow:
-            set_charset('narrow_charset', charset, IntegerKind.char)
-        else:
-            set_charset('wide_charset', charset, IntegerKind.wchar_t)
 
     def set_command_line_macros(self, defines, undefines):
         def buffer_lines():

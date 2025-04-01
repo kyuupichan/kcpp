@@ -19,6 +19,7 @@ __all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
 class FrontEndBase(ABC):
 
     help_group_name = 'frontend'
+    diagnostic_class = DiagnosticPrinter
 
     def __init__(self, pp):
         super().__init__()
@@ -36,10 +37,10 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
     help_group_name = 'preprocessed output'
+    diagnostic_class = UnicodeTerminal
 
     def __init__(self, pp):
         super().__init__(pp)
-        pp.set_diagnostic_consumer(UnicodeTerminal(pp))
         self.at_bol = False
         self.write = None
         self.line_number = -1   # Presumed line number
@@ -161,10 +162,6 @@ class FrontEnd(FrontEndBase):
     '''
 
     help_group_name = 'token dumper'
-
-    def __init__(self, pp):
-        super().__init__(pp)
-        pp.set_diagnostic_consumer(DiagnosticPrinter())
 
     def process(self):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present

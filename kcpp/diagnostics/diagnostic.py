@@ -193,7 +193,7 @@ class DiagnosticConsumer:
     wants with them - simply capture them for later analysis or emission, or pretty-print
     them to stderr.
     '''
-    def __init__(self):
+    def __init__(self, pp):
         self.error_count = 0
         self.fatal_error_count = 0
 
@@ -216,8 +216,8 @@ class DiagnosticConsumer:
 class DiagnosticListener(DiagnosticConsumer):
     '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, pp):
+        super().__init__(pp)
         self.diagnostics = []
 
     def emit(self, diagnostic):
@@ -247,7 +247,7 @@ class DiagnosticEngine(DiagnosticConsumer):
     }
 
     def __init__(self, pp, translations=None):
-        super().__init__()
+        super().__init__(pp)
         self.pp = pp
         # A DiagnosticTranslations object
         self.translations = translations or DiagnosticTranslations({})
