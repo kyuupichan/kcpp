@@ -247,10 +247,7 @@ class Preprocessor:
     def lex_spelling_quietly(self, spelling):
         '''Lex a token from the spelling.  Return the token and the number of bytes consumed.'''
         lexer = Lexer(self, spelling + b'\0', 1)
-        token = Token.create()
-        prior = self.set_diagnostic_consumer(None)
-        lexer.get_token(token)
-        self.set_diagnostic_consumer(prior)
+        token = lexer.get_token_quietly()
         return token, lexer.cursor
 
     def maybe_identifier(self, spelling):
