@@ -22,10 +22,6 @@ class FrontEndBase(ABC):
         super().__init__()
         self.pp = Preprocessor()
 
-    @classmethod
-    def update_argument_parser(cls, parser):
-        pass
-
     def diagnostic_consumer(self, env):
         return UnicodeTerminal(self.pp, env)
 
@@ -63,14 +59,6 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         # Controlled from the command line
         self.suppress_linemarkers = False
         self.list_macros = False
-
-    @classmethod
-    def update_argument_parser(cls, parser):
-        group = parser.add_argument_group(title='preprocessed output')
-        group.add_argument('-P', help='suppress generation of linemarkers', action='store_true',
-                           default=False)
-        group.add_argument('--list-macros', help='output macro definitions', action='store_true',
-                           default=False)
 
     def customize(self, env):
         super().customize(env)
