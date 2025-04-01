@@ -216,6 +216,7 @@ class Preprocessor:
                 yield f'#define {name} {definition}'
             for name in command_line.undefine_macro:
                 yield f'#undef {name}'
+            yield ''   # So join() adds a final newline
 
         # Set up execution character sets if specified
         set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
