@@ -69,7 +69,6 @@ class PreprocessorActions:
 
 class Preprocessor:
 
-    handlers = {}
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
 
     def __init__(self):
@@ -97,9 +96,6 @@ class Preprocessor:
         self.expr_parser = None                 # Deferred
         self.literal_interpreter = None         # Deferred
 
-        # Directive handlers
-        self.handlers = {name.encode(): getattr(self, f'on_{name}')
-                         for name in self.directive_names()}
         # Token source stack
         self.sources = []
         # The primary source file
@@ -144,11 +140,8 @@ class Preprocessor:
         self.literal_interpreter = LiteralInterpreter(self, False)
         self.expr_parser = ExprParser(self)
 
-        # The variadic macro identifiers
-        for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
-            self.get_identifier(spelling).set_special(SpecialKind.VA_IDENTIFIER)
-
-        # These can be modified by language options
+        # Alt tokens, encoding prefixes and directive names can all be modified by
+        # language options
         alt_tokens = {
             b'and': TokenKind.LOGICAL_AND,
             b'or': TokenKind.LOGICAL_OR,
@@ -165,6 +158,10 @@ class Preprocessor:
         for spelling, token_kind in alt_tokens.items():
             self.get_identifier(spelling).set_alt_token(token_kind)
 
+        for spelling in (b'include define undef line error warning pragma if ifdef ifndef '
+                         b'elif elifdef elifndef else endif').split():
+            self.get_identifier(spelling).set_directive()
+
         encoding_prefixes = {
             b'': Encoding.NONE,
             b'L': Encoding.WIDE,
@@ -179,6 +176,10 @@ class Preprocessor:
         }
         for spelling, encoding in encoding_prefixes.items():
             self.get_identifier(spelling).set_encoding(encoding)
+
+        # The variadic macro identifiers
+        for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
+            self.get_identifier(spelling).set_va_identifier()
 
         # Built-in macros
         self.get_identifier(b'__DATE__').macro = BuiltinKind.DATE
@@ -299,10 +300,6 @@ class Preprocessor:
             return b''
         # FIXME: can spell most (all?) other tokens immediately too
         return self.token_spelling_at_loc(token.loc)
-
-    def directive_names(self):
-        return ('include define undef line error warning pragma if ifdef ifndef '
-                'elif elifdef elifndef else endif').split()
 
     def read_file(self, path, diag_loc):
         filename_literal = self.filename_bytes_to_string_literal(
@@ -517,19 +514,13 @@ class Preprocessor:
         '''Handle a directive to and including the EOF token.  We have read the '#' introducing a
         directive.'''
         def get_handler(lexer, token):
-            # Turn off skipping whilst getting the directive name so that identifier
-            # information is attached, and vertical whitespace is caught.
-            was_skipping = self.skipping
-            self.skipping = False
-            lexer.get_token(token)
-            self.skipping = was_skipping
             # Save the directive name's location
             self.directive_name_loc = token.loc
-            if token.kind == TokenKind.IDENTIFIER:
+            if token.kind == TokenKind.IDENTIFIER and token.extra.special & SpecialKind.DIRECTIVE:
                 # If skipping ignore everything except for conditional directives
                 if self.skipping and token.extra.spelling not in self.condition_directives:
                     return self.ignore_directive
-                return self.handlers.get(token.extra.spelling, self.invalid_directive)
+                return getattr(self, f'on_{token.extra.spelling.decode()}')
             # Ignore the null directive, and unknown directives when skipping.
             if self.skipping or token.kind == TokenKind.EOF:
                 return self.ignore_directive
@@ -539,6 +530,12 @@ class Preprocessor:
         assert isinstance(lexer, Lexer)
         self.in_directive = True
         self.expand_macros = False
+        # Turn off skipping whilst getting the directive name so that identifier
+        # information is attached, and vertical whitespace is caught.
+        was_skipping = self.skipping
+        self.skipping = False
+        lexer.get_token(token)
+        self.skipping = was_skipping
         handler = get_handler(lexer, token)
         handler(lexer, token)
         self.expand_macros = True

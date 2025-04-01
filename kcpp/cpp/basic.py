@@ -408,10 +408,18 @@ Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKi
 
 
 class SpecialKind(IntEnum):
-    NOT_SPECIAL = 0
-    VA_IDENTIFIER = 1      # These tokens are restricted to limited contexts
-    ALT_TOKEN = 2
-    ENCODING_PREFIX = 3
+    '''These act as independent flags; more than one may be set (e.g. 'if').  High bits of
+    the 'special' can encode more information.'''
+    # e.g. 'if', 'error', 'define'.  High bits encode if it is a condition directive.
+    DIRECTIVE = 0x01
+    # e.g. 'if', 'const', 'double'.  High bits encode the token kind.
+    KEYWORD = 0x02
+    # '__VA_ARGS__' or '__VA_OPT__'.  Nothing stored in the high bits.
+    VA_IDENTIFIER = 0x04
+    # e.g. 'not', 'and', 'xor_eq'.  High bits encode the token kind.
+    ALT_TOKEN = 0x08
+    # e.g. 'L', 'uR'.  High bits encode the Encoding enum.
+    ENCODING_PREFIX = 0x10
 
 
 @dataclass(slots=True)
@@ -430,25 +438,28 @@ class IdentifierInfo:
     def to_text(self):
         return f'{self.spelling.decode()}'
 
-    def special_kind(self):
-        return SpecialKind(self.special & 0xf)
-
     def alt_token_kind(self):
-        assert self.special_kind() == SpecialKind.ALT_TOKEN
-        return TokenKind(self.special >> 4)
+        assert self.special & SpecialKind.ALT_TOKEN
+        return TokenKind(self.special >> 6)
 
     def encoding(self):
-        assert self.special_kind() == SpecialKind.ENCODING_PREFIX
-        return Encoding(self.special >> 4)
-
-    def set_special(self, kind):
-        self.special = kind
+        assert self.special & SpecialKind.ENCODING_PREFIX
+        return Encoding(self.special >> 6)
 
     def set_alt_token(self, token_kind):
-        self.special = (token_kind << 4) + SpecialKind.ALT_TOKEN
+        self.special = (token_kind << 6) + SpecialKind.ALT_TOKEN
+
+    def set_directive(self):
+        self.special |= SpecialKind.DIRECTIVE
 
     def set_encoding(self, encoding):
-        self.special = (encoding << 4) + SpecialKind.ENCODING_PREFIX
+        self.special = (encoding << 6) + SpecialKind.ENCODING_PREFIX
+
+    def set_keyword(self, token_kind):
+        self.special |= (token_kind << 6) + SpecialKind.KEYWORD
+
+    def set_va_identifier(self):
+        self.special |= SpecialKind.VA_IDENTIFIER
 
 
 # A dummy used for a lexed identifier when skipping

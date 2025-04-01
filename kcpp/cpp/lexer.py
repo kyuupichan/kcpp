@@ -604,7 +604,7 @@ class Lexer(TokenSource):
         assert ident is not None
 
         # Is this an encoding prefix to a string or character literal?
-        if kind == TokenKind.IDENTIFIER and ident.special_kind() is SpecialKind.ENCODING_PREFIX:
+        if kind == TokenKind.IDENTIFIER and ident.special & SpecialKind.ENCODING_PREFIX:
             encoding = ident.encoding()
             c, ncursor = self.read_logical_byte(cursor)
             if ident.spelling[-1] == 82:  # 'R'
@@ -659,13 +659,11 @@ class Lexer(TokenSource):
 
         # Handle __VA_ARGS__, alternative tokens, etc.
         ident = self.pp.get_identifier(spelling)
-        if ident.special:
-            special = ident.special_kind()
-            if special is SpecialKind.VA_IDENTIFIER:
-                if not self.pp.in_variadic_macro_definition:
-                    self.diag(DID.invalid_variadic_identifier_use, start, [spelling])
-            elif special is SpecialKind.ALT_TOKEN:
-                kind = ident.alt_token_kind()
+        if ident.special & SpecialKind.VA_IDENTIFIER:
+            if not self.pp.in_variadic_macro_definition:
+                self.diag(DID.invalid_variadic_identifier_use, start, [spelling])
+        elif ident.special & SpecialKind.ALT_TOKEN:
+            kind = ident.alt_token_kind()
 
         return kind, ident, cursor
 
