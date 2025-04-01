@@ -305,12 +305,13 @@ class FunctionLikeExpansion(SimpleTokenList):
                 return arguments[param.extra], 0
 
         result = []
-        starting_cursor = cursor
+        loop_count = -1
         ws = parent_flags & TokenFlags.WS
         while cursor < limit:
+            loop_count += 1
             token = tokens[cursor]
             new_token_loc = base_loc + cursor
-            if cursor != starting_cursor and token.flags & TokenFlags.WS:
+            if loop_count and token.flags & TokenFlags.WS:
                 ws = True
 
             if token.kind == TokenKind.STRINGIZE:
@@ -339,9 +340,12 @@ class FunctionLikeExpansion(SimpleTokenList):
                     argument_tokens = self.expand_argument(argument_tokens)
 
                 # Set WS flag on the first token (if there is one)
-                if argument_tokens and ws:
-                    argument_tokens[0].flags |= TokenFlags.WS
-                    ws = False
+                if argument_tokens:
+                    if ws:
+                        argument_tokens[0].flags |= TokenFlags.WS
+                        ws = False
+                    elif loop_count == 0:
+                        argument_tokens[0].flags &= ~TokenFlags.WS
                 # Give the tokens their macro-expansion locations
                 locations = [token.loc for token in argument_tokens]
                 first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
@@ -355,7 +359,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             if ws:
                 token.flags |= TokenFlags.WS
                 ws = False
-            elif cursor == starting_cursor:
+            elif loop_count == 0:
                 token.flags &= ~TokenFlags.WS
             token.loc = new_token_loc
             result.append(token)
