@@ -18,12 +18,11 @@ __all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
 
 class FrontEndBase(ABC):
 
-    def __init__(self):
-        super().__init__()
-        self.pp = Preprocessor()
+    help_group_name = 'frontend'
 
-    def diagnostic_consumer(self, env):
-        return UnicodeTerminal(self.pp, env)
+    def __init__(self, pp):
+        super().__init__()
+        self.pp = pp
 
     def push_source(self, filename):
         return self.pp.push_main_source_file(filename)
@@ -32,26 +31,15 @@ class FrontEndBase(ABC):
     def process(self):
         pass
 
-    def customize(self, env):
-        self.env = env
-
-    def run(self, source):
-        # Set up the diagnostic consumer before processing the command line
-        self.pp.set_diagnostic_consumer(self.diagnostic_consumer(self.env))
-        self.pp.initialize(self.env)
-
-        # Process the source
-        if self.push_source(source):
-            self.process()
-        # Tidy up
-        return self.pp.finish()
-
 
 class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     '''Consume tokens from the preprocessor and output the preprocessed source.'''
 
-    def __init__(self):
-        super().__init__()
+    help_group_name = 'preprocessed output'
+
+    def __init__(self, pp):
+        super().__init__(pp)
+        pp.set_diagnostic_consumer(UnicodeTerminal(pp))
         self.at_bol = False
         self.write = None
         self.line_number = -1   # Presumed line number
@@ -59,11 +47,6 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         # Controlled from the command line
         self.suppress_linemarkers = False
         self.list_macros = False
-
-    def customize(self, env):
-        super().customize(env)
-        self.suppress_linemarkers = env.command_line.P
-        self.list_macros = env.command_line.list_macros
 
     def finish_line(self):
         if not self.at_bol:
@@ -177,8 +160,11 @@ class FrontEnd(FrontEndBase):
     interpretation of literals.
     '''
 
-    def diagnostic_consumer(self, env):
-        return DiagnosticPrinter()
+    help_group_name = 'token dumper'
+
+    def __init__(self, pp):
+        super().__init__(pp)
+        pp.set_diagnostic_consumer(DiagnosticPrinter())
 
     def process(self):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present

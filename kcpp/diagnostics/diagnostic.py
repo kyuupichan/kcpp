@@ -246,7 +246,7 @@ class DiagnosticEngine(DiagnosticConsumer):
         DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
     }
 
-    def __init__(self, pp, env, translations=None):
+    def __init__(self, pp, translations=None):
         super().__init__()
         self.pp = pp
         # A DiagnosticTranslations object

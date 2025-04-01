@@ -118,7 +118,7 @@ class Preprocessor:
         self.date_str = None
         self.command_line_buffer = None
 
-    def initialize(self, env=None, target=None):
+    def initialize(self, target=None):
         # Initialization dependent on target.
         self.target = target or TargetMachine.default()
         self.literal_interpreter = LiteralInterpreter(self, False)
@@ -171,10 +171,7 @@ class Preprocessor:
         self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
 
-        if not env:
-            return
-
-        # Initialization based on the environment
+    def set_charset(self, is_narrow, charset):
         def set_charset(attrib, charset_name, integer_kind):
             if charset_name:
                 try:
@@ -191,24 +188,26 @@ class Preprocessor:
                     return
                 setattr(self.target, attrib, charset)
 
-        def buffer_lines(command_line):
-            for define in command_line.define_macro:
+        if is_narrow:
+            set_charset('narrow_charset', charset, IntegerKind.char)
+        else:
+            set_charset('wide_charset', charset, IntegerKind.wchar_t)
+
+    def set_command_line_macros(self, defines, undefines):
+        def buffer_lines():
+            for define in defines:
                 pair = define.split('=', maxsplit=1)
                 if len(pair) == 1:
                     name, definition = pair[0], '1'
                 else:
                     name, definition = pair
                 yield f'#define {name} {definition}'
-            for name in command_line.undefine_macro:
+            for name in undefines:
                 yield f'#undef {name}'
             yield ''   # So join() adds a final newline
 
-        # Set up execution character sets if specified
-        set_charset('narrow_charset', env.command_line.exec_charset, IntegerKind.char)
-        set_charset('wide_charset', env.command_line.wide_exec_charset, IntegerKind.wchar_t)
-
         # The command line buffer is processed when the main buffer is pushed.
-        self.command_line_buffer = '\n'.join(buffer_lines(env.command_line)).encode()
+        self.command_line_buffer = '\n'.join(buffer_lines()).encode()
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)

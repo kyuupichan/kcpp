@@ -25,37 +25,20 @@ class UnicodeTerminal(DiagnosticEngine):
     display on a Unicode-enabled terminal.
     '''
 
-    DEFAULT_KCPP_COLOURS = (
-        'error=1;31:warning=1;35:note=1;36:remark=1;34:'
-        'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
-    )
-
-    def __init__(self, pp, env, *, translations=None, file=None):
+    def __init__(self, pp, *, translations=None, file=None):
         '''Diagnostics are written to file.  Colour formatting information, whether colours are
         enabled, and the tabstop are taken from env.  Source file tabs are space-expanded
         to the tabstop.  Diagnostics are adjusted for the terminal width, which we attempt
         to determine from file.
         '''
-        super().__init__(pp, env, translations=translations)
+        super().__init__(pp, translations=translations)
         self.file = file or sys.stderr
         self.nested_indent = 4
-        self.sgr_codes = self.sgr_codes_from_env(env)
-        self.tabstop = env.command_line.tabstop
-        self.terminal_width = self.determine_terminal_width()
+        self.sgr_codes = {}
+        self.tabstop = 8
+        self.terminal_width = 120
 
-    def determine_terminal_width(self):
-        if self.pp.host.is_a_tty(self.file):
-            return self.pp.host.terminal_width(self.file)
-        return 120
-
-    def sgr_codes_from_env(self, env):
-        '''Terminal Select Graphic Rendition (SGR) codes.'''
-        if env.command_line.colours and self.pp.host.terminal_supports_colours(env.variables):
-            colour_string = env.variables.get('KCPP_COLOURS', self.DEFAULT_KCPP_COLOURS)
-            return self.parse_sgr_code_assignments(colour_string)
-        return {}
-
-    def parse_sgr_code_assignments(self, colour_string):
+    def set_sgr_code_assignments(self, colour_string):
         '''Parse an SGR assignments string.'''
         def hint_sgr_code_pairs(colour_string):
             '''A generator returning (hint, sgr_code) pairs.'''
@@ -63,8 +46,7 @@ class UnicodeTerminal(DiagnosticEngine):
                 vals = part.split('=', maxsplit=1)
                 if len(vals) == 2:
                     yield vals
-
-        return {hint: sgr_code for hint, sgr_code in hint_sgr_code_pairs(colour_string)}
+        self.sgr_codes = {hint: sgr_code for hint, sgr_code in hint_sgr_code_pairs(colour_string)}
 
     def enhance_text(self, text, hint):
         '''Emit enhanced text if an SGR code has been assigned for the hint kind.'''

@@ -6,7 +6,8 @@
 
 import argparse
 
-from kcpp.cpp import Environment
+from kcpp.cpp import Environment, Preprocessor
+from kcpp.diagnostics import UnicodeTerminal
 
 from .frontends import PreprocessedOutput, FrontEnd
 
@@ -16,25 +17,12 @@ __all__ = ['KCPP']
 
 class Skin:
 
-    def frontend_and_sources(self, argv, environ, frontend_class):
-        if frontend_class is None:
-            try:
-                argv.remove('--tokens')
-                frontend_class = FrontEnd
-            except ValueError:
-                frontend_class = PreprocessedOutput
+    def __init__(self):
+        self.command_line = None
+        self.environ = None
+        self.frontend_class = None
 
-        frontend = frontend_class()
-        parser = self.parser(frontend)
-
-        command_line = parser.parse_args(argv)
-        env = Environment(command_line, environ)
-        frontend.customize(env)
-        sources = env.command_line.files
-
-        return frontend, sources
-
-    def parser(self, frontend):
+    def parser(self, frontend_class):
         parser = argparse.ArgumentParser(
             prog='kcpp',
             description='A preprocessor for C++23 writen in Python',
@@ -43,12 +31,8 @@ class Skin:
         parser.add_argument('files', metavar='files', nargs='*', default=['-'],
                             help='files to preprocess')
 
-        if isinstance(frontend, PreprocessedOutput):
-            group = parser.add_argument_group(title='preprocessed output')
-            self.add_preprocessed_output_commands(group)
-        elif isinstance(frontend, FrontEnd):
-            group = parser.add_argument_group(title='C++ frontend')
-            self.add_frontend_commands(group)
+        group = parser.add_argument_group(frontend_class.help_group_name)
+        self.add_frontend_commands(group, frontend_class)
 
         pp_group = parser.add_argument_group(title='preprocessor')
         self.add_preprocessor_commands(pp_group)
@@ -58,18 +42,57 @@ class Skin:
 
         return parser
 
+    def sources_to_run(self, argv, environ, frontend_class):
+        if frontend_class is None:
+            try:
+                argv.remove('--tokens')
+                frontend_class = FrontEnd
+            except ValueError:
+                frontend_class = PreprocessedOutput
+
+        parser = self.parser(frontend_class)
+        self.command_line = parser.parse_args(argv)
+        self.environ = environ
+        self.frontend_class = frontend_class
+        return self.command_line.files
+
+    def run(self, source):
+        pp = Preprocessor()
+
+        # Set up diagnostics first so that all diagnostics, even in early setup, are
+        # customized.  The front end gives the preprocessor its own diagnostic consumer
+        frontend = self.frontend_class(pp)
+        self.customize_diagnostics(pp.diagnostic_consumer, pp.host)
+
+        # Next customize the preprocessor and then initialize it
+        self.customize_preprocessor(pp)
+        pp.initialize()
+
+        # Finally customize the front end
+        self.customize_frontend(frontend)
+
+        # Process the source
+        if frontend.push_source(source):
+            frontend.process()
+
+        # Tidy up
+        return pp.finish()
+
 
 class KCPP(Skin):
 
-    def add_preprocessed_output_commands(self, group):
-        group.add_argument('-P', help='suppress generation of linemarkers', action='store_true',
-                           default=False)
-        group.add_argument('--list-macros', help='output macro definitions', action='store_true',
-                           default=False)
+    COLOURS_ENVVAR = 'KCPP_COLOURS'
+    DEFAULT_COLOURS = (
+        'error=1;31:warning=1;35:note=1;36:remark=1;34:'
+        'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
+    )
 
-    def add_frontend_commands(self, group):
-        # There are none
-        pass
+    def add_frontend_commands(self, group, frontend_class):
+        if frontend_class is PreprocessedOutput:
+            group.add_argument('-P', help='suppress generation of linemarkers',
+                               action='store_true', default=False)
+            group.add_argument('--list-macros', help='output macro definitions',
+                               action='store_true', default=False)
 
     def add_preprocessor_commands(self, group):
         group.add_argument('-exec-charset', type=str,
@@ -87,3 +110,27 @@ class KCPP(Skin):
     def add_diagnostic_commands(self, group):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
+
+    def customize_preprocessor(self, pp):
+        # Set up execution character sets if specified
+        if self.command_line.exec_charset:
+            pp.set_charset(True, self.command_line.exec_charset)
+        if self.command_line.wide_exec_charset:
+            pp.set_charset(False, self.command_line.wide_exec_charset)
+        pp.set_command_line_macros(self.command_line.define_macro,
+                                   self.command_line.undefine_macro)
+
+    def customize_frontend(self, frontend):
+        if isinstance(frontend, PreprocessedOutput):
+            frontend.suppress_linemarkers = self.command_line.P
+            frontend.list_macros = self.command_line.list_macros
+
+    def customize_diagnostics(self, consumer, host):
+        if isinstance(consumer, UnicodeTerminal):
+            consumer.tabstop = self.command_line.tabstop
+            if self.command_line.colours and host.terminal_supports_colours(self.environ):
+                colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
+                consumer.set_sgr_code_assignments(colour_string)
+            # FIXME: the stderr redirected file
+            if host.is_a_tty(consumer.file):
+                consumer.terminal_width = host.terminal_width(consumer.file)

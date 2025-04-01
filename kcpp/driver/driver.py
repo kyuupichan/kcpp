@@ -25,10 +25,10 @@ class Driver:
         environ = os.environ if environ is None else environ
 
         skin = KCPP()
-        frontend, sources = skin.frontend_and_sources(argv, environ, frontend_class)
+        sources = skin.sources_to_run(argv, environ, frontend_class)
         exit_code = 0
         for source in sources:
-            exit_code = max(exit_code, frontend.run(source))
+            exit_code = max(exit_code, skin.run(source))
         return exit_code
 
 
