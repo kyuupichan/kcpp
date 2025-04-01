@@ -452,10 +452,8 @@ class Lexer(TokenSource):
         # A line comment.  Delegate handling of EOF and newlines.
         while True:
             c, cursor = self.read_logical_char(cursor)
-            if c in NL_WS:
+            if c in NL_WS or (c == 0 and cursor == len(self.buff)):
                 return TokenKind.WS, cursor - 1
-            if c == 0 and cursor == len(self.buff):
-                return self.on_nul(token, cursor)
 
     def on_block_comment(self, token, cursor, start):
         # A block comment.
