@@ -449,23 +449,13 @@ class Lexer(TokenSource):
         return TokenKind.HASH, ncursor
 
     def on_line_comment(self, token, cursor):
-        # A line comment.  We lex to the newline but do not consume it.
-        # Skip to the newline and consume it.
-        buff = self.buff
+        # A line comment.  Delegate handling of EOF and newlines.
         while True:
-            c = buff[cursor]
-            cursor += 1
-            if c == 92:    # '\\'
-                is_escaped_nl, cursor = self.skip_escaped_newline(cursor)
-                if is_escaped_nl:
-                    continue
+            c, cursor = self.read_logical_char(cursor)
             if c in NL_WS:
                 return self.on_nl_ws(token, cursor)
-            # Not sure if it's worth treating this differently...
-            if c == 0 and cursor == len(buff):
+            if c == 0 and cursor == len(self.buff):
                 return self.on_nul(token, cursor)
-            if c >= 0x80:
-                c, cursor = self.read_char(cursor - 1, -1)
 
     def on_block_comment(self, token, cursor, start):
         # A block comment.
