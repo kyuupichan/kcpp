@@ -6,7 +6,7 @@
 
 import argparse
 
-from kcpp.cpp import Preprocessor, LanguageKind
+from kcpp.cpp import Preprocessor
 from kcpp.diagnostics import UnicodeTerminal
 
 from .frontends import PreprocessedOutput, FrontEnd
@@ -118,7 +118,7 @@ class KCPP(Skin):
 
     def customize_and_initialize_preprocessor(self, pp, source):
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
-            pp.language.kind = LanguageKind.C
+            pp.language.kind = 'C'
         pp.set_command_line_macros(self.command_line.define_macro,
                                    self.command_line.undefine_macro)
         pp.initialize(exec_charset=self.command_line.exec_charset,

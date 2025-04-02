@@ -554,19 +554,37 @@ def toolchain_predefines(pp):
     yield '__kcpp_minor__', str(minor)
     yield '__kcpp_version__', f'kcpp {_version_str}'
 
-    # The predefines expressing what the implementation supports.  In reality these are
-    # a function of the tool, the library and perhaps the target machine as a whole.
-    yield '__STDCPP_BFLOAT16_T__', '1'
-    yield '__STDCPP_FLOAT128_T__', '1'
-    yield '__STDCPP_FLOAT16_T__', '1'
-    yield '__STDCPP_FLOAT32_T__', '1'
-    yield '__STDCPP_FLOAT64_T__', '1'
+    if pp.language.is_cxx():
+        # The predefines expressing what the implementation supports.  In reality these
+        # are a function of the tool, the library and perhaps the target machine as a
+        # whole.
+        yield '__STDCPP_BFLOAT16_T__', '1'
+        yield '__STDCPP_FLOAT128_T__', '1'
+        yield '__STDCPP_FLOAT16_T__', '1'
+        yield '__STDCPP_FLOAT32_T__', '1'
+        yield '__STDCPP_FLOAT64_T__', '1'
 
 
 def standard_predefines(pp):
     '''Yield the predefined macros required by the user's selected standard as (name,
     expansion) pairs.
     '''
+    if pp.language.is_cxx():
+        standard_cxx_predefines(pp)
+
+    yield '__STDC__', '1'
+
+    # The values for C23
+    yield '__STDC_EMBED_NOT_FOUND__', '0'
+    yield '__STDC_EMBED_FOUND__', '1'
+    yield '__STDC_EMBED_EMPTY__', '2'
+    yield '__STDC_UTF_16__', '1'
+    yield '__STDC_UTF_32__', '1'
+    yield '__STDC_VERSION__', '202311L'
+    # FIXME: __STDC_ISO_10646__
+
+
+def standard_cxx_predefines(pp):
     # We do not define __STDC__ or __STDC_VERSION__ or __STDC_ISO_10646__ when compiling
     # C++.
     yield '__cplusplus', '202302L'
@@ -644,6 +662,11 @@ def standard_predefines(pp):
 
 def target_predefines(pp):
     '''Yield the target predefined macros as (name, expansion) pairs.'''
-    yield '__STDCPP_DEFAULT_NEW_ALIGNMENT__', '16UZ'
-    yield '__STDCPP_THREADS__', '1'
+    if pp.language.is_cxx():
+        yield '__STDCPP_DEFAULT_NEW_ALIGNMENT__', '16UZ'
+        yield '__STDCPP_THREADS__', '1'
+
     yield '__STDC_HOSTED__', '1'
+
+    # FIXME: __STDC_MB_MIGHT_NEQ_WC__
+    # FIXME: __STDC_NO_THREADS__ etc

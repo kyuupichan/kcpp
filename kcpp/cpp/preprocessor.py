@@ -29,7 +29,7 @@ from .macros import (
 )
 
 
-__all__ = ['Preprocessor', 'PreprocessorActions', 'LanguageKind']
+__all__ = ['Preprocessor', 'PreprocessorActions']
 
 
 @dataclass(slots=True)
@@ -45,15 +45,13 @@ class IfSection:
     opening_loc: int
 
 
-class LanguageKind(IntEnum):
-    C = auto()
-    CPP = auto()
-
-
 @dataclass(slots=True)
 class Language:
-    kind: LanguageKind
+    kind: str         # Should be 'C' or 'C++'
     year: int
+
+    def is_cxx(self):
+        return self.kind == 'C++'
 
 
 class SourceFileChangeReason(IntEnum):
@@ -88,7 +86,7 @@ class Preprocessor:
         language standard or target.  Such context-sensitive initialization is done by the
         caller calling initialize(), which must happen before pushing the main file.
         '''
-        self.language = Language(LanguageKind.CPP, 2023)
+        self.language = Language('C++', 2023)
         # Helper objects.
         self.identifiers = {}
         # The host abstraction
@@ -159,10 +157,10 @@ class Preprocessor:
 
         # Standard search paths
         self.file_manager.add_standard_search_paths(
-            self.host.standard_search_paths(self.language.kind is LanguageKind.CPP))
+            self.host.standard_search_paths(self.language.is_cxx()))
 
         # Alternative tokens exist only in C++.  In C they are macros in <iso646.h>.
-        if self.language.kind is LanguageKind.CPP:
+        if self.language.is_cxx():
             alt_tokens = {
                 b'and': TokenKind.LOGICAL_AND,
                 b'or': TokenKind.LOGICAL_OR,
@@ -332,9 +330,7 @@ class Preprocessor:
         if self.halt:
             self.halt_compilation()
         else:
-            parent_loc = self.sources[-1].cursor_loc()
             if self.command_line_buffer:
-                parent_loc = self.sources[-1].cursor_loc()
                 self.push_buffer(self.command_line_buffer, '<command line>')
             raw_predefines = predefines(self).encode()
             self.push_buffer(raw_predefines, '<predefines>')
