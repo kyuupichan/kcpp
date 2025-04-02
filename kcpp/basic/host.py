@@ -31,6 +31,8 @@ class Host(abc.ABC):
             raise RuntimeError('unsupported host')
 
     def standard_search_paths(self):
+        '''This is really a function of the target, but we currently don't have a proper
+        target abstraction.'''
         return []
 
     def is_a_tty(self, file):
@@ -104,7 +106,17 @@ class Posix(Host):
 class MacOSX(Host):
 
     def standard_search_paths(self):
-        return ['/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include']
+        prefix = '/Applications/Xcode.app/Contents/Developer/'
+        suffixes = [
+            # This first one is only present if compiling C++
+            'Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1',
+            'Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include',
+            'Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include',
+            'Toolchains/XcodeDefault.xctoolchain/usr/include',
+            # We don't support frameworks (yet)
+            # 'Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks',
+        ]
+        return [prefix + suffix for suffix in suffixes]
 
 
 class Windows(Host):

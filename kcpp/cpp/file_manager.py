@@ -113,7 +113,7 @@ class FileManager:
         root, suffix = self.host.path_splitext(header_name)
         if suffix:
             return self.lookup_in_directory(header_name, directory)
-        for suffix in self.suffix_list:
+        for suffix in self.suffixes:
             result = self.lookup_in_directory(header_name + suffix, directory)
             if result:
                 return result
