@@ -7,9 +7,7 @@
 import sys
 from abc import ABC, abstractmethod
 
-from kcpp.cpp import (
-    Token, TokenKind, TokenFlags, PreprocessorActions, Lexer,
-)
+from kcpp.cpp import Token, TokenKind, TokenFlags, PreprocessorActions
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
 
@@ -24,6 +22,9 @@ class FrontEndBase(ABC):
     def __init__(self, pp):
         super().__init__()
         self.pp = pp
+
+    def push_source(self, filename):
+        self.pp.push_main_source_file(filename)
 
     @abstractmethod
     def process(self):
