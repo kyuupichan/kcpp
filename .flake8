@@ -2,6 +2,6 @@
 
 max_line_length=99
 exclude=__init__.py
-  kcpp/unicode/cp_name_db.py
+  src/kcpp/unicode/cp_name_db.py
 ignore=E122
   W503
