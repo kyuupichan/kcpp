@@ -230,6 +230,10 @@ class Locator:
             self.scratch_range = self.create_scratch_range(0)
         return start
 
+    def primary_source_file_name(self):
+        '''Return the string literal that is the name of the primary source file.'''
+        return self.buffer_spans[0].line_ranges[0].name
+
     def next_macro_span_start(self):
         try:
             return self.macro_spans[-1].end + 1

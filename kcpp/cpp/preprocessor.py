@@ -99,8 +99,6 @@ class Preprocessor:
 
         # Token source stack
         self.sources = []
-        # The primary source file
-        self.main_filename = None
 
         # Internal state
         self.collecting_arguments = False
@@ -345,20 +343,21 @@ class Preprocessor:
 
         fatal_error_count = self.diagnostic_consumer.fatal_error_count
         error_count = self.diagnostic_consumer.error_count
+        filename = self.locator.primary_source_file_name()
         if fatal_error_count:
             self.emit(Diagnostic(DID.compilation_halted, location_none))
             if error_count:
                 self.emit(Diagnostic(DID.fatal_error_and_error_summary, location_none,
-                                     [fatal_error_count, error_count, self.main_filename]))
+                                     [fatal_error_count, error_count, filename]))
             else:
                 self.emit(Diagnostic(DID.fatal_error_summary, location_none,
-                                     [fatal_error_count, self.main_filename]))
+                                     [fatal_error_count, filename]))
             return 4
         if error_count:
             if error_count >= self.error_limit:
                 self.emit(Diagnostic(DID.error_limit_reached, location_none))
             self.emit(Diagnostic(DID.error_summary, location_none,
-                                 [error_count, self.main_filename]))
+                                 [error_count, filename]))
             return 2
         return 0
 
@@ -376,8 +375,6 @@ class Preprocessor:
         self.file_manager.enter_file(search_result)
         # Get the filename as a string literal and create the lexer token source
         filename_literal = self.filename_to_string_literal(search_result.path)
-        if self.main_filename is None:
-            self.main_filename = filename_literal
         raw += b'\0'
         buffer = Buffer(raw)
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
