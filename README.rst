@@ -174,3 +174,7 @@ Macro expansion imlementation complete.  #line implemented.
 0.4 2025-04-02
 
 #include implemented.  Skinning.  Preprocessed output done.
+
+0.4.1 2025-04-02
+
+Change directory layout so I don't have to fight setuptools.
