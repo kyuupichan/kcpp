@@ -6,7 +6,7 @@
 
 import argparse
 
-from kcpp.cpp import Preprocessor
+from kcpp.cpp import Preprocessor, LanguageKind
 from kcpp.diagnostics import UnicodeTerminal
 
 from .frontends import PreprocessedOutput, FrontEnd
@@ -16,6 +16,8 @@ __all__ = ['KCPP']
 
 
 class Skin:
+
+    c_suffixes = ['.c']
 
     def __init__(self):
         self.command_line = None
@@ -70,7 +72,7 @@ class Skin:
         self.customize_diagnostics(consumer, pp.host)
 
         # Next customize the preprocessor and then initialize it
-        self.customize_and_initialize_preprocessor(pp)
+        self.customize_and_initialize_preprocessor(pp, source)
 
         # Finally customize the front end
         self.customize_frontend(frontend)
@@ -114,7 +116,9 @@ class KCPP(Skin):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def customize_and_initialize_preprocessor(self, pp):
+    def customize_and_initialize_preprocessor(self, pp, source):
+        if any(source.endswith(suffix) for suffix in self.c_suffixes):
+            pp.language.kind = LanguageKind.C
         pp.set_command_line_macros(self.command_line.define_macro,
                                    self.command_line.undefine_macro)
         pp.initialize(exec_charset=self.command_line.exec_charset,

@@ -29,7 +29,7 @@ from .macros import (
 )
 
 
-__all__ = ['Preprocessor', 'PreprocessorActions']
+__all__ = ['Preprocessor', 'PreprocessorActions', 'LanguageKind']
 
 
 @dataclass(slots=True)
@@ -43,6 +43,17 @@ class IfSection:
     else_loc: int
     # Location of opening directive
     opening_loc: int
+
+
+class LanguageKind(IntEnum):
+    C = auto()
+    CPP = auto()
+
+
+@dataclass(slots=True)
+class Language:
+    kind: LanguageKind
+    year: int
 
 
 class SourceFileChangeReason(IntEnum):
@@ -77,6 +88,7 @@ class Preprocessor:
         language standard or target.  Such context-sensitive initialization is done by the
         caller calling initialize(), which must happen before pushing the main file.
         '''
+        self.language = Language(LanguageKind.CPP, 2023)
         # Helper objects.
         self.identifiers = {}
         # The host abstraction
@@ -85,7 +97,6 @@ class Preprocessor:
         self.locator = Locator(self)
         # Caches header lookups and file contents
         self.file_manager = FileManager(self.host)
-        self.file_manager.add_standard_search_paths(self.host.standard_search_paths())
         # Diagnostics are sent here
         self.diagnostic_consumer = None
         # Action listener
@@ -146,24 +157,29 @@ class Preprocessor:
         if wide_exec_charset:
             set_charset('wide_charset', wide_exec_charset, IntegerKind.wchar_t)
 
-        # Alt tokens, encoding prefixes and directive names can all be modified by
-        # language options
-        alt_tokens = {
-            b'and': TokenKind.LOGICAL_AND,
-            b'or': TokenKind.LOGICAL_OR,
-            b'bitand': TokenKind.BITWISE_AND,
-            b'bitor': TokenKind.BITWISE_OR,
-            b'xor': TokenKind.BITWISE_XOR,
-            b'compl': TokenKind.TILDE,
-            b'and_eq': TokenKind.BITWISE_AND_ASSIGN,
-            b'or_eq': TokenKind.BITWISE_OR_ASSIGN,
-            b'xor_eq': TokenKind.BITWISE_XOR_ASSIGN,
-            b'not': TokenKind.LOGICAL_NOT,
-            b'not_eq': TokenKind.NE,
-        }
-        for spelling, token_kind in alt_tokens.items():
-            self.get_identifier(spelling).set_alt_token(token_kind)
+        # Standard search paths
+        self.file_manager.add_standard_search_paths(
+            self.host.standard_search_paths(self.language.kind is LanguageKind.CPP))
 
+        # Alternative tokens exist only in C++.  In C they are macros in <iso646.h>.
+        if self.language.kind is LanguageKind.CPP:
+            alt_tokens = {
+                b'and': TokenKind.LOGICAL_AND,
+                b'or': TokenKind.LOGICAL_OR,
+                b'bitand': TokenKind.BITWISE_AND,
+                b'bitor': TokenKind.BITWISE_OR,
+                b'xor': TokenKind.BITWISE_XOR,
+                b'compl': TokenKind.TILDE,
+                b'and_eq': TokenKind.BITWISE_AND_ASSIGN,
+                b'or_eq': TokenKind.BITWISE_OR_ASSIGN,
+                b'xor_eq': TokenKind.BITWISE_XOR_ASSIGN,
+                b'not': TokenKind.LOGICAL_NOT,
+                b'not_eq': TokenKind.NE,
+            }
+            for spelling, token_kind in alt_tokens.items():
+                self.get_identifier(spelling).set_alt_token(token_kind)
+
+        # Encoding prefixes and directive names should all be modified by language
         for spelling in (b'include define undef line error warning pragma if ifdef ifndef '
                          b'elif elifdef elifndef else endif').split():
             self.get_identifier(spelling).set_directive()

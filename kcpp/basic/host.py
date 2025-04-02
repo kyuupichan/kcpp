@@ -30,7 +30,7 @@ class Host(abc.ABC):
         else:
             raise RuntimeError('unsupported host')
 
-    def standard_search_paths(self):
+    def standard_search_paths(self, is_cplusplus):
         '''This is really a function of the target, but we currently don't have a proper
         target abstraction.'''
         return []
@@ -99,13 +99,14 @@ class Host(abc.ABC):
 
 class Posix(Host):
 
-    def standard_search_paths(self):
+    def standard_search_paths(self, is_cplusplus):
         return ['/usr/include']
 
 
 class MacOSX(Host):
 
-    def standard_search_paths(self):
+    def standard_search_paths(self, is_cplusplus):
+        # This is what I can glean from Clang
         prefix = '/Applications/Xcode.app/Contents/Developer/'
         suffixes = [
             # This first one is only present if compiling C++
@@ -116,7 +117,9 @@ class MacOSX(Host):
             # We don't support frameworks (yet)
             # 'Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks',
         ]
-        return [prefix + suffix for suffix in suffixes]
+
+        start = 0 if is_cplusplus else 1
+        return [prefix + suffix for suffix in suffixes[start:]]
 
 
 class Windows(Host):
