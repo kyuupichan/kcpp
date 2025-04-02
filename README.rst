@@ -9,6 +9,37 @@ A preprocessor for C++23 writen in Python, implemented as a library.
   :Author: Neil Booth
 
 
+Getting started
+===============
+
+Put this in `/tmp/foo.cpp`::
+
+  #define div 1 / 0
+  #define g(x) 2 + x
+  #if g(div)
+  #endif
+
+Then::
+
+  $ pip install kcpp
+  $ kcpp /tmp/foo.cpp
+
+
+  #line 1 "/tmp/foo.cpp"
+  #line 1 "<predefines>"
+  #line 1 "/tmp/foo.cpp"
+  "/tmp/foo.cpp", line 3: error: division by zero
+      3 | #if g(div)
+        |       ^~~
+      "/tmp/foo.cpp", line 1: note: in expansion of macro 'div'
+          1 | #define div 1 / 0
+            |               ^ ~
+      "/tmp/foo.cpp", line 2: note: in expansion of macro 'g'
+          2 | #define g(x) 2 + x
+            |                  ^
+  1 error generated compiling "/tmp/foo.cpp".
+
+
 Why write a preprocessor in Python?
 ===================================
 
