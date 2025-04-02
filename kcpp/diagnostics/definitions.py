@@ -59,12 +59,12 @@ class DID(IntEnum):
     error_limit_reached = auto()
     error_summary = auto()
     escape_sequence_value_too_large = auto()
-    expected_a_header_name = auto()
     expected_close_brace = auto()
     expected_close_paren = auto()
     expected_colon = auto()
     expected_comma_in_parameter_list = auto()
     expected_expression = auto()
+    expected_header_name = auto()
     expected_macro_name = auto()
     expected_macro_parameter = auto()
     expected_open_brace = auto()
@@ -76,6 +76,7 @@ class DID(IntEnum):
     floating_point_in_pp_expr = auto()
     from_formation_of_header_name = auto()
     hash_requires_macro_parameter = auto()
+    header_file_not_found = auto()
     hexadecimal_exponent_required = auto()
     identifier_in_pp_expr = auto()
     identifier_not_NFC = auto()
@@ -342,12 +343,6 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         '%select{octal|hexadecimal}0 escape sequence value %1 is too large for type %q2',
     ),
-    DID.expected_a_header_name: DiagnosticDefinition(
-        DID.expected_a_header_name,
-        DiagnosticSeverity.fatal,
-        DiagnosticGroup.none,
-        'expected a header name of the form "FILENAME" or <FILENAME>',
-    ),
     DID.expected_close_brace: DiagnosticDefinition(
         DID.expected_close_brace,
         DiagnosticSeverity.error,
@@ -377,6 +372,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'expected an expression',
+    ),
+    DID.expected_header_name: DiagnosticDefinition(
+        DID.expected_header_name,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'expected a header name of the form "FILENAME" or <FILENAME>',
     ),
     DID.expected_macro_name: DiagnosticDefinition(
         DID.expected_macro_name,
@@ -444,6 +445,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         "'#' must be followed by a macro parameter",
+    ),
+    DID.header_file_not_found: DiagnosticDefinition(
+        DID.header_file_not_found,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'header file %0 not found',
     ),
     DID.hexadecimal_exponent_required: DiagnosticDefinition(
         DID.hexadecimal_exponent_required,

@@ -5,16 +5,12 @@
 #
 
 #
-# Preprocessor diagnostics
+# Preprocessor diagnostics.  Mostly related to macro expansion.
 #
 
 cannot_read_file:
   severity: fatal
   text: "cannot read file %0: %1"
-
-expected_a_header_name:
-  severity: fatal
-  text: 'expected a header name of the form "FILENAME" or <FILENAME>'
 
 from_formation_of_header_name:
   severity: note

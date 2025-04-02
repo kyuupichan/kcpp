@@ -293,7 +293,7 @@ class Preprocessor:
         if isinstance(raw, str):
             error_str = raw
             self.diag(DID.cannot_read_file, diag_loc, [filename_literal, error_str])
-            raw = b''
+            raw = None
         return raw, filename_literal
 
     def push_main_source_file(self, filename):
@@ -305,9 +305,11 @@ class Preprocessor:
         processing doesn't begin until EOF).
         '''
         if filename == '-':
-            raw, filename_literal = '"<stdin>"', sys.stdin.buffer.read()
+            raw, filename_literal = sys.stdin.buffer.read(), '"<stdin>"'
         else:
             raw, filename_literal = self.read_file(filename, location_command_line)
+            # Push an empty buffer on failure
+            raw = raw or b''
         self.push_main_buffer(raw, filename_literal)
 
     def push_main_buffer(self, raw, filename):
@@ -525,10 +527,25 @@ class Preprocessor:
         self.expand_macros = True
         self.in_directive = False
 
+    def search_for_header(self, header_token):
+        spelling = self.token_spelling(header_token)
+        header_name = spelling[1:-1]
+        if spelling[0] == 60:    # '<'
+            return self.file_manager.search_angled_header(header_name)
+        else:
+            return self.file_manager.search_quoted_header(header_name)
+
     def on_include(self, lexer, token):
         self.expand_macros = True
         header_token = self.get_header_name(token, self.get_token)
         self.skip_to_eod(token, header_token.kind == TokenKind.HEADER_NAME)
+        search_result = self.search_for_header(header_token)
+        if search_result:
+            raw, filename = self.read_file(search_result.path, header_token.loc)
+            if raw is not None:
+                self.push_lexer(raw, filename, -1)
+        else:
+            self.diag(DID.header_file_not_found, header_token.loc)
 
     def get_header_name(self, token, get_token):
         self.in_header_name = True
@@ -551,7 +568,7 @@ class Preprocessor:
                                                                ScratchEntryKind.header)
             self.in_header_name = False
             if header_token.kind != TokenKind.HEADER_NAME or not all_consumed:
-                self.diag(DID.expected_a_header_name, diag_loc)
+                self.diag(DID.expected_header_name, diag_loc)
                 header_token.kind = TokenKind.ERROR
         return header_token
 

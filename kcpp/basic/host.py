@@ -80,6 +80,8 @@ class Host(abc.ABC):
         return stat_result.st_size
 
     def read_file(self, path):
+        '''Python returns an OSError if reading a directory.  A C or C++ implementation would
+        have to do it itself.'''
         try:
             with open(path, 'rb') as f:
                 return f.read()
