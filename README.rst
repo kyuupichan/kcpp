@@ -46,23 +46,24 @@ cleanest and most efficient implementation of an idea.  It is ideal for a refere
 implementation that can be transcoded to C or C++.  I believe the result would be much
 better than could be achieved from scratch in a similar timeframe in those languages alone.
 
-I was a co-maintainer of GCC's preprocessor 1999 to 2003.  During this time the
-preprocessor was converted from a standalone executable that would write its output to a
-pipe, to be an integrated "libary" (libcpp) into the compiler proper.  Compilers are
-addictive, and sometime around 2005-2007 I wrote a complete C99 front-end in C (which is
-not public), and its implementation of a host- and target-independent IEEE-conforming
-floating point emulator using bignum integer arithmetic, which I translated from C to C++,
-was incorporated into LLVM, which needed such an emulator for Clang, as APFloat.cpp
-in 2007.  My experience made it very clear how hard it is to refactor and restructure C or
-C++ code to do things more simply or in better ways.  Another reason refactoring is
-avoided is fear of breaking things subtly owing to poor testsuite coverage, or having to
-update hundreds or thousands of tests to account for changes in output or diagnostics that
-a refactoring tends to cause.
+I was a co-maintainer of GCC's preprocessor from 1999 to 2003.  During this time we
+converted it from a standalone executable that would output to a pipe, to an integrated
+(kind-of) libary `libcpp` in the compiler proper.  Compilers are addictive, and between
+2005 and 2007 I wrote a C99 front-end in C (which is not public).  LLVM was lacking an
+implementation of compile-time host- and target-independent IEEE-conforming floating point
+arithmetic, so I contributed the one from my front-end (after translating it from C to
+C++).  Chris Lattner incorporated it into Clang/LLVM as APFloat.cpp in 2007.
 
-A glance at the expression parsing and evalation, and diagnostic, subsystems of GCC and
-Clang, and trying to understand them, shows creeping complexity and loss of clarity.
-Clang's original preprocessor was quite clean and efficient; I'm not sure that could ever
-have been said of libcpp that I worked on.
+My experience writing a front-end made clear the difficulty of refactoring and
+restructuring C or C++ code to make improvements.  Another reason it is avoided is fear of
+breaking things subtly owing to poor testsuite coverage, or having to update hundreds or
+thousands of tests to account for changes in output or diagnostics that a refactoring
+tends to cause.  Can compiler testing be improved?
+
+A glance at, e.g., the expression parsing and evalation code of GCC and Clang, or their
+diagnostic subsystems, and trying to comprehend them reveals creeping complexity and loss
+of clarity.  I remember Clang's original preprocessor from 2007 as being quite clean and
+efficient; I'm not sure that could ever have been said of libcpp that I worked on.
 
 In 2012 I learnt Python and have come to love its simplicity and elegance.  In 2016 with
 ElectrumX I proved Python can efficiently process challenging workloads.  More recently I
@@ -129,15 +130,16 @@ bugs and cleanups:
 - interpretation of literals
 - expression parsing
 - expression evaluation
-- conversion of Unicode character names to codepoints.  I implemented the Python code
-  based on the ideas described by cor3ntin at
-  https://cor3ntin.github.io/posts/cp_to_name/, but added some ideas and improvements of
-  my own to achieve 20+% tighter compaction - see unicode/cp_name_db.py.
 - preprocessed output
-- display of the macro expansion stack in diagnostics with precise caret locations and
-  range highlights
 - the diagnostic framework.  Colourized output to a Unicode terminal is supported,
   as are translations (none provided!).  The framework could be hooked up to an IDE.
+- display of the macro expansion stack in diagnostics with precise caret locations and
+  range highlights
+- conversion of Unicode character names (those in `\N{}` escapes) to codepoints.  My
+  implementation is based on the ideas described by cor3ntin at
+  https://cor3ntin.github.io/posts/cp_to_name/.  I added some ideas and improvements of my
+  own to achieve roughly 20% tighter compaction - see
+  https://github.com/kyuupichan/kcpp/blob/master/src/kcpp/unicode/cp_name_db.py.
 
 
 Incomplete or Missing
@@ -152,12 +154,12 @@ almost trivial, and only held-up by refactoring and testing:
 - _has_include
 - _has_cpp_attribute
 
-The following are more serious projects:
+The following are serious projects:
 
 - C++ modules - I've not fully figured out how these work in C++ or how they interact with
-the preprocessor.  So unlikely to be tackled until some kind of real frontend exists.
+  the preprocessor.  So unlikely to be tackled until some kind of real frontend exists.
 - precompiled headers - possibly an idea and I suspect largely overlaps with modules.
-Again, Python is a good place to experiment before attempting an implementation in C++.
+  Again, Python is a good place to experiment before attempting an implementation in C++.
 
 
 Future
