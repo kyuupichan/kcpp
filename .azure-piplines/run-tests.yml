@@ -28,7 +28,7 @@ jobs:
   - task: PublishCodeCoverageResults@1
     inputs:
       codeCoverageTool: cobertura
-      summaryFileLocation: coverage.xml
+      summaryFileLocation: src/coverage.xml
   - bash: |
       COVERALLS_REPO_TOKEN=$(CRT) coveralls
     displayName: 'Coveralls'
