@@ -8,7 +8,7 @@ import os
 import sys
 import shlex
 
-from .skins import KCPP
+from .skins import Skin
 
 
 __all__ = ['Driver', 'main_cli']
@@ -24,7 +24,7 @@ class Driver:
             argv = sys.argv[1:]
         environ = os.environ if environ is None else environ
 
-        skin = KCPP()
+        skin = Skin.skin(argv ,environ)
         sources = skin.sources_to_run(argv, environ, frontend_class)
         exit_code = 0
         for source in sources:

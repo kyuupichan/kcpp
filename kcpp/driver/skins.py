@@ -42,6 +42,11 @@ class Skin:
 
         return parser
 
+    @classmethod
+    def skin(cls, argv, environ):
+        '''Determine the skin to use from the command line / environment.'''
+        return KCPP()
+
     def sources_to_run(self, argv, environ, frontend_class):
         if frontend_class is None:
             try:
