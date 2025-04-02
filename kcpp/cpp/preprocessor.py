@@ -309,7 +309,6 @@ class Preprocessor:
         else:
             raw, filename_literal = self.read_file(filename, location_command_line)
         self.push_main_buffer(raw, filename_literal)
-        return True
 
     def push_main_buffer(self, raw, filename):
         assert not self.sources

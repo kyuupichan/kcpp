@@ -25,9 +25,6 @@ class FrontEndBase(ABC):
         super().__init__()
         self.pp = pp
 
-    def push_source(self, filename):
-        return self.pp.push_main_source_file(filename)
-
     @abstractmethod
     def process(self):
         pass
