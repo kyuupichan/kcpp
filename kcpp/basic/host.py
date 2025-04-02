@@ -68,13 +68,13 @@ class Host(abc.ABC):
         return os.fstat(fileno)
 
     def stat_is_directory(self, stat_result):
-        return stat.S_ISDIR(stat_result.mode)
+        return stat.S_ISDIR(stat_result.st_mode)
 
     def stat_is_regular_file(self, stat_result):
-        return stat.S_ISREG(stat_result.mode)
+        return stat.S_ISREG(stat_result.st_mode)
 
     def stat_mtime_ns(self, stat_result):
-        return stat_result.mtime_ns
+        return stat_result.st_mtime_ns
 
     def stat_file_size(self, stat_result):
         return stat_result.st_size

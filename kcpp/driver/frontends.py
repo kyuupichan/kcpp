@@ -39,13 +39,14 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
 
     def __init__(self, pp):
         super().__init__(pp)
-        self.at_bol = False
-        self.write = None
+        self.at_bol = True
+        self.write = sys.stdout.write
         self.line_number = -1   # Presumed line number
         self.filename = None
         # Controlled from the command line
         self.suppress_linemarkers = False
         self.list_macros = False
+        pp.actions = self
 
     def finish_line(self):
         if not self.at_bol:
@@ -86,11 +87,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 self.write_line_marker()
 
     def process(self):
-        self.write = sys.stdout.write
-        self.at_bol = True
-
         pp = self.pp
-        pp.actions = self
         token = Token.create()
         write = self.write
         locator = pp.locator

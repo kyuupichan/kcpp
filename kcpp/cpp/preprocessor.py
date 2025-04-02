@@ -19,7 +19,7 @@ from .basic import (
     TargetMachine, IntegerKind, Charset
 )
 from .expressions import ExprParser
-from .file_manager import FileManager
+from .file_manager import FileManager, SearchResult
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator, ScratchEntryKind
@@ -287,14 +287,13 @@ class Preprocessor:
         return self.token_spelling_at_loc(token.loc)
 
     def read_file(self, path, diag_loc):
-        filename_literal = self.filename_bytes_to_string_literal(
-            path.encode(sys.getfilesystemencoding(), 'surrogateescape'))
         raw = self.file_manager.read_file(path)
         if isinstance(raw, str):
             error_str = raw
-            self.diag(DID.cannot_read_file, diag_loc, [filename_literal, error_str])
+            filename = self.filename_to_string_literal(path)
+            self.diag(DID.cannot_read_file, diag_loc, [filename, error_str])
             raw = None
-        return raw, filename_literal
+        return raw
 
     def push_main_source_file(self, filename):
         '''Push the main source file onto the preprocessor's source file stack.  Return True on
@@ -304,33 +303,32 @@ class Preprocessor:
         filename is the path to the filename.  '-' reads from stdin (all at once -
         processing doesn't begin until EOF).
         '''
-        if filename == '-':
-            raw, filename_literal = sys.stdin.buffer.read(), '"<stdin>"'
-        else:
-            raw, filename_literal = self.read_file(filename, location_command_line)
-            # Push an empty buffer on failure
-            raw = raw or b''
-        self.push_main_buffer(raw, filename_literal)
-
-    def push_main_buffer(self, raw, filename):
         assert not self.sources
+
+        if filename == '-':
+            filename = '<stdin>'
+            raw = sys.stdin.buffer.read()
+        else:
+            # Push an empty buffer on failure
+            raw = self.read_file(filename, location_command_line) or b''
+
         self.main_filename = filename
-        self.push_lexer(raw, filename, -1)
+        self.push_buffer(raw, filename)
         if self.halt:
             self.halt_compilation()
         else:
             parent_loc = self.sources[-1].cursor_loc()
             if self.command_line_buffer:
                 parent_loc = self.sources[-1].cursor_loc()
-                self.push_lexer(self.command_line_buffer, '"<command line>"', parent_loc)
+                self.push_buffer(self.command_line_buffer, '<command line>')
             raw_predefines = predefines(self).encode()
-            self.push_lexer(raw_predefines, '"<predefines>"', parent_loc)
+            self.push_buffer(raw_predefines, '<predefines>')
             self.predefining_macros = True
 
     def halt_compilation(self):
         self.halt = True
         if not self.sources:
-            # push_main_buffer() will call us back
+            # push_main_source_file() will call us back
             return
         # Move the main lexer to EOF and drop other token sources, so that frontends exit
         # immediately
@@ -364,8 +362,20 @@ class Preprocessor:
             return 2
         return 0
 
-    def push_lexer(self, raw, filename, parent_loc):
-        assert isinstance(filename, str) and filename[0] == filename[-1] == '"'
+    def push_buffer(self, raw, filename):
+        '''Push a lexer token source for the raw bytes, and return it.
+
+        Also push an entry in the file manager's file stack, and inform listeners that
+        the source file changed.
+        '''
+        # Deal with stacking an entry in the file manager
+        if isinstance(filename, SearchResult):
+            search_result = filename
+        else:
+            search_result = self.file_manager.dummy_search_result(filename)
+        self.file_manager.enter_file(search_result)
+        # Get the filename as a string literal and create the lexer token source
+        filename = self.filename_to_string_literal(search_result.path)
         raw += b'\0'
         buffer = Buffer(raw)
         first_loc = self.locator.new_buffer_loc(buffer, filename, -1)
@@ -386,13 +396,14 @@ class Preprocessor:
     def pop_source(self):
         source = self.sources.pop()
         if isinstance(source, Lexer):
+            self.file_manager.leave_file()
             self.predefining_macros = False
             if self.actions:
                 cursor_loc = self.sources[-1].cursor_loc()
                 self.actions.on_source_file_change(cursor_loc, SourceFileChangeReason.leave)
         return self.sources[-1]
 
-    def filename_bytes_to_string_literal(self, filename):
+    def filename_to_string_literal(self, filename):
         '''Convert a python command-line string to a string literal.
 
         Strings passed to the program from the environment or command line need not be
@@ -410,7 +421,10 @@ class Preprocessor:
         __FILE__, and is what appears in #line directives (see on_line() for how they are
         handled).
         '''
-        assert isinstance(filename, bytes)
+        # Python passes around magically encoded strings if they are not valid UTF-8.
+        # Convert them to their original byte form.
+        if isinstance(filename, str):
+            filename = filename.encode(sys.getfilesystemencoding(), 'surrogateescape')
         # Some language standards should degrade the UnicodeKind so the string literals
         # can be read back in.
         return UnicodeKind.character.bytes_to_string_literal(filename)
@@ -438,8 +452,7 @@ class Preprocessor:
             # Handle preprocessing directives.  This must happen before macro expansion.
             if token.kind == TokenKind.HASH and token.flags & TokenFlags.BOL:
                 self.handle_directive(source, token)
-                # FIXME: this won't be true when we handle #include
-                assert source is self.sources[-1]
+                source = self.sources[-1]
                 continue
 
             if token.kind == TokenKind.EOF:
@@ -529,7 +542,7 @@ class Preprocessor:
 
     def search_for_header(self, header_token):
         spelling = self.token_spelling(header_token)
-        header_name = spelling[1:-1]
+        header_name = spelling[1:-1].decode(sys.getfilesystemencoding(), 'surrogateescape')
         if spelling[0] == 60:    # '<'
             return self.file_manager.search_angled_header(header_name)
         else:
@@ -541,9 +554,9 @@ class Preprocessor:
         self.skip_to_eod(token, header_token.kind == TokenKind.HEADER_NAME)
         search_result = self.search_for_header(header_token)
         if search_result:
-            raw, filename = self.read_file(search_result.path, header_token.loc)
+            raw = self.read_file(search_result.path, header_token.loc)
             if raw is not None:
-                self.push_lexer(raw, filename, -1)
+                self.push_buffer(raw, search_result)
         else:
             self.diag(DID.header_file_not_found, header_token.loc)
 
@@ -835,7 +848,7 @@ class Preprocessor:
             else:
                 filename = self.literal_interpreter.interpret_filename(token)
                 if filename is not None:
-                    filename = self.filename_bytes_to_string_literal(filename)
+                    filename = self.filename_to_string_literal(filename)
 
         is_good = line_number != -1 and filename is not None
         self.skip_to_eod(token, is_good)

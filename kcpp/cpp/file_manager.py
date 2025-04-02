@@ -12,6 +12,7 @@ __all__ = ['FileManager']
 
 
 class DirectoryKind(IntEnum):
+    none = auto()          # For e.g. the directory of the main file
     quoted = auto()
     angled = auto()
     system = auto()
@@ -138,12 +139,9 @@ class FileManager:
             return self.search_absolute(header_name)
 
         # Search in the directory of the current file
-        entry = self.file_stack[-1]
-        dirname = self.host.path_dirname(entry.path)
         if self.current_file_search:
-            is_system = entry.directory.is_system() if entry.directory else False
-            directory = IncludeDirectory(dirname, is_system, True)
-            result = self.search_directory(header_name, directory)
+            entry = self.file_stack[-1]
+            result = self.search_directory(header_name, entry.directory)
             if result:
                 return result
 
@@ -167,6 +165,17 @@ class FileManager:
         angled_lists = [self.user_angled, self.user_system, self.standard, self.user_final]
         return self.search_directory_lists(header_name, angled_lists)
 
+    def dummy_search_result(self, path):
+        dirname = self.host.path_dirname(path)
+        directory = IncludeDirectory(dirname, DirectoryKind.none, True)
+        return SearchResult(directory, path)
+
     def read_file(self, path):
         # No caching yet - pass it on to the host function
         return self.host.read_file(path)
+
+    def enter_file(self, search_result):
+        self.file_stack.append(search_result)
+
+    def leave_file(self):
+        self.file_stack.pop()
