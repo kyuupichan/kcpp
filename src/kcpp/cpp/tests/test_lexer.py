@@ -35,4 +35,4 @@ class TestLexer:
 
 def create_lexer(raw):
     pp = Preprocessor()
-    return pp.push_buffer(raw, '<test>', -1)
+    return pp.push_buffer(raw, '<test>')
