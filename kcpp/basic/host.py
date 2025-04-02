@@ -9,6 +9,7 @@ be an abstraction layer.
 
 import abc
 import os
+import platform
 import stat
 
 __all__ = ['Host']
@@ -21,11 +22,16 @@ class Host(abc.ABC):
     def host():
         '''Return an instance of Host.'''
         if os.name == 'posix':
-            return HostPosix()
+            if platform.system() == 'Darwin':
+                return MacOSX()
+            return Posix()
         elif os.name == 'nt':
-            return HostWindows()
+            return Windows()
         else:
             raise RuntimeError('unsupported host')
+
+    def standard_search_paths(self):
+        return []
 
     def is_a_tty(self, file):
         '''Return True if file is connected to a terminal device.'''
@@ -89,9 +95,17 @@ class Host(abc.ABC):
             return e.strerror
 
 
-class HostPosix(Host):
-    pass
+class Posix(Host):
+
+    def standard_search_paths(self):
+        return ['/usr/include']
 
 
-class HostWindows(Host):
+class MacOSX(Host):
+
+    def standard_search_paths(self):
+        return ['/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include']
+
+
+class Windows(Host):
     pass

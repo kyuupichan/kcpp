@@ -85,6 +85,7 @@ class Preprocessor:
         self.locator = Locator(self)
         # Caches header lookups and file contents
         self.file_manager = FileManager(self.host)
+        self.file_manager.add_standard_search_paths(self.host.standard_search_paths())
         # Diagnostics are sent here
         self.diagnostic_consumer = None
         # Action listener

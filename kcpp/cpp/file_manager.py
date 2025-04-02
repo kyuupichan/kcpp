@@ -67,7 +67,7 @@ class FileManager:
         # Each suffix is appended to suffix-less header names and tried in turn
         self.suffixes = ['']
 
-    def add_search_path(self, path, kind):
+    def add_search_paths(self, paths, kind):
         '''Add path to the include search path.  is_quote is True to add it to the search path for
         quoted file names, otherwise it is added to the search path for angled file names.
         is_system_dir is True if it is to be treated as a system directory (which may
@@ -84,9 +84,13 @@ class FileManager:
         elif kind is DirectoryKind.final:
             dir_list = self.user_final
 
-        stat_result = self.host.stat(path)
-        exists = self.host.stat_is_directory(stat_result)
-        dir_list.append(IncludeDirectory(path, kind, exists))
+        for path in paths:
+            stat_result = self.host.stat(path)
+            exists = self.host.stat_is_directory(stat_result)
+            dir_list.append(IncludeDirectory(path, kind, exists))
+
+    def add_standard_search_paths(self, paths):
+        self.add_search_paths(paths, DirectoryKind.standard)
 
     def lookup_in_directory(self, header_name, directory):
         if directory:
