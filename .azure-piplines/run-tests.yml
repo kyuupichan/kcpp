@@ -15,7 +15,8 @@ jobs:
       architecture: x64
   - template: prepare-env.yml
   - script: |
-      coverage run -m pytest --junitxml=junit/test-results.xml src && coverage xml
+      cd src
+      coverage run -m pytest --junitxml=junit/test-results.xml kcpp && coverage xml
     displayName: 'Test with pytest'
   - bash: flake8
     displayName: flake8
