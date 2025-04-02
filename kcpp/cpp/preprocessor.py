@@ -70,6 +70,7 @@ class PreprocessorActions:
 class Preprocessor:
 
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
+    read_stdin = sys.stdin.buffer.read
 
     def __init__(self):
         '''Perform initialization that is not dependent on customization of, e.g., choice of
@@ -307,12 +308,11 @@ class Preprocessor:
 
         if filename == '-':
             filename = '<stdin>'
-            raw = sys.stdin.buffer.read()
+            raw = self.read_stdin()
         else:
             # Push an empty buffer on failure
             raw = self.read_file(filename, location_command_line) or b''
 
-        self.main_filename = filename
         self.push_buffer(raw, filename)
         if self.halt:
             self.halt_compilation()
@@ -375,10 +375,12 @@ class Preprocessor:
             search_result = self.file_manager.dummy_search_result(filename)
         self.file_manager.enter_file(search_result)
         # Get the filename as a string literal and create the lexer token source
-        filename = self.filename_to_string_literal(search_result.path)
+        filename_literal = self.filename_to_string_literal(search_result.path)
+        if self.main_filename is None:
+            self.main_filename = filename_literal
         raw += b'\0'
         buffer = Buffer(raw)
-        first_loc = self.locator.new_buffer_loc(buffer, filename, -1)
+        first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
         lexer = Lexer(self, raw, first_loc)
         lexer.if_sections = []
         self.push_source(lexer)
