@@ -1,0 +1,21 @@
+kcpp is my own original work, started sometime in January 2025.  It builds on my
+experience writing and maintaining libcpp in GCC, and an unreleased C front-end (itself
+written in C) of my own.  Its floating point emulator was submitted as APFloat.cpp to
+Clang in 2007.
+
+I have taken many ideas from the implementations of GCC and Clang.  Thanks to Chris
+Lattner for his fantastic work on Clang and LLVM.  In the 1990s I found the online Comeau
+Computing compiler, essentially a wrapper of the EDG front end, inspirational because of
+the quality of its diagnostics and the obvious quality of its implementation.  EDG had
+caret diagnostics back then, perhaps before anyone else.  Sadly Comeau's website
+disappeared a long time ago.
+
+Thanks to the C and C++ committees for their hard work maintaining the stanards and
+allowing them to progress and move forwards.  C++ has been particularly promising in this
+regard.
+
+Thanks to Daniel Bernstein for his software, to Matthew Dillon for DragonFlyBSD, and to D.
+Richard Hipp for sqlite and fossil.  Their high-quality C software has been deeply
+inspirational.
+
+And finally to github, for the amazing tools they provide to so many for free.
