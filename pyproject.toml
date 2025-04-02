@@ -12,7 +12,7 @@ dependencies = []
 description = 'A preprocessor for C++23 writen in Python, implemented as a library'
 authors = [{name = 'Neil Booth', email = 'kyuupichan@pm.me'}]
 maintainers = [{name = 'Neil Booth', email = 'kyuupichan@pm.me'}]
-license = {file = "LICENCE"}
+license-files = ["LICENCE"]
 urls = {'Project-URL' = 'https://github.com/kyuupichan/kcpp'}
 classifiers = [
   'Development Status :: 2 - Pre-Alpha',

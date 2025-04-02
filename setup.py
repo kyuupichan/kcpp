@@ -13,11 +13,10 @@ def find_version(filename):
 
 
 tld = os.path.abspath(os.path.dirname(__file__))
-version = find_version(os.path.join(tld, 'kcpp', '__init__.py'))
+version = find_version(os.path.join(tld, 'src', 'kcpp', '__init__.py'))
 
 
 setuptools.setup(
     version=version,
-    packages=['kcpp'],
     download_url=('https://github.com/kyuupichan/kcpp/archive/{version}.tar.gz'),
 )
