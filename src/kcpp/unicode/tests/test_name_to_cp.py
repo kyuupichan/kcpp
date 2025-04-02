@@ -5,6 +5,7 @@ from kcpp.unicode.name_to_cp import name_to_cp
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
+
 def name_to_cp_testcases():
     with open(os.path.join(cur_dir, 'name_to_cp.txt'), 'r') as f:
         for line in f.readlines():

@@ -570,8 +570,12 @@ def standard_predefines(pp):
     expansion) pairs.
     '''
     if pp.language.is_cxx():
-        standard_cxx_predefines(pp)
+        yield from standard_cxx_predefines(pp)
+    else:
+        yield from standard_c_predefines(pp)
 
+
+def standard_c_predefines(pp):
     yield '__STDC__', '1'
 
     # The values for C23
