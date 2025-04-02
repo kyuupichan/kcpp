@@ -23,8 +23,6 @@ Then::
 
   $ pip install kcpp
   $ kcpp /tmp/foo.cpp
-
-
   #line 1 "/tmp/foo.cpp"
   #line 1 "<predefines>"
   #line 1 "/tmp/foo.cpp"
