@@ -557,7 +557,8 @@ class Preprocessor:
             if raw is not None:
                 self.push_buffer(raw, search_result)
         else:
-            self.diag(DID.header_file_not_found, header_token.loc)
+            spelling, _ = header_token.extra
+            self.diag(DID.header_file_not_found, header_token.loc, [spelling])
 
     def get_header_name(self, token, get_token):
         self.in_header_name = True
