@@ -63,6 +63,9 @@ class Host(abc.ABC):
     def path_join(self, lhs, rhs):
         return os.path.join(lhs, rhs)
 
+    def path_split(self, path):
+        return os.path.split(path)
+
     def path_splitext(self, path):
         return os.path.splitext(path)
 

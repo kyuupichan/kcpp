@@ -145,7 +145,13 @@ class FileManager:
         # Search in the directory of the current file
         if self.current_file_search:
             entry = self.file_stack[-1]
-            result = self.search_directory(header_name, entry.directory)
+            # create a new directory entry if it is not a simple filename
+            dirname, filename = self.host.path_split(entry.path)
+            if dirname == '' or dirname == '.':
+                directory = entry.directory
+            else:
+                directory = IncludeDirectory(dirname, entry.directory.kind, True)
+            result = self.search_directory(header_name, directory)
             if result:
                 return result
 
