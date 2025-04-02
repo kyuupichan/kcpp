@@ -71,8 +71,7 @@ class Skin:
         self.customize_frontend(frontend)
 
         # Process the source
-        frontend.push_source(source)
-        frontend.process()
+        frontend.process(source)
 
         # Tidy up
         return pp.finish()
