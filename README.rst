@@ -48,30 +48,30 @@ better than could be achieved from scratch in a similar timeframe in those langu
 
 I was a co-maintainer of GCC's preprocessor 1999 to 2003.  During this time the
 preprocessor was converted from a standalone executable that would write its output to a
-pipe, to be an integrated "libary" (libcpp) into the compiler proper.  Furthermore, around
-2005-2007 I wrote a complete C99 front-end in C (not public), and I rewrote its
-implementation of a generic target floating point emulator using bignum integer arithmetic
-from C to C++ and contributed to the Clang project, which needed such an emulator, as
-APFloat.cpp in around 2007.  From writing a C front-end, it became very clear how hard it
-is to refactor and restructure C or C++ code to do things more simply or in better ways,
-which generally means it is not done.  Another reason refactoring is avoided is fear of
-breaking things subtly owing to poor testsuite coverage, or alternatively having to
-manually update hundreds or thousands of tests to account for changes in output that a
-refactoring might cause.
+pipe, to be an integrated "libary" (libcpp) into the compiler proper.  Compilers are
+addictive, and sometime around 2005-2007 I wrote a complete C99 front-end in C (which is
+not public), and its implementation of a host- and target-independent IEEE-conforming
+floating point emulator using bignum integer arithmetic, which I translated from C to C++,
+was incorporated into LLVM, which needed such an emulator for Clang, as APFloat.cpp
+in 2007.  My experience made it very clear how hard it is to refactor and restructure C or
+C++ code to do things more simply or in better ways.  Another reason refactoring is
+avoided is fear of breaking things subtly owing to poor testsuite coverage, or having to
+update hundreds or thousands of tests to account for changes in output or diagnostics that
+a refactoring tends to cause.
 
-A quick glance at the diagnostic and expression parsing and evalation subsystems of GCC
-and Clang today, and trying to understand them, shows creeping complexity and loss of
-clarity.  Clang's original preprocessor was fairly clean and efficient - something that
-was only partly true of GCC's libcpp at one point.
+A glance at the expression parsing and evalation, and diagnostic, subsystems of GCC and
+Clang, and trying to understand them, shows creeping complexity and loss of clarity.
+Clang's original preprocessor was quite clean and efficient; I'm not sure that could ever
+have been said of libcpp that I worked on.
 
-I learnt Python in 2012, and since that time have come to love its simplicity and
-elegance.  In 2016 with ElectrumX that I showed that Python can provide efficient
-processing of heavy workloads.  More recently I have become interested in learning C++
-properly (I used to be able to write basic C++ from around the mid 1990s, but at the time
-I much preferred C, and I have never been good at idiomatic C++ as I've never worked on a
-large and decent C++ codebase).  I took a look at drafts of the most recent C++ standard
-and decided "Aha! Let's try something insane and attempt a C++23 preprocessor in Python."
-I started this crazy project at around the end of January 2025.
+In 2012 I learnt Python and have come to love its simplicity and elegance.  In 2016 with
+ElectrumX I proved Python can efficiently process challenging workloads.  More recently I
+have become interested in learning C++ properly - although able to write basic C++ from
+around the mid 1990s, I used to prefer the simplicity of C.
+
+Recently I noticed C++ was "getting its act together" and took a look at C++ standard
+drafts.  I became curious and decided "Hmm, let's try something a little insane and write
+a C++23 preprocessor in Python."  So kcpp was born in mid-January 2025.
 
 Can a performant and standards-conforming preprocessor be written in Python?
 
@@ -80,11 +80,13 @@ What about the other open source C preprocessors?
 =================================================
 
 There are several publicly available preprocessors, usually written in C or C++, and most
-claim to be standards conforming (but are not).  It is fairly easy to be "almost"
-conforming, but the last 10-20% is very hard.  This is particularly true when it comes to
-endless corner cases, or more recent features like processing generic UTF-8 source,
-extended identifiers, __VA_OPT__, and handling UCNs.  None make an effort at high-quality
-diagnostics and their codebases do not appeal as something to build on.
+claim to be standards conforming, but are only superficially so.  It is indeed quite some
+work to be almost conforming, but the last 10-20% is very hard, particularly considering
+endless corner cases, or more recent features like processing UTF-8 source with extended
+identifiers, raw strings, the addition of __VA_OPT__ feature, and handling UCNs.  None of
+the preprocessors I'm aware of (other than those of the much larger projects GCC and
+Clang) make an effort at high-quality diagnostics or serious standards compliance, and
+their codebases do not appeal as something to build on.
 
 To my surprise two or three Python preprocessors exist as well, but have similar defects
 to their C and C++ counterparts and/or have other goals such as visualization (cpip is a
@@ -98,28 +100,28 @@ Goals
 
 This project shall develop a standards-conforming and efficient (to the extent possible in
 Python) preprocessor that provides high quality diagnostics that is host and target
-independent (in the compiler sense).  The code should be clean and easy to follow.
+independent (in the compiler sense).  The code should be clean and easy to understand.
 
-Perhaps more importantly, it should be a "reference implementation" that can be easily
-transcoded to a clean and efficient C or C++ implementation by a decent programmer of
-those languages.  There is no reason such an implementation should be on at least on a par
-with Clang or GCC for performance and quality, and at the same time a lot smaller and
-easier to understand.
+Perhaps more importantly, it should be a reference implementation that can be easily
+transcoded to an efficient C or C++ implementation by a decent programmer of those
+languages.  I believe there is no reason such a re-implementation should not be a par or
+better than Clang or GCC with respect to performance and quality, and at the same time
+significantly smaller and easier to understand.
 
-Some design choices I have made (such as treating source files as binary rather than as
+I have made some design choices (such as treating source files as binary rather than as
 Python Unicode strings, and not using Python's built-in Unicode support) are because those
-features don't exist in C and C++.  I want it to be fairly easy to translate the Python
-code directly translate to C or C++ equivalents.
+features don't exist in C and C++.  It should be fairly easy to translate this Python code
+to C or C++ equivalents.
 
-I probably will do such a transcoding to C++ once the Python code is mostly complete and
-cleaned up.  This will be later in 2025 as part of my goal of learning C++ properly.
+I intend to do such a transcoding to C++ once the Python code is mostly complete and
+cleaned up later in 2025 as part of my goal of learning C++ properly.
 
 
 Features that are essentially complete
 ======================================
 
-The following are bascially done and fully working, modulo cleanups and improvements, to
-the C++23 specifications:
+The following features are bascially complete to the C++23 specifications, modulo silly
+bugs and cleanups:
 
 - lexing
 - macro expansion, including __VA_OPT__ and whitespace correctness
@@ -150,21 +152,23 @@ almost trivial, and only held-up by refactoring and testing:
 - _has_include
 - _has_cpp_attribute
 
-C++ modules - I've not fully figured out how these work in C++ or how they interact with
-the preprocessor.  Unlikely to be tackled until some kind of real frontend exists.
+The following are more serious projects:
 
-Precompiled headers - possibly an idea and I suspect largely overlaps with modules.
+- C++ modules - I've not fully figured out how these work in C++ or how they interact with
+the preprocessor.  So unlikely to be tackled until some kind of real frontend exists.
+- precompiled headers - possibly an idea and I suspect largely overlaps with modules.
 Again, Python is a good place to experiment before attempting an implementation in C++.
-
-Makefile output and other features are possibilities going forwards.
 
 
 Future
 ======
 
-It should be easy to extend the code to provide hooks for other code or analysis tools
-needing a preprocessor back-end.  A logical next step is to become a front-end in Python
-too.
+Features like ``Makefile`` output are worth considering going forwards.
+
+A logical next step is to become a front-end in Python.
+
+It should be easy to extend the code to provide hooks for analysis or other tools needing
+a preprocessor back-end.
 
 Feature requests are welcome.
 
@@ -179,8 +183,8 @@ figure out.
 Tests
 =====
 
-I have a testuite for the code but it is private.  Test case submissions for the public
-repo (using pytest) are welcome.
+My testuite for the code is mostly private.  Test case submissions for the public repo
+(using pytest) are welcome.
 
 Bug reports are also welcome.
 
