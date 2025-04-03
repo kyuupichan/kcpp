@@ -39,6 +39,7 @@ class DID(IntEnum):
     builtin_macro_redefined = auto()
     cannot_be_defined = auto()
     cannot_read_file = auto()
+    cannot_write_file = auto()
     character_does_not_exist = auto()
     character_not_single_code_unit = auto()
     codepoint_basic_character_set = auto()
@@ -226,6 +227,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'cannot read file %0: %1',
+    ),
+    DID.cannot_write_file: DiagnosticDefinition(
+        DID.cannot_write_file,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'cannot write to file %0: %1',
     ),
     DID.character_does_not_exist: DiagnosticDefinition(
         DID.character_does_not_exist,

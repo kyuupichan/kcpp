@@ -20,6 +20,10 @@ cannot_read_file:
   severity: fatal
   text: "cannot read file %0: %1"
 
+cannot_write_file:
+  severity: fatal
+  text: "cannot write to file %0: %1"
+
 from_formation_of_header_name:
   severity: note
   text: from formation of header name
