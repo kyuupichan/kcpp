@@ -555,27 +555,32 @@ class Preprocessor:
         self.expand_macros = True
         self.in_directive = False
 
-    def search_for_header(self, header_token):
+    def read_header_file(self, header_token, *, diagnose_if_not_found):
         spelling = self.token_spelling(header_token)
         header_name = spelling[1:-1].decode(sys.getfilesystemencoding(), 'surrogateescape')
         if spelling[0] == 60:    # '<'
-            return self.file_manager.search_angled_header(header_name)
+            search_result = self.file_manager.search_angled_header(header_name)
         else:
-            return self.file_manager.search_quoted_header(header_name)
+            search_result = self.file_manager.search_quoted_header(header_name)
+
+        if search_result is None:
+            if diagnose_if_not_found:
+                # FIXME: don't show the delimeters
+                spelling, _ = header_token.extra
+                self.diag(DID.header_file_not_found, header_token.loc, [spelling])
+            raw = None
+        else:
+            raw = self.read_file(search_result.path, header_token.loc)
+        return raw, search_result
 
     def on_include(self, lexer, token):
         self.expand_macros = True
         header_token = self.create_header_name(has_include=False)
         self.skip_to_eod(token, header_token is not None)
         if header_token:
-            search_result = self.search_for_header(header_token)
-            if search_result:
-                raw = self.read_file(search_result.path, header_token.loc)
-                if raw is not None:
-                    self.push_buffer(raw, search_result)
-            else:
-                spelling, _ = header_token.extra
-                self.diag(DID.header_file_not_found, header_token.loc, [spelling])
+            raw, search_result = self.read_header_file(header_token, diagnose_if_not_found=True)
+            if raw is not None:
+                self.push_buffer(raw, search_result)
 
     def create_header_name(self, has_include):
         '''Read a header name, returning a new token or None.  Return a token of kind

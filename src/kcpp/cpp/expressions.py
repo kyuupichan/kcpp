@@ -303,12 +303,18 @@ class ExprParser:
 
     def parse_has_feature_body(self, state, paren, has_token):
         # We have consumed the open parenthesis.
-        assert has_token.has_feature_kind is HasFeatureKind.include
-        header_token = self.create_header_name(has_include=True)
+        assert has_token.extra.has_feature_kind() is HasFeatureKind.include
+        header_token = self.pp.create_header_name(has_include=True)
         if header_token is None:
             return False, True
-        search_result = self.search_for_header(header_token)
-        return search_result is not None, False
+        # According to the standard, "The has-include-expression evaluates to 1 if the
+        # search for the source file succeeds, and to 0 if the search fails."  It is not
+        # clear what constitutes a search succeeding, but Clang and GCC diagnose the
+        # search as for an include except that not-found is ignored.  In particular, an
+        # unreadable file is a fatal error, but a directory is considered a header that is
+        # not found.  This is reasonable so we do the same.
+        raw, _ = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
+        return raw is not None, False
 
     def overflow(self, lhs, op, args):
         '''Diagnose overflow of lhs at the operator 'op' with the given arguments.'''
