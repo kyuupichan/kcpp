@@ -100,17 +100,27 @@ class KCPP(Skin):
                                action='store_true', default=False)
 
     def add_preprocessor_commands(self, group):
-        group.add_argument('-exec-charset', type=str,
+        group.add_argument('-exec-charset', type=str, metavar='CHARSET',
                            help='set the narrow execution character set')
-        group.add_argument('-wide-exec-charset', type=str,
+        group.add_argument('-wide-exec-charset', type=str, metavar='CHARSET',
                            help='set the wide execution character set')
-        group.add_argument('--max-include-depth', type=int, default=100,
+        group.add_argument('--max-include-depth', type=int, default=100, metavar='DEPTH',
                            help='set the maximum depth of nested source file inclusion')
         group.add_argument('-D', '--define-macro', action='append', default=[],
-                           help='''In -D name[(param-list)][=def], define macro 'name' as
-                           'def'.  If 'def' is omitted 'name' is defined to 1.  Function-like
-                           macros can be defined by specifying a parameter list.''')
-        group.add_argument('-U', '--undefine-macro', action='append', default=[],
+                           metavar='NAME[(PARAM-LIST)][=DEF]',
+                           help='''define macro NAME as DEF.  If DEF is omitted NAME is defined
+                           to 1.  Function-like macros can be defined by specifying a
+                           parameter list''')
+        group.add_argument('--quoted-dir', action='append', default=[], metavar='DIR',
+                           help='''add a directory to the list of directories searched for ""
+                           includes and before the -I directories''')
+        group.add_argument('-I', '--angled-dir', action='append', default=[],  metavar='DIR',
+                           help='''add a directory to the list of directories searched for <>
+                           includes before the system directories''')
+        group.add_argument('--system-dir', action='append', default=[],  metavar='DIR',
+                           help='''add a directory to the list of directories searched for <>
+                           includes before the standard directories but after -I directories''')
+        group.add_argument('-U', '--undefine-macro', action='append', default=[], metavar='NAME',
                            help='''Remove the definition of a macro.
                            -U options are processed after all -D options.''')
 
@@ -122,6 +132,9 @@ class KCPP(Skin):
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
             pp.language.kind = 'C'
         pp.max_include_depth = self.command_line.max_include_depth
+        pp.set_include_directories(self.command_line.quoted_dir,
+                                   self.command_line.angled_dir,
+                                   self.command_line.system_dir)
         pp.set_command_line_macros(self.command_line.define_macro,
                                    self.command_line.undefine_macro)
         pp.initialize(exec_charset=self.command_line.exec_charset,

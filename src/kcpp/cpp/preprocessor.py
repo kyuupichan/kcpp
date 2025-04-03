@@ -19,7 +19,7 @@ from .basic import (
     TargetMachine, IntegerKind, Charset
 )
 from .expressions import ExprParser
-from .file_manager import FileManager, SearchResult
+from .file_manager import FileManager, SearchResult, DirectoryKind
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator, ScratchEntryKind
@@ -211,6 +211,11 @@ class Preprocessor:
 
         # Built-in has-feature pseudo-macros
         self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
+
+    def set_include_directories(self, quoted_dirs, angled_dirs, system_dirs):
+        self.file_manager.add_search_paths(quoted_dirs, DirectoryKind.quoted)
+        self.file_manager.add_search_paths(angled_dirs, DirectoryKind.angled)
+        self.file_manager.add_search_paths(system_dirs, DirectoryKind.system)
 
     def set_command_line_macros(self, defines, undefines):
         def buffer_lines():

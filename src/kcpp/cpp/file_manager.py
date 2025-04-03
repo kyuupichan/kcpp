@@ -59,9 +59,9 @@ class FileManager:
         self.file_stack = []        # a list of SearchResult objects
         self.current_file_search = True
         # Lists of include directories
-        self.user_quoted = []       # -iquote.   for "" searches only
-        self.user_angled = []       # -I.  <> searches start here
-        self.user_system = []       # -isystem
+        self.user_quoted = []       # --quoted-dir.  for "" searches only
+        self.user_angled = []       # -I --angled-dir <> searches start here
+        self.user_system = []       # --system-dir
         self.standard = []          # a function of the target
         self.user_final = []        # -idirafter
         # Each suffix is appended to suffix-less header names and tried in turn
