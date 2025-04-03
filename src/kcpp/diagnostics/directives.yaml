@@ -56,6 +56,10 @@ filename_should_be_string:
   severity: error
   text: filename should be a string literal
 
+function_like_macro_not_defined:
+  severity: error   # it would be a syntax error anyway
+  text: function-like macro %q0 is not defined
+
 hash_requires_macro_parameter:
   severity: error
   text: "'#' must be followed by a macro parameter"

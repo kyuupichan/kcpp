@@ -336,14 +336,20 @@ class ExprParser:
     def evaluate_identifier_expr(self, token, is_evaluated):
         '''Evaluate an identifier.  This could be a boolean literal or a random identifier.
         '''
+        is_erroneous = False
         value = 0
-        if token.extra == self.false:
+        if self.pp.peek_token_kind() == TokenKind.PAREN_OPEN:
+            # Idea from Clang; consider "#if foo(2)" where foo is undefined.
+            self.diag(DID.function_like_macro_not_defined, token.loc,
+                      [self.pp.token_spelling(token)])
+            is_erroneous = True
+        elif token.extra == self.false:
             pass
         elif token.extra == self.true:
             value = 1
         elif is_evaluated:
             self.diag(DID.identifier_in_pp_expr, token.loc, [self.pp.token_spelling(token)])
-        return ExprValue(value, False, False, TokenRange(token.loc, token.loc))
+        return ExprValue(value, False, is_erroneous, TokenRange(token.loc, token.loc))
 
     def evaluate_unary_op(self, rhs, op):
         '''Evaluate a unary expression.'''

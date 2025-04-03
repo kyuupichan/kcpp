@@ -76,6 +76,7 @@ class DID(IntEnum):
     filename_should_be_string = auto()
     floating_point_in_pp_expr = auto()
     from_formation_of_header_name = auto()
+    function_like_macro_not_defined = auto()
     hash_requires_macro_parameter = auto()
     header_file_not_found = auto()
     hexadecimal_exponent_required = auto()
@@ -447,6 +448,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.note,
         DiagnosticGroup.none,
         'from formation of header name',
+    ),
+    DID.function_like_macro_not_defined: DiagnosticDefinition(
+        DID.function_like_macro_not_defined,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'function-like macro %q0 is not defined',
     ),
     DID.hash_requires_macro_parameter: DiagnosticDefinition(
         DID.hash_requires_macro_parameter,
