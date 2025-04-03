@@ -65,17 +65,18 @@ class Skin:
 
     def run(self, source):
         pp = Preprocessor()
-        # Set up diagnostics first so that they are customized as early as possible.
         frontend = self.frontend_class(pp)
+
+        # Set up diagnostics first so that they are customized as early as possible.
         consumer = frontend.diagnostic_class(pp)
         pp.set_diagnostic_consumer(consumer)
         self.customize_diagnostics(consumer, pp)
 
-        # Next customize the preprocessor and then initialize it
+        # Next customize the preprocessor and initialize it
         self.customize_and_initialize_preprocessor(pp, source)
 
         # Finally customize the front end
-        self.customize_frontend(frontend)
+        self.customize_frontend(frontend, pp)
 
         # Process the source
         frontend.process_source(source)
@@ -94,6 +95,8 @@ class KCPP(Skin):
     SOURCE_DATE_EPOCH_ENVVAR = 'SOURCE_DATE_EPOCH'
 
     def add_frontend_commands(self, group, frontend_class):
+        group.add_argument('-o', '--output', metavar='FILENAME', default=None,
+                           help='compilation output is written to FILENAME instaed of stdout')
         if issubclass(frontend_class, PreprocessedOutput):
             group.add_argument('-P', help='suppress generation of linemarkers',
                                action='store_true', default=False)
@@ -151,13 +154,14 @@ class KCPP(Skin):
         pp.initialize(exec_charset=self.command_line.exec_charset,
                       wide_exec_charset=self.command_line.wide_exec_charset)
 
-    def customize_frontend(self, frontend):
+    def customize_frontend(self, frontend, pp):
+        if self.command_line.output:
+            pp.set_output(self.command_line.output)
         if isinstance(frontend, PreprocessedOutput):
             frontend.suppress_linemarkers = self.command_line.P
             frontend.list_macros = self.command_line.list_macros
 
     def customize_diagnostics(self, consumer, pp):
-        # Redirect stderr if requested
         if self.command_line.error_output:
             pp.set_error_output(self.command_line.error_output)
         if isinstance(consumer, UnicodeTerminal):

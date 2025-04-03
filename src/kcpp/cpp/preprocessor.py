@@ -218,12 +218,18 @@ class Preprocessor:
         # Built-in has-feature pseudo-macros
         self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
 
-    def set_error_output(self, filename):
+    def _set_output(self, filename, attrib):
         result = self.host.open_file_for_writing(filename)
         if isinstance(result, str):
             self.diag(DID.cannot_write_file, location_command_line, [filename, result])
         else:
-            self.stderr = result
+            setattr(self, attrib, result)
+
+    def set_error_output(self, filename):
+        self._set_output(filename, 'stderr')
+
+    def set_output(self, filename):
+        self._set_output(filename, 'stdout')
 
     def set_include_directories(self, quoted_dirs, angled_dirs, system_dirs):
         self.file_manager.add_search_paths(quoted_dirs, DirectoryKind.quoted)

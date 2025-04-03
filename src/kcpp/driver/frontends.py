@@ -4,7 +4,6 @@
 #
 '''Preprocessor frontends.'''
 
-import sys
 from abc import ABC, abstractmethod
 
 from kcpp.cpp import Token, TokenKind, TokenFlags, PreprocessorActions
@@ -42,7 +41,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     def __init__(self, pp):
         super().__init__(pp)
         self.at_bol = True
-        self.write = sys.stdout.write
+        self.write = None
         self.line_number = -1   # Presumed line number
         self.filename = None
         # Controlled from the command line
@@ -62,6 +61,9 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             self.write(f'#line {self.line_number} {self.filename}\n')
 
     def on_source_file_change(self, loc, reason):
+        # This is called before self.process().  Perhaps we should have a start() action?
+        if not self.write:
+            self.write = self.pp.stdout.write
         self.finish_line()
         location = self.pp.locator.presumed_location(loc, True)
         self.line_number = location.presumed_line_number
@@ -161,6 +163,7 @@ class FrontEnd(FrontEndBase):
         this is used for debugging purposes.'''
         pp = self.pp
         token = Token.create()
+        write = pp.stdout.write
         consume = True
         while True:
             # The literal interpreter concatenates string literals, and to do so, it reads
@@ -172,7 +175,9 @@ class FrontEnd(FrontEndBase):
 
             if token.kind == TokenKind.EOF:
                 return
-            print(token.to_short_text())
+            write(token.to_short_text())
+            write('\n')
             if token.is_literal():
                 result = pp.interpret_literal(token)
-                print(result.to_short_text())
+                write(result.to_short_text())
+                write('\n')
