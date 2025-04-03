@@ -351,6 +351,13 @@ class Preprocessor:
             raw = None
         return raw
 
+    def starting_compilation(self, filename):
+        '''Emit a message saying we are starting the compilation of filename.'''
+        if filename == '-':
+            filename = '<stdin>'
+        filename_literal = self.filename_to_string_literal(filename)
+        self.diag(DID.starting_compilation, location_none, [filename_literal])
+
     def push_main_source_file(self, filename):
         '''Push the main source file onto the preprocessor's source file stack.  Return True on
         success.  Otherwise return False, and the caller must abandon the compilation and

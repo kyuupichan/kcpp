@@ -28,7 +28,7 @@ class Driver:
         sources = skin.sources_to_run(argv, environ, frontend_class)
         exit_code = 0
         for source in sources:
-            exit_code = max(exit_code, skin.run(source))
+            exit_code = max(exit_code, skin.run(source, len(sources) > 1))
         return exit_code
 
 

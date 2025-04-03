@@ -63,8 +63,11 @@ class Skin:
         self.frontend_class = frontend_class
         return self.command_line.files
 
-    def run(self, source):
+    def run(self, source, multiple):
         pp = Preprocessor()
+        if multiple:
+            pp.starting_compilation(source)
+
         frontend = self.frontend_class(pp)
 
         # Set up diagnostics first so that they are customized as early as possible.

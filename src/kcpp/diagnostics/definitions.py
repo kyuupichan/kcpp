@@ -126,6 +126,7 @@ class DID(IntEnum):
     severity_warning = auto()
     shift_count_negative = auto()
     shift_count_too_large = auto()
+    starting_compilation = auto()
     string_concatenation_conflict = auto()
     string_concatenation_prior = auto()
     string_invalid_in_pp_expression = auto()
@@ -750,6 +751,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'shift count must be less than the integer width',
+    ),
+    DID.starting_compilation: DiagnosticDefinition(
+        DID.starting_compilation,
+        DiagnosticSeverity.none,
+        DiagnosticGroup.none,
+        'Starting compilation of %0.',
     ),
     DID.string_concatenation_conflict: DiagnosticDefinition(
         DID.string_concatenation_conflict,

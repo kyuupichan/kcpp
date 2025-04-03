@@ -72,3 +72,7 @@ severity_error:
 severity_fatal:
   severity: none
   text: fatal error
+
+starting_compilation:
+  severity: none
+  text: Starting compilation of %0.
