@@ -106,6 +106,7 @@ class Preprocessor:
         self.target = None
         self.expr_parser = None                 # Deferred
         self.literal_interpreter = None         # Deferred
+        self.max_include_depth = 100
 
         # Token source stack
         self.sources = []
@@ -586,7 +587,11 @@ class Preprocessor:
         if header_token:
             raw, search_result = self.read_header_file(header_token, diagnose_if_not_found=True)
             if raw is not None:
-                self.push_buffer(raw, search_result)
+                if self.file_manager.include_depth() >= self.max_include_depth:
+                    self.diag(DID.max_include_depth_reached, header_token.loc,
+                              [self.max_include_depth])
+                else:
+                    self.push_buffer(raw, search_result)
 
     def create_header_name(self, *, in__has_include):
         '''Read a header name, returning a new token or None.  Return a token of kind

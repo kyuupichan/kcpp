@@ -104,6 +104,8 @@ class KCPP(Skin):
                            help='set the narrow execution character set')
         group.add_argument('-wide-exec-charset', type=str,
                            help='set the wide execution character set')
+        group.add_argument('--max-include-depth', type=int, default=100,
+                           help='set the maximum depth of nested source file inclusion')
         group.add_argument('-D', '--define-macro', action='append', default=[],
                            help='''In -D name[(param-list)][=def], define macro 'name' as
                            'def'.  If 'def' is omitted 'name' is defined to 1.  Function-like
@@ -119,6 +121,7 @@ class KCPP(Skin):
     def customize_and_initialize_preprocessor(self, pp, source):
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
             pp.language.kind = 'C'
+        pp.max_include_depth = self.command_line.max_include_depth
         pp.set_command_line_macros(self.command_line.define_macro,
                                    self.command_line.undefine_macro)
         pp.initialize(exec_charset=self.command_line.exec_charset,

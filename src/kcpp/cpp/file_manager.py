@@ -189,3 +189,7 @@ class FileManager:
 
     def leave_file(self):
         self.file_stack.pop()
+
+    def include_depth(self):
+        # Don't count the primary source file.
+        return len(self.file_stack) - 1

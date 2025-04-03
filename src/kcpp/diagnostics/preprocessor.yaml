@@ -48,6 +48,10 @@ macro_defined_here:
   severity: note
   text: macro %q0 was defined here
 
+max_include_depth_reached:
+  severity: fatal
+  text: maximum include file depth of %0 reached
+
 stringize_failed:
   severity: error
   text: stringizing did not produce a valid string literal

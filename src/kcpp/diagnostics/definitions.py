@@ -106,6 +106,7 @@ class DID(IntEnum):
     macro_name_whitespace = auto()
     macro_produced_defined = auto()
     macro_redefined = auto()
+    max_include_depth_reached = auto()
     missing_digit_sequence = auto()
     multicharacter_literal = auto()
     multicharacter_literal_truncated = auto()
@@ -626,6 +627,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'redefinition of macro %q0',
+    ),
+    DID.max_include_depth_reached: DiagnosticDefinition(
+        DID.max_include_depth_reached,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'maximum include file depth of %0 reached',
     ),
     DID.missing_digit_sequence: DiagnosticDefinition(
         DID.missing_digit_sequence,
