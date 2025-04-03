@@ -19,7 +19,7 @@ from ..unicode import REPLACEMENT_CHAR
 
 __all__ = [
     'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'SpecialKind', 'TargetMachine',
+    'IdentifierInfo', 'SpecialKind', 'TargetMachine', 'HasFeatureKind',
 ]
 
 
@@ -360,6 +360,13 @@ class Encoding(IntEnum):
         return self.basic_integer_kinds[self.basic_encoding()]
 
 
+class HasFeatureKind(IntEnum):
+    c_attribute = auto()     # __has_c_attribute
+    cpp_attribute = auto()   # __has_cpp_attribute
+    embed = auto()           # __has_embed
+    include = auto()         # __has_include
+
+
 @dataclass(slots=True)
 class Charset:
     name: str
@@ -398,12 +405,14 @@ class SpecialKind(IntEnum):
     DIRECTIVE = 0x01
     # e.g. 'if', 'const', 'double'.  High bits encode the token kind.
     KEYWORD = 0x02
-    # '__VA_ARGS__' or '__VA_OPT__'.  High bits unused.
+    # '__VA_ARGS__' or '__VA_OPT__'.  High bits unused.  Restricted use.
     VA_IDENTIFIER = 0x04
+    # '__has_include', etc.  High bits encode the kind.  Restricted use.
+    HAS_FEATURE = 0x08
     # e.g. 'not', 'and', 'xor_eq'.  High bits encode the token kind.
-    ALT_TOKEN = 0x08
+    ALT_TOKEN = 0x10
     # e.g. 'L', 'uR'.  High bits encode the Encoding enum.
-    ENCODING_PREFIX = 0x10
+    ENCODING_PREFIX = 0x20
 
 
 @dataclass(slots=True)
@@ -430,6 +439,10 @@ class IdentifierInfo:
         assert self.special & SpecialKind.ENCODING_PREFIX
         return Encoding(self.special >> 6)
 
+    def has_feature_kind(self):
+        assert self.special & SpecialKind.HAS_FEATURE
+        return HasFeatureKind(self.special >> 6)
+
     def set_alt_token(self, token_kind):
         self.special = (token_kind << 6) + SpecialKind.ALT_TOKEN
 
@@ -438,6 +451,9 @@ class IdentifierInfo:
 
     def set_encoding(self, encoding):
         self.special = (encoding << 6) + SpecialKind.ENCODING_PREFIX
+
+    def set_has_feature(self, has_feature_kind):
+        self.special = (has_feature_kind << 6) + SpecialKind.HAS_FEATURE
 
     def set_keyword(self, token_kind):
         self.special |= (token_kind << 6) + SpecialKind.KEYWORD

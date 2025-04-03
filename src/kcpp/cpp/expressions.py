@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 
 from ..diagnostics import Diagnostic, DID, TokenRange
-from .basic import Token, TokenKind, IntegerKind
+from .basic import Token, TokenKind, IntegerKind, SpecialKind, HasFeatureKind
 from .literals import LiteralInterpreter
 
 
@@ -229,8 +229,11 @@ class ExprParser:
 
         # Primary expressions
         if kind == TokenKind.IDENTIFIER:
-            if token.extra == self.defined:
+            ident = token.extra
+            if ident is self.defined:
                 return self.parse_defined_macro_expr(state, token)
+            if ident.special & SpecialKind.HAS_FEATURE:
+                return self.parse_has_feature_expr(state, token)
             return self.evaluate_identifier_expr(token, is_evaluated)
 
         if kind == TokenKind.NUMBER or kind == TokenKind.CHARACTER_LITERAL:
@@ -284,6 +287,28 @@ class ExprParser:
         self.pp.expand_macros = True
         return ExprValue(int(is_defined), False, not is_macro_name,
                          TokenRange(defined.loc, token.loc))
+
+    def parse_has_feature_expr(self, state, has_token):
+        token = self.get_token(state)
+        if token.kind == TokenKind.PAREN_OPEN:
+            self.enter_context(state, token.kind, token.loc)
+            is_available, is_erroneous = self.parse_has_feature_body(state, token, has_token)
+            token = self.leave_context(state)
+        else:
+            is_available = False
+            is_erroneous = True
+            self.diag(DID.expected_open_paren, token.loc)
+        return ExprValue(int(is_available), False, is_erroneous,
+                         TokenRange(has_token.loc, token.loc))
+
+    def parse_has_feature_body(self, state, paren, has_token):
+        # We have consumed the open parenthesis.
+        assert has_token.has_feature_kind is HasFeatureKind.include
+        header_token = self.create_header_name(has_include=True)
+        if header_token is None:
+            return False, True
+        search_result = self.search_for_header(header_token)
+        return search_result is not None, False
 
     def overflow(self, lhs, op, args):
         '''Diagnose overflow of lhs at the operator 'op' with the given arguments.'''

@@ -352,6 +352,9 @@ class Lexer(TokenSource):
             kind, ncursor = self.on_delimited_literal(token, cursor)
             if kind == TokenKind.HEADER_NAME:
                 return kind, ncursor
+            # Lex as a normal token now, including <<, <=.  #include is not affected as it
+            # forms header name tokens from token spellings, but __has_include is
+            # affected, it requires a '<' token.
 
         c, ncursor = self.read_logical_byte(cursor)
         if c == 61:  # '='
@@ -709,7 +712,7 @@ class Lexer(TokenSource):
                 break
 
         if c != delimeter:
-            # Don't diagnose unterminated headers
+            # Don't diagnose unterminated headers as #include will complain its own way
             if not in_header and not self.pp.skipping:
                 selector = 0 if kind == TokenKind.CHARACTER_LITERAL else 1
                 self.diag(DID.unterminated_literal, token.loc, [selector])

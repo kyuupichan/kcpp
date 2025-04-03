@@ -15,7 +15,7 @@ from ..diagnostics import (
 )
 
 from .basic import (
-    IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
+    IdentifierInfo, HasFeatureKind, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
     TargetMachine, IntegerKind, Charset
 )
 from .expressions import ExprParser
@@ -200,6 +200,9 @@ class Preprocessor:
         # The variadic macro identifiers
         for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
             self.get_identifier(spelling).set_va_identifier()
+
+        # has-feature pseudo-macros
+        self.get_identifier(b'__has_include').set_has_feature(HasFeatureKind.include)
 
         # Built-in macros
         self.get_identifier(b'__DATE__').macro = BuiltinKind.DATE
@@ -562,43 +565,66 @@ class Preprocessor:
 
     def on_include(self, lexer, token):
         self.expand_macros = True
-        header_token = self.get_header_name(token, self.get_token)
-        self.skip_to_eod(token, header_token.kind == TokenKind.HEADER_NAME)
-        search_result = self.search_for_header(header_token)
-        if search_result:
-            raw = self.read_file(search_result.path, header_token.loc)
-            if raw is not None:
-                self.push_buffer(raw, search_result)
-        else:
-            spelling, _ = header_token.extra
-            self.diag(DID.header_file_not_found, header_token.loc, [spelling])
+        header_token = self.create_header_name(has_include=False)
+        self.skip_to_eod(token, header_token is not None)
+        if header_token:
+            search_result = self.search_for_header(header_token)
+            if search_result:
+                raw = self.read_file(search_result.path, header_token.loc)
+                if raw is not None:
+                    self.push_buffer(raw, search_result)
+            else:
+                spelling, _ = header_token.extra
+                self.diag(DID.header_file_not_found, header_token.loc, [spelling])
 
-    def get_header_name(self, token, get_token):
+    def create_header_name(self, has_include):
+        '''Read a header name, returning a new token or None.  Return a token of kind
+        TokenKind.HEADER_NAME if a valid header name was read.
+
+        This method is used 1) immediately after #include, and 2) after __has_include
+        followed by '('.  Their behaviour is similar but subtly different.
+
+        Both must accept a header-name, which is any sequence of characters between the
+        "" or <> delimiters other than newline and the terminating delimeter.
+
+        If not a lexical header name, it must be treated as a sequence of macro-expandable
+        tokens.  #include expects the result to match a header name in an
+        implementation-defined way, which can only happen if the first token lexically
+        begins with '<' character and the final one ends with a '>' character.
+        __has_include() requires the first token to be a '<' pp-token ('<=' for example
+        won't do), and continues until a '>' pp-token.
+        '''
+        token = Token.create()
         self.in_header_name = True
-        get_token(token)
+        self.get_token(token)
         self.in_header_name = False
-        diag_loc = token.loc
         if token.kind == TokenKind.HEADER_NAME:
-            header_token = copy(token)
-        else:
-            # Try to construct a header name from the spelling of individual tokens
-            parent_loc = token.loc
+            return token
+
+        first_loc = token.loc
+        # has_include() requires TokenKind.LT
+        if not has_include or token.kind == TokenKind.LT:
+            # Try to construct a header name from the individual tokens
             spelling = bytearray()
             while token.kind != TokenKind.EOF:
                 if spelling and token.flags & TokenFlags.WS:
                     spelling.append(32)
                 spelling.extend(self.token_spelling(token))
-                get_token(token)
+                # has_include stops on TokenKind.GT
+                if has_include and token.kind == TokenKind.GT:
+                    break
+                self.get_token(token)
+
             self.in_header_name = True
-            header_token, all_consumed = self.lex_from_scratch(spelling, parent_loc,
-                                                               ScratchEntryKind.header)
+            token, entirely = self.lex_from_scratch(spelling, first_loc, ScratchEntryKind.header)
             self.in_header_name = False
-            if header_token.kind != TokenKind.HEADER_NAME or not all_consumed:
-                self.diag(DID.expected_header_name, diag_loc)
-                header_token.kind = TokenKind.ERROR
-        return header_token
+            if token.kind == TokenKind.HEADER_NAME and entirely:
+                return token
+        self.diag(DID.expected_header_name, first_loc)
+        return None
 
     def lex_from_scratch(self, spelling, parent_loc, kind):
+
         '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token
