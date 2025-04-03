@@ -15,7 +15,7 @@ from ..diagnostics import (
 )
 
 from .basic import (
-    IdentifierInfo, HasFeatureKind, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
+    IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
     TargetMachine, IntegerKind, Charset
 )
 from .expressions import ExprParser
@@ -117,6 +117,7 @@ class Preprocessor:
         self.expand_macros = True
         self.halt = False
         self.in_directive = False
+        self.in_if_elif_directive = False
         self.in_header_name = False
         self.in_variadic_macro_definition = False
         self.lexing_scratch = False
@@ -201,14 +202,14 @@ class Preprocessor:
         for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
             self.get_identifier(spelling).set_va_identifier()
 
-        # has-feature pseudo-macros
-        self.get_identifier(b'__has_include').set_has_feature(HasFeatureKind.include)
-
         # Built-in macros
         self.get_identifier(b'__DATE__').macro = BuiltinKind.DATE
         self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
         self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
+
+        # Built-in has-feature pseudo-macros
+        self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
 
     def set_command_line_macros(self, defines, undefines):
         def buffer_lines():
@@ -492,6 +493,13 @@ class Preprocessor:
         if macro is None:
             return
         if isinstance(macro, BuiltinKind):
+            # __has_include, etc., are handled by the preprocessor expression parser.
+            # However, this captures invalid uses outside of #if / #elif.
+            if macro.is_has_feature():
+                if not self.in_if_elif_directive:
+                    self.diag(DID.builtin_macro_only_if_elif, token.loc,
+                              [self.token_spelling(token)])
+                return
             self.push_source(BuiltinMacroExpansion(self, token.loc, macro))
         else:
             if macro.is_disabled():
@@ -573,14 +581,14 @@ class Preprocessor:
 
     def on_include(self, lexer, token):
         self.expand_macros = True
-        header_token = self.create_header_name(has_include=False)
+        header_token = self.create_header_name(in__has_include=False)
         self.skip_to_eod(token, header_token is not None)
         if header_token:
             raw, search_result = self.read_header_file(header_token, diagnose_if_not_found=True)
             if raw is not None:
                 self.push_buffer(raw, search_result)
 
-    def create_header_name(self, has_include):
+    def create_header_name(self, *, in__has_include):
         '''Read a header name, returning a new token or None.  Return a token of kind
         TokenKind.HEADER_NAME if a valid header name was read.
 
@@ -605,8 +613,11 @@ class Preprocessor:
             return token
 
         first_loc = token.loc
-        # has_include() requires TokenKind.LT
-        if not has_include or token.kind == TokenKind.LT:
+        form_spelling = True
+        if in__has_include:
+            # __has_include() requires TokenKind.LT or TokenKind.STRING_LITERAL
+            form_spelling = token.kind == TokenKind.LT or token.kind == TokenKind.STRING_LITERAL
+        if form_spelling:
             # Try to construct a header name from the individual tokens
             spelling = bytearray()
             while token.kind != TokenKind.EOF:
@@ -614,7 +625,8 @@ class Preprocessor:
                     spelling.append(32)
                 spelling.extend(self.token_spelling(token))
                 # has_include stops on TokenKind.GT
-                if has_include and token.kind == TokenKind.GT:
+                if in__has_include and (token.kind == TokenKind.GT or
+                                        token.kind == TokenKind.STRING_LITERAL):
                     break
                 self.get_token(token)
 
@@ -923,7 +935,9 @@ class Preprocessor:
         )
         lexer.if_sections.append(section)
         if not self.skipping:
+            self.in_if_elif_directive = True
             section.true_condition_seen = condition(lexer, token)
+            self.in_if_elif_directive = False
             self.skipping = not section.true_condition_seen
 
     def else_section(self, lexer, token, condition):

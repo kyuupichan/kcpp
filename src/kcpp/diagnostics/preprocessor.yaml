@@ -8,6 +8,10 @@
 # Preprocessor diagnostics.  Mostly related to macro expansion.
 #
 
+builtin_macro_only_if_elif:
+  severity: error
+  text: "use of %q0 is restricted to #if and #elif directives"
+
 cannot_read_file:
   severity: fatal
   text: "cannot read file %0: %1"

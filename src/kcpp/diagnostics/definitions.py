@@ -34,6 +34,7 @@ class DID(IntEnum):
     at_file_line_and_column = auto()
     brief_at_file_and_line = auto()
     brief_at_file_line_and_column = auto()
+    builtin_macro_only_if_elif = auto()
     builtin_macro_redefined = auto()
     cannot_be_defined = auto()
     cannot_read_file = auto()
@@ -192,6 +193,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
         '%0:%1:%2',
+    ),
+    DID.builtin_macro_only_if_elif: DiagnosticDefinition(
+        DID.builtin_macro_only_if_elif,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'use of %q0 is restricted to #if and #elif directives',
     ),
     DID.builtin_macro_redefined: DiagnosticDefinition(
         DID.builtin_macro_redefined,

@@ -45,11 +45,22 @@ class BuiltinKind(IntEnum):
     FILE = auto()
     LINE = auto()
 
+    # Pseudo function-like macros.  The do not necessarily collect arguments like a
+    # function-like macro.  However they are considered defined, and must not be used in
+    # contexts other than #if and #elif.
+    has_c_attribute = auto()     # __has_c_attribute
+    has_cpp_attribute = auto()   # __has_cpp_attribute
+    has_embed = auto()           # __has_embed
+    has_include = auto()         # __has_include
+
     def is_predefined(self):
         return False
 
     def is_builtin(self):
         return True
+
+    def is_has_feature(self):
+        return self.value >= self.has_include
 
 
 @dataclass(slots=True)

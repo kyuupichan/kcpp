@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 
 from ..diagnostics import Diagnostic, DID, TokenRange
-from .basic import Token, TokenKind, IntegerKind, SpecialKind, HasFeatureKind
+from .basic import Token, TokenKind, IntegerKind, SpecialKind
+from .macros import BuiltinKind
 from .literals import LiteralInterpreter
 
 
@@ -232,7 +233,7 @@ class ExprParser:
             ident = token.extra
             if ident is self.defined:
                 return self.parse_defined_macro_expr(state, token)
-            if ident.special & SpecialKind.HAS_FEATURE:
+            if ident.macro and ident.macro.is_builtin():
                 return self.parse_has_feature_expr(state, token)
             return self.evaluate_identifier_expr(token, is_evaluated)
 
@@ -303,8 +304,8 @@ class ExprParser:
 
     def parse_has_feature_body(self, state, paren, has_token):
         # We have consumed the open parenthesis.
-        assert has_token.extra.has_feature_kind() is HasFeatureKind.include
-        header_token = self.pp.create_header_name(has_include=True)
+        assert has_token.extra.macro is BuiltinKind.has_include
+        header_token = self.pp.create_header_name(in__has_include=True)
         if header_token is None:
             return False, True
         # According to the standard, "The has-include-expression evaluates to 1 if the
