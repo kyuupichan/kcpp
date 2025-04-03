@@ -111,6 +111,9 @@ class KCPP(Skin):
                            help='''define macro NAME as DEF.  If DEF is omitted NAME is defined
                            to 1.  Function-like macros can be defined by specifying a
                            parameter list''')
+        group.add_argument('-U', '--undefine-macro', action='append', default=[], metavar='NAME',
+                           help='''Remove the definition of a macro.
+                           -U options are processed after all -D options.''')
         group.add_argument('--quoted-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for ""
                            includes and before the -I directories''')
@@ -120,9 +123,10 @@ class KCPP(Skin):
         group.add_argument('--system-dir', action='append', default=[],  metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the standard directories but after -I directories''')
-        group.add_argument('-U', '--undefine-macro', action='append', default=[], metavar='NAME',
-                           help='''Remove the definition of a macro.
-                           -U options are processed after all -D options.''')
+        group.add_argument('--include', action='append', default=[],  metavar='FILENAME',
+                           help='''process FILENAME as if #include "FILENAME" as the first line
+                           of the primary source file.  This happens after -D and -U options
+                           are processed.''')
 
     def add_diagnostic_commands(self, group):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
@@ -135,8 +139,9 @@ class KCPP(Skin):
         pp.set_include_directories(self.command_line.quoted_dir,
                                    self.command_line.angled_dir,
                                    self.command_line.system_dir)
-        pp.set_command_line_macros(self.command_line.define_macro,
-                                   self.command_line.undefine_macro)
+        pp.set_command_line(self.command_line.define_macro,
+                            self.command_line.undefine_macro,
+                            self.command_line.include)
         pp.initialize(exec_charset=self.command_line.exec_charset,
                       wide_exec_charset=self.command_line.wide_exec_charset)
 

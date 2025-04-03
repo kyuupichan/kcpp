@@ -217,7 +217,7 @@ class Preprocessor:
         self.file_manager.add_search_paths(angled_dirs, DirectoryKind.angled)
         self.file_manager.add_search_paths(system_dirs, DirectoryKind.system)
 
-    def set_command_line_macros(self, defines, undefines):
+    def set_command_line(self, defines, undefines, includes):
         def buffer_lines():
             for define in defines:
                 pair = define.split('=', maxsplit=1)
@@ -228,6 +228,8 @@ class Preprocessor:
                 yield f'#define {name} {definition}'
             for name in undefines:
                 yield f'#undef {name}'
+            for filename in includes:
+                yield f'#include "{filename}"'
             yield ''   # So join() adds a final newline
 
         # The command line buffer is processed when the main buffer is pushed.
