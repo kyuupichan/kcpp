@@ -565,9 +565,7 @@ class Preprocessor:
 
         if search_result is None:
             if diagnose_if_not_found:
-                # FIXME: don't show the delimeters
-                spelling, _ = header_token.extra
-                self.diag(DID.header_file_not_found, header_token.loc, [spelling])
+                self.diag(DID.header_file_not_found, header_token.loc, [header_name])
             raw = None
         else:
             raw = self.read_file(search_result.path, header_token.loc)

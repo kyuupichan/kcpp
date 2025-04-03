@@ -62,7 +62,7 @@ hash_requires_macro_parameter:
 
 header_file_not_found:
   severity: fatal
-  text: header file %0 not found
+  text: header file %q0 not found
 
 invalid_directive:
   severity: error

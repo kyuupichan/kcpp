@@ -450,7 +450,7 @@ diagnostic_definitions = {
         DID.header_file_not_found,
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
-        'header file %0 not found',
+        'header file %q0 not found',
     ),
     DID.hexadecimal_exponent_required: DiagnosticDefinition(
         DID.hexadecimal_exponent_required,
