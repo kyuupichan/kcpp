@@ -118,13 +118,13 @@ class KCPP(Skin):
         group.add_argument('--quoted-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for ""
                            includes and before the -I directories''')
-        group.add_argument('-I', '--angled-dir', action='append', default=[],  metavar='DIR',
+        group.add_argument('-I', '--angled-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the system directories''')
-        group.add_argument('--system-dir', action='append', default=[],  metavar='DIR',
+        group.add_argument('--system-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the standard directories but after -I directories''')
-        group.add_argument('--include', action='append', default=[],  metavar='FILENAME',
+        group.add_argument('--include', action='append', default=[], metavar='FILENAME',
                            help='''process FILENAME as if #include "FILENAME" as the first line
                            of the primary source file.  This happens after -D and -U options
                            are processed.''')
@@ -148,7 +148,6 @@ class KCPP(Skin):
             pp.set_source_date_epoch(source_date_epoch)
         pp.initialize(exec_charset=self.command_line.exec_charset,
                       wide_exec_charset=self.command_line.wide_exec_charset)
-
 
     def customize_frontend(self, frontend):
         if isinstance(frontend, PreprocessedOutput):

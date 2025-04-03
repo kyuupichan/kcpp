@@ -111,6 +111,10 @@ class Preprocessor:
         # Token source stack
         self.sources = []
 
+        # Output files
+        self.stdout = sys.stdout
+        self.stderr = sys.stderr
+
         # Internal state
         self.collecting_arguments = False
         self.directive_name_loc = None
@@ -390,14 +394,22 @@ class Preprocessor:
             else:
                 self.emit(Diagnostic(DID.fatal_error_summary, location_none,
                                      [fatal_error_count, filename]))
-            return 4
-        if error_count:
+            exit_code = 4
+        elif error_count:
             if error_count >= self.error_limit:
                 self.emit(Diagnostic(DID.error_limit_reached, location_none))
             self.emit(Diagnostic(DID.error_summary, location_none,
                                  [error_count, filename]))
-            return 2
-        return 0
+            exit_code = 2
+        else:
+            exit_code = 0
+
+        # Close the output files if they are not standard streams
+        for file in (self.stdout, self.stderr):
+            if file not in (sys.stdout, sys.stderr):
+                file.close()
+
+        return exit_code
 
     def push_buffer(self, raw, filename):
         '''Push a lexer token source for the raw bytes, and return it.
