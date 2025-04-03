@@ -5,6 +5,7 @@
 
 from array import array
 from bisect import bisect_left, bisect_right
+from unicodedata import is_normalized
 
 from .char_ranges import (
     XID_Start_ranges, XID_Continue_ranges, is_printable_ranges,
@@ -131,8 +132,8 @@ def utf8_cp(raw, offset):
 
 
 def is_NFC(text):
-    # FIXME: not implemented
-    return text != b'not_NFC'
+    # FIXME: implement independently of Python
+    return is_normalized('NFC', text.decode())
 
 
 def to_NFD(text):
