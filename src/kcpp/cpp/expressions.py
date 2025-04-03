@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 
 from ..diagnostics import Diagnostic, DID, TokenRange
-from .basic import Token, TokenKind, IntegerKind, SpecialKind
+from .basic import Token, TokenKind, IntegerKind
 from .macros import BuiltinKind
 from .literals import LiteralInterpreter
 

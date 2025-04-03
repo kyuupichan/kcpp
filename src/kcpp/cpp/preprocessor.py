@@ -625,8 +625,8 @@ class Preprocessor:
                     spelling.append(32)
                 spelling.extend(self.token_spelling(token))
                 # has_include stops on TokenKind.GT
-                if in__has_include and (token.kind == TokenKind.GT or
-                                        token.kind == TokenKind.STRING_LITERAL):
+                if in__has_include and (token.kind == TokenKind.GT
+                                        or token.kind == TokenKind.STRING_LITERAL):
                     break
                 self.get_token(token)
 
