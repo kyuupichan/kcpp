@@ -91,6 +91,7 @@ class KCPP(Skin):
         'error=1;31:warning=1;35:note=1;36:remark=1;34:'
         'path=1:caret=1;32:locus=1;32:range1=34:range2=34:quote=1:unprintable=7'
     )
+    SOURCE_DATE_EPOCH_ENVVAR = 'SOURCE_DATE_EPOCH'
 
     def add_frontend_commands(self, group, frontend_class):
         if issubclass(frontend_class, PreprocessedOutput):
@@ -142,8 +143,12 @@ class KCPP(Skin):
         pp.set_command_line(self.command_line.define_macro,
                             self.command_line.undefine_macro,
                             self.command_line.include)
+        source_date_epoch = self.environ.get(self.SOURCE_DATE_EPOCH_ENVVAR)
+        if source_date_epoch is not None:
+            pp.set_source_date_epoch(source_date_epoch)
         pp.initialize(exec_charset=self.command_line.exec_charset,
                       wide_exec_charset=self.command_line.wide_exec_charset)
+
 
     def customize_frontend(self, frontend):
         if isinstance(frontend, PreprocessedOutput):

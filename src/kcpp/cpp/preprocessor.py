@@ -127,6 +127,8 @@ class Preprocessor:
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
         self.date_str = None
+        # For reproducible timestamps
+        self.source_date_epoch = None
         self.command_line_buffer = None
 
     def initialize(self, target=None, exec_charset=None, wide_exec_charset=None):
@@ -216,6 +218,17 @@ class Preprocessor:
         self.file_manager.add_search_paths(quoted_dirs, DirectoryKind.quoted)
         self.file_manager.add_search_paths(angled_dirs, DirectoryKind.angled)
         self.file_manager.add_search_paths(system_dirs, DirectoryKind.system)
+
+    def set_source_date_epoch(self, epoch):
+        max_epoch = 253402300799
+        invalid = True
+        if epoch.isdigit():
+            epoch = int(epoch)
+            if epoch >= 0 and epoch <= max_epoch:
+                self.source_date_epoch = epoch
+                invalid = False
+        if invalid:
+            self.diag(DID.bad_source_date_epoch, location_command_line, [max_epoch])
 
     def set_command_line(self, defines, undefines, includes):
         def buffer_lines():

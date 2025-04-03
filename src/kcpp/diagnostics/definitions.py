@@ -32,6 +32,7 @@ class DID(IntEnum):
     at_file_and_line = auto()
     at_file_end = auto()
     at_file_line_and_column = auto()
+    bad_source_date_epoch = auto()
     brief_at_file_and_line = auto()
     brief_at_file_line_and_column = auto()
     builtin_macro_only_if_elif = auto()
@@ -183,6 +184,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.none,
         DiagnosticGroup.none,
         '%0, line %1, column %2',
+    ),
+    DID.bad_source_date_epoch: DiagnosticDefinition(
+        DID.bad_source_date_epoch,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'source date epoch must be an integer between 0 and %0',
     ),
     DID.brief_at_file_and_line: DiagnosticDefinition(
         DID.brief_at_file_and_line,

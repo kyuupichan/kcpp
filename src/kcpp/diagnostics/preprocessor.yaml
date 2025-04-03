@@ -8,6 +8,10 @@
 # Preprocessor diagnostics.  Mostly related to macro expansion.
 #
 
+bad_source_date_epoch:
+  severity: error
+  text: source date epoch must be an integer between 0 and %0
+
 builtin_macro_only_if_elif:
   severity: error
   text: "use of %q0 is restricted to #if and #elif directives"
