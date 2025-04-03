@@ -130,6 +130,8 @@ class KCPP(Skin):
                            are processed.''')
 
     def add_diagnostic_commands(self, group):
+        group.add_argument('--error-output', metavar='FILENAME', default=None,
+                           help='diagnostic output is written to FILENAME instaed of stderr')
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
@@ -155,10 +157,13 @@ class KCPP(Skin):
             frontend.list_macros = self.command_line.list_macros
 
     def customize_diagnostics(self, consumer, pp):
+        # Redirect stderr if requested
+        if self.command_line.error_output:
+            pp.set_error_output(self.command_line.error_output)
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
             if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
                 colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
                 consumer.set_sgr_code_assignments(colour_string)
             if pp.host.is_a_tty(pp.stderr):
-                consumer.terminal_width = host.terminal_width(pp.stderr)
+                consumer.terminal_width = pp.host.terminal_width(pp.stderr)

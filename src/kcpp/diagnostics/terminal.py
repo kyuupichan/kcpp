@@ -5,7 +5,6 @@
 '''Handle the details of outputting diagnostics to an ASCII, or unicode-aware,
 terminal.'''
 
-import sys
 from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate

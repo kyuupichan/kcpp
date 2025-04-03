@@ -99,6 +99,13 @@ class Host(abc.ABC):
         except OSError as e:
             return e.strerror
 
+    def open_file_for_writing(self, path):
+        '''Open a file for writing.  Return a file object, or an error string.'''
+        try:
+            return open(path, 'w')
+        except OSError as e:
+            return e.strerror
+
 
 class Posix(Host):
 
