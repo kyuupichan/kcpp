@@ -69,7 +69,7 @@ class Skin:
         frontend = self.frontend_class(pp)
         consumer = frontend.diagnostic_class(pp)
         pp.set_diagnostic_consumer(consumer)
-        self.customize_diagnostics(consumer, pp.host)
+        self.customize_diagnostics(consumer, pp)
 
         # Next customize the preprocessor and then initialize it
         self.customize_and_initialize_preprocessor(pp, source)
@@ -154,12 +154,11 @@ class KCPP(Skin):
             frontend.suppress_linemarkers = self.command_line.P
             frontend.list_macros = self.command_line.list_macros
 
-    def customize_diagnostics(self, consumer, host):
+    def customize_diagnostics(self, consumer, pp):
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
-            if self.command_line.colours and host.terminal_supports_colours(self.environ):
+            if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
                 colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
                 consumer.set_sgr_code_assignments(colour_string)
-            # FIXME: the stderr redirected file
-            if host.is_a_tty(consumer.file):
-                consumer.terminal_width = host.terminal_width(consumer.file)
+            if pp.host.is_a_tty(pp.stderr):
+                consumer.terminal_width = host.terminal_width(pp.stderr)

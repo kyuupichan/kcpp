@@ -11,7 +11,7 @@ from functools import partial
 
 from ..basic import Buffer, Host, UnicodeKind
 from ..diagnostics import (
-    DID, Diagnostic, location_command_line, location_none,
+    DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )
 
 from .basic import (
@@ -96,7 +96,7 @@ class Preprocessor:
         # Caches header lookups and file contents
         self.file_manager = FileManager(self.host)
         # Diagnostics are sent here
-        self.diagnostic_consumer = None
+        self.diagnostic_consumer = UnicodeTerminal(self)
         # Action listener
         self.actions = None
         # The expression parser parses and evaluates preprocessor expressions.  The
