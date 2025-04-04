@@ -314,8 +314,8 @@ class ExprParser:
         # search as for an include except that not-found is ignored.  In particular, an
         # unreadable file is a fatal error, but a directory is considered a header that is
         # not found.  This is reasonable so we do the same.
-        raw, _ = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
-        return raw is not None, False
+        file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
+        return file is not None, False
 
     def overflow(self, lhs, op, args):
         '''Diagnose overflow of lhs at the operator 'op' with the given arguments.'''

@@ -401,14 +401,12 @@ class Preprocessor:
         # FIXME: can spell most (all?) other tokens immediately too
         return self.token_spelling_at_loc(token.loc)
 
-    def read_file(self, path, diag_loc):
-        raw = self.file_manager.read_file(path)
-        if isinstance(raw, str):
-            error_str = raw
-            filename = self.filename_to_string_literal(path)
+    def read_file(self, file, diag_loc):
+        '''Diagnoses read errors at diag_loc.'''
+        error_str = self.file_manager.read_file(file)
+        if isinstance(error_str, str):
+            filename = self.filename_to_string_literal(file.path)
             self.diag(DID.cannot_read_file, diag_loc, [filename, error_str])
-            raw = None
-        return raw
 
     def starting_compilation(self, filename):
         '''Emit a message saying we are starting the compilation of filename.'''
@@ -428,20 +426,20 @@ class Preprocessor:
         assert not self.sources
 
         if filename == '-':
-            filename = '<stdin>'
-            raw = self.read_stdin()
+            file = self.file_manager.virtual_file('<stdin>', self.read_stdin())
         else:
-            # Push an empty buffer on failure
-            raw = self.read_file(filename, location_command_line) or b''
+            file = self.file_manager.file_for_path(filename)
+            self.read_file(file, location_command_line)
 
-        self.push_buffer(raw, filename)
+        self.push_buffer(file)
         if self.halt:
             self.halt_compilation()
         else:
             if self.command_line_buffer:
-                self.push_buffer(self.command_line_buffer, '<command line>')
+                self.push_buffer(self.file_manager.virtual_file('<command line>',
+                                                                self.command_line_buffer))
             raw_predefines = predefines(self).encode()
-            self.push_buffer(raw_predefines, '<predefines>')
+            self.push_buffer(self.file_manager.virtual_file('<predefines>', raw_predefines))
             self.predefining_macros = True
 
     def halt_compilation(self):
@@ -490,23 +488,18 @@ class Preprocessor:
 
         return exit_code
 
-    def push_buffer(self, raw, filename):
+    def push_buffer(self, file):
         '''Push a lexer token source for the raw bytes of filename (which can be a string or a
         file manager File object) , and return it.  Also push an entry in the file
         manager's file stack, and inform listeners that the source file changed.
         '''
-        # Deal with stacking an entry in the file manager
-        if isinstance(filename, File):
-            file = filename
-        else:
-            file = self.file_manager.file_for_path(filename)
+        # Stack an entry in the file manager
         self.file_manager.enter_file(file)
         # Get the filename as a string literal and create the lexer token source
         filename_literal = self.filename_to_string_literal(file.path)
-        raw += b'\0'
-        buffer = Buffer(raw)
+        buffer = Buffer(file.nul_terminated_contents())
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
-        lexer = Lexer(self, raw, first_loc)
+        lexer = Lexer(self, buffer.text, first_loc)
         lexer.if_sections = []
         self.push_source(lexer)
         if self.actions:
@@ -685,23 +678,22 @@ class Preprocessor:
         if file is None:
             if diagnose_if_not_found:
                 self.diag(DID.header_file_not_found, header_token.loc, [header_name])
-            raw = None
         else:
-            raw = self.read_file(file.path, header_token.loc)
-        return raw, file
+            self.read_file(file, header_token.loc)
+        return file
 
     def on_include(self, lexer, token):
         self.expand_macros = True
         header_token = self.create_header_name(in__has_include=False)
         self.skip_to_eod(token, header_token is not None)
         if header_token:
-            raw, file = self.read_header_file(header_token, diagnose_if_not_found=True)
-            if raw is not None:
+            file = self.read_header_file(header_token, diagnose_if_not_found=True)
+            if file is not None:
                 if self.file_manager.include_depth() >= self.max_include_depth:
                     self.diag(DID.max_include_depth_reached, header_token.loc,
                               [self.max_include_depth])
                 else:
-                    self.push_buffer(raw, file)
+                    self.push_buffer(file)
 
     def create_header_name(self, *, in__has_include):
         '''Read a header name, returning a new token or None.  Return a token of kind

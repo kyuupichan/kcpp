@@ -32,6 +32,15 @@ class IncludeDirectory:
 
 
 @dataclass(slots=True)
+class FileContents:
+    # The raw bytes of the file, or a strerror if reading failed, or None if it has not
+    # been read yet
+    raw: object
+    # Virtual files do not exist on the filesystem.  Examples: <stdin>, <predefines>.
+    is_virtual: bool
+
+
+@dataclass(slots=True)
 class File:
     '''Represents a file in the file system.'''
     # The include directory it was found in.  None for absolute header names.
@@ -39,14 +48,15 @@ class File:
     # The path of the file.  If directory is not None, this will begin with
     # directory.path, then the header name, and finally any suffix that was used.
     path: str
-
-
-@dataclass(slots=True)
-class FileContents:
     # The contents of the file
-    raw: bytes
-    # The most recent content modification of the file
-    mtime_ns: int
+    contents: FileContents
+
+    def nul_terminated_contents(self):
+        result = self.contents.raw
+        assert isinstance(result, (bytes, str))
+        if isinstance(result, str):
+            result = b''
+        return result + b'\0'
 
 
 class FileManager:
@@ -104,7 +114,7 @@ class FileManager:
             return None
         if not self.host.stat_is_regular_file(stat_result):
             return None
-        return File(directory, path)
+        return File(directory, path, FileContents(None, False))
 
     def search_directory(self, header_name, directory):
         if directory and not directory.exists:
@@ -175,15 +185,25 @@ class FileManager:
         angled_lists = [self.user_angled, self.user_system, self.standard, self.user_final]
         return self.search_directory_lists(header_name, angled_lists)
 
+    def virtual_file(self, filename, raw):
+        '''Return a File object for a virtual file with the given contents.  It is given an empty
+        dirname, so current-file relative "" include lookups are done relative to the
+        current working directory of the process.
+        '''
+        directory = IncludeDirectory('', DirectoryKind.none, True)
+        contents = FileContents(raw, is_virtual=True)
+        return File(directory, filename, contents)
+
     def file_for_path(self, path):
-        '''Return a File object for path.'''
         dirname = self.host.path_dirname(path)
         directory = IncludeDirectory(dirname, DirectoryKind.none, True)
-        return File(directory, path)
+        contents = FileContents(None, is_virtual=False)
+        return File(directory, path, contents)
 
-    def read_file(self, path):
-        # No caching yet - pass it on to the host function
-        return self.host.read_file(path)
+    def read_file(self, file):
+        if file.contents.raw is None:
+            file.contents.raw = self.host.read_file(file.path)
+        return file.contents.raw
 
     def enter_file(self, search_result):
         self.file_stack.append(search_result)
