@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..core import Buffer, Host, Target, IntegerKind, targets
+from ..core import Buffer, Host, IntegerKind, targets
 from ..diagnostics import (
     DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )
@@ -27,7 +27,7 @@ from .macros import (
 )
 
 
-__all__ = ['Preprocessor', 'PreprocessorActions']
+__all__ = ['Preprocessor', 'PreprocessorActions', 'Config', 'Language']
 
 
 @dataclass(slots=True)
@@ -74,6 +74,40 @@ class PreprocessorActions:
         pass
 
 
+@dataclass(slots=True)
+class Config:
+    '''Configures the preprocessor.  Usually these are set from the command line or
+    environment variables.
+    '''
+    output: str
+    error_output: str
+    language: Language
+    target_name: str
+    narrow_exec_charset: str
+    wide_exec_charset: str
+    source_date_epoch: str
+    defines: list
+    undefines: list
+    includes: list
+    quoted_dirs: list
+    angled_dirs: list
+    system_dirs: list
+    max_include_depth: int
+
+    @classmethod
+    def default(cls):
+        return cls(
+            '', '',                   # output, error_output
+            Language('C++', 2023),    # language
+            '',                       # target_name
+            '', '',                   # narrow and wide exec charsets
+            '',                       # source date epoch
+            [], [], [],               # defines, undefines, includes
+            [], [], [],               # quoted, angled, system dirs
+            -1,                       # include depth
+        )
+
+
 class Preprocessor:
 
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
@@ -84,7 +118,14 @@ class Preprocessor:
         language standard or target.  Such context-sensitive initialization is done by the
         caller calling initialize(), which must happen before pushing the main file.
         '''
-        self.language = Language('C++', 2023)
+        # Language and target
+        self.language = None
+        self.target = None
+
+        # Output files
+        self.stdout = sys.stdout
+        self.stderr = sys.stderr
+
         # Helper objects.
         self.identifiers = {}
         # The host abstraction
@@ -97,21 +138,17 @@ class Preprocessor:
         self.diagnostic_consumer = UnicodeTerminal(self)
         # Action listener
         self.actions = None
+
         # The expression parser parses and evaluates preprocessor expressions.  The
         # literal interpreter interprets literal values as they would be for a front-end.
         # Both are depdendent on the compilation target so their initialization is
         # deferred to initialize().
-        self.target = None
         self.expr_parser = None                 # Deferred
         self.literal_interpreter = None         # Deferred
         self.max_include_depth = 100
 
         # Token source stack
         self.sources = []
-
-        # Output files
-        self.stdout = sys.stdout
-        self.stderr = sys.stderr
 
         # Internal state
         self.collecting_arguments = False
@@ -133,36 +170,105 @@ class Preprocessor:
         self.source_date_epoch = None
         self.command_line_buffer = None
 
-    def initialize(self, exec_charset=None, wide_exec_charset=None):
+    def _configure(self, config):
+        def set_output(self, filename, attrib):
+            result = self.host.open_file_for_writing(filename)
+            if isinstance(result, str):
+                self.diag(DID.cannot_write_file, location_command_line, [filename, result])
+            else:
+                setattr(self, attrib, result)
+
+        # Get error output redirected first
+        if config.error_output:
+            set_output(config.error_output, 'stderr')
+        if config.output:
+            set_output(config.output, 'stdout')
+
+        self.language = config.language
+
+        # Next the target as others depend on this
+        target = None
+        if config.target_name:
+            target = targets.get(config.target_name)
+            if not target:
+                self.diag(DID.unknown_target, location_command_line, [config.target_name])
+        if not target:
+            target = targets['aarch64-apple-darwin']
+        self.target = copy(target)
+
+        # Set the narrow and wide charsets
         def set_charset(attrib, charset_name, integer_kind):
-            if charset_name:
-                try:
-                    charset = Charset.from_name(charset_name)
-                except LookupError:
-                    self.diag(DID.unknown_charset, location_command_line, [charset_name])
-                    return
+            if not charset_name:
+                return
+            try:
+                charset = Charset.from_name(charset_name)
+            except LookupError:
+                self.diag(DID.unknown_charset, location_command_line, [charset_name])
+                return
 
-                encoding_unit_size = charset.encoding_unit_size()
-                unit_width = self.target.integer_width(integer_kind)
-                if encoding_unit_size * 8 != unit_width:
-                    self.diag(DID.invalid_charset, location_command_line,
-                              [charset_name, integer_kind.name, unit_width])
-                    return
-                setattr(self.target, attrib, charset)
+            encoding_unit_size = charset.encoding_unit_size()
+            unit_width = self.target.integer_width(integer_kind)
+            if encoding_unit_size * 8 != unit_width:
+                self.diag(DID.invalid_charset, location_command_line,
+                          [charset_name, integer_kind.name, unit_width])
+                return
+            setattr(self.target, attrib, charset)
 
-        if self.target is None:
-            self.target = targets['aarch64-apple-darwin']
-        # These are dependent on target so must come later
-        self.literal_interpreter = LiteralInterpreter(self, False)
-        self.expr_parser = ExprParser(self)
-        if exec_charset:
-            set_charset('narrow_charset', exec_charset, IntegerKind.char)
-        if wide_exec_charset:
-            set_charset('wide_charset', wide_exec_charset, IntegerKind.wchar_t)
+        set_charset('narrow_charset', config.narrow_exec_charset, IntegerKind.char)
+        set_charset('wide_charset', config.wide_exec_charset, IntegerKind.wchar_t)
 
-        # Standard search paths
+        # Standard search paths; language-dependent
         self.file_manager.add_standard_search_paths(
             self.host.standard_search_paths(self.language.is_cxx()))
+        # User-defined search paths
+        self.file_manager.add_search_paths(config.quoted_dirs, DirectoryKind.quoted)
+        self.file_manager.add_search_paths(config.angled_dirs, DirectoryKind.angled)
+        self.file_manager.add_search_paths(config.system_dirs, DirectoryKind.system)
+
+        # Source date epoch
+        if config.source_date_epoch:
+            max_epoch = 253402300799
+            invalid = True
+            if config.source_date_epoch.isdigit():
+                epoch = int(config.source_date_epoch)
+                if epoch >= 0 and epoch <= max_epoch:
+                    self.source_date_epoch = epoch
+                    invalid = False
+            if invalid:
+                self.diag(DID.bad_source_date_epoch, location_command_line, [max_epoch])
+
+        # The command line buffer
+        def buffer_lines(config):
+            for define in config.defines:
+                pair = define.split('=', maxsplit=1)
+                if len(pair) == 1:
+                    name, definition = pair[0], '1'
+                else:
+                    name, definition = pair
+                yield f'#define {name} {definition}'
+            for name in config.undefines:
+                yield f'#undef {name}'
+            for filename in config.includes:
+                yield f'#include "{filename}"'
+            yield ''   # So join() adds a final newline
+
+        # The command line buffer is processed when the main buffer is pushed.
+        self.command_line_buffer = '\n'.join(buffer_lines(config)).encode()
+
+        # Max include depth
+        if config.max_include_depth >= 0:
+            self.max_include_depth = config.max_include_depth
+
+    def initialize(self, config=None):
+        self._configure(config or Config.default())
+
+        #
+        # Now general initialization
+        #
+
+        # These are dependent on target so must come after configuration
+        self.literal_interpreter = LiteralInterpreter(self, False)
+        self.expr_parser = ExprParser(self)
 
         # Alternative tokens exist only in C++.  In C they are macros in <iso646.h>.
         if self.language.is_cxx():
@@ -214,60 +320,6 @@ class Preprocessor:
 
         # Built-in has-feature pseudo-macros
         self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
-
-    def _set_output(self, filename, attrib):
-        result = self.host.open_file_for_writing(filename)
-        if isinstance(result, str):
-            self.diag(DID.cannot_write_file, location_command_line, [filename, result])
-        else:
-            setattr(self, attrib, result)
-
-    def set_error_output(self, filename):
-        self._set_output(filename, 'stderr')
-
-    def set_output(self, filename):
-        self._set_output(filename, 'stdout')
-
-    def set_target(self, target_name):
-        target = targets.get(target_name)
-        if not target:
-            self.diag(DID.unknown_target, location.command_line, [target_name])
-        else:
-            self.target = target
-
-    def set_include_directories(self, quoted_dirs, angled_dirs, system_dirs):
-        self.file_manager.add_search_paths(quoted_dirs, DirectoryKind.quoted)
-        self.file_manager.add_search_paths(angled_dirs, DirectoryKind.angled)
-        self.file_manager.add_search_paths(system_dirs, DirectoryKind.system)
-
-    def set_source_date_epoch(self, epoch):
-        max_epoch = 253402300799
-        invalid = True
-        if epoch.isdigit():
-            epoch = int(epoch)
-            if epoch >= 0 and epoch <= max_epoch:
-                self.source_date_epoch = epoch
-                invalid = False
-        if invalid:
-            self.diag(DID.bad_source_date_epoch, location_command_line, [max_epoch])
-
-    def set_command_line(self, defines, undefines, includes):
-        def buffer_lines():
-            for define in defines:
-                pair = define.split('=', maxsplit=1)
-                if len(pair) == 1:
-                    name, definition = pair[0], '1'
-                else:
-                    name, definition = pair
-                yield f'#define {name} {definition}'
-            for name in undefines:
-                yield f'#undef {name}'
-            for filename in includes:
-                yield f'#include "{filename}"'
-            yield ''   # So join() adds a final newline
-
-        # The command line buffer is processed when the main buffer is pushed.
-        self.command_line_buffer = '\n'.join(buffer_lines()).encode()
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)

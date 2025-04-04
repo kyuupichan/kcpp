@@ -6,7 +6,7 @@
 
 import argparse
 
-from kcpp.cpp import Preprocessor
+from kcpp.cpp import Preprocessor, Config, Language
 from kcpp.diagnostics import UnicodeTerminal
 
 from .frontends import PreprocessedOutput, FrontEnd
@@ -76,7 +76,7 @@ class Skin:
         self.customize_diagnostics(consumer, pp)
 
         # Next customize the preprocessor and initialize it
-        self.customize_and_initialize_preprocessor(pp, source)
+        pp.initialize(self.preprocessor_configuration(source))
 
         # Finally customize the front end
         self.customize_frontend(frontend, pp)
@@ -98,7 +98,7 @@ class KCPP(Skin):
     SOURCE_DATE_EPOCH_ENVVAR = 'SOURCE_DATE_EPOCH'
 
     def add_frontend_commands(self, group, frontend_class):
-        group.add_argument('-o', '--output', metavar='FILENAME', default=None,
+        group.add_argument('-o', '--output', metavar='FILENAME', default='',
                            help='compilation output is written to FILENAME instaed of stdout')
         if issubclass(frontend_class, PreprocessedOutput):
             group.add_argument('-P', help='suppress generation of linemarkers',
@@ -107,11 +107,13 @@ class KCPP(Skin):
                                action='store_true', default=False)
 
     def add_preprocessor_commands(self, group):
+        group.add_argument('-target', type=str, metavar='TARGET', default='',
+                           help='select the target machine')
         group.add_argument('-exec-charset', type=str, metavar='CHARSET',
                            help='set the narrow execution character set')
         group.add_argument('-wide-exec-charset', type=str, metavar='CHARSET',
                            help='set the wide execution character set')
-        group.add_argument('--max-include-depth', type=int, default=100, metavar='DEPTH',
+        group.add_argument('--max-include-depth', type=int, default=-1, metavar='DEPTH',
                            help='set the maximum depth of nested source file inclusion')
         group.add_argument('-D', '--define-macro', action='append', default=[],
                            metavar='NAME[(PARAM-LIST)][=DEF]',
@@ -136,37 +138,36 @@ class KCPP(Skin):
                            are processed.''')
 
     def add_diagnostic_commands(self, group):
-        group.add_argument('--error-output', metavar='FILENAME', default=None,
+        group.add_argument('--error-output', metavar='FILENAME', default='',
                            help='diagnostic output is written to FILENAME instaed of stderr')
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def customize_and_initialize_preprocessor(self, pp, source):
+    def preprocessor_configuration(self, source):
+        config = Config.default()
+        config.error_output = self.command_line.error_output
+        config.output = self.command_line.output
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
-            pp.language.kind = 'C'
-        pp.max_include_depth = self.command_line.max_include_depth
-        pp.set_include_directories(self.command_line.quoted_dir,
-                                   self.command_line.angled_dir,
-                                   self.command_line.system_dir)
-        pp.set_command_line(self.command_line.define_macro,
-                            self.command_line.undefine_macro,
-                            self.command_line.include)
-        source_date_epoch = self.environ.get(self.SOURCE_DATE_EPOCH_ENVVAR)
-        if source_date_epoch is not None:
-            pp.set_source_date_epoch(source_date_epoch)
-        pp.initialize(exec_charset=self.command_line.exec_charset,
-                      wide_exec_charset=self.command_line.wide_exec_charset)
+            config.language = Language('C', 2023)
+        config.target_name = self.command_line.target
+        config.narrow_exec_charset = self.command_line.exec_charset
+        config.wide_exec_charset = self.command_line.wide_exec_charset
+        config.source_date_epoch = self.environ.get(self.SOURCE_DATE_EPOCH_ENVVAR, '')
+        config.max_include_depth = self.command_line.max_include_depth
+        config.defines = self.command_line.define_macro
+        config.undefines = self.command_line.undefine_macro
+        config.includes = self.command_line.include
+        config.quoted_dirs = self.command_line.quoted_dir
+        config.angled_dirs = self.command_line.angled_dir
+        config.system_dirs = self.command_line.system_dir
+        return config
 
     def customize_frontend(self, frontend, pp):
-        if self.command_line.output:
-            pp.set_output(self.command_line.output)
         if isinstance(frontend, PreprocessedOutput):
             frontend.suppress_linemarkers = self.command_line.P
             frontend.list_macros = self.command_line.list_macros
 
     def customize_diagnostics(self, consumer, pp):
-        if self.command_line.error_output:
-            pp.set_error_output(self.command_line.error_output)
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
             if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
