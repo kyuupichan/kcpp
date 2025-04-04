@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..basic import Buffer, Host, UnicodeKind
+from ..core import Buffer, Host, UnicodeKind
 from ..diagnostics import (
     DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )

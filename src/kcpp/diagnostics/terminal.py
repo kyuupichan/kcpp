@@ -9,7 +9,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate
 
-from ..basic import Buffer, PresumedLocation
+from ..core import Buffer, PresumedLocation
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )

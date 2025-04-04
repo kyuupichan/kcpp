@@ -7,7 +7,7 @@
 import re
 from dataclasses import dataclass
 
-from ..basic import BufferPosition, PresumedLocation
+from ..core import BufferPosition, PresumedLocation
 
 from .definitions import (
     DID, DiagnosticSeverity, diagnostic_definitions,
