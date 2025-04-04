@@ -474,8 +474,6 @@ class Preprocessor:
 
         The preprocessor frontend should call this when it has finished processing, and it will
         no longer call get_token().'''
-        assert self.sources
-        self.pop_source()
         assert not self.sources
         assert not self.buffer_states
 
@@ -577,14 +575,11 @@ class Preprocessor:
         return CodepointOutputKind.character.bytes_to_string_literal(filename)
 
     def pass_through_eof(self, source):
-        # EOF is currently generated in 3 cases: 1) by the lexer at end-of-buffer, 2) by
-        # the lexer at end of directive (if pp.in_directive is true), and 3) by
-        # UnexpandedArgument, when pre-expanding a macro argument to terminate it.  We
-        # must pass through cases 2) and 3).  For case 1), we must pass it through if we
-        # are collecting arguments, or if there are no more source buffers, otherwise we
-        # remove the current source buffer and continue.
         if isinstance(source, Lexer):
-            return self.in_directive or self.collecting_arguments or len(self.sources) == 1
+            # Pop the buffer unless collecting arguments or in a directive; that state
+            # needs to be cleared first.  get_token() will continue with the enclosing
+            # buffer, or pass through the EOF if there are none.
+            return self.in_directive or self.collecting_arguments
 
         # Terminate macro argument pre-expansion
         return True
@@ -603,12 +598,12 @@ class Preprocessor:
                 continue
 
             if token.kind == TokenKind.EOF:
-                if self.pass_through_eof(source):
-                    pass
-                else:
+                if not self.pass_through_eof(source):
                     self.pop_source()
-                    source = self.sources[-1]
-                    continue
+                    # Return EOF if there are no more sources
+                    if self.sources:
+                        source = self.sources[-1]
+                        continue
             elif self.skipping:
                 continue
 
