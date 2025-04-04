@@ -211,10 +211,10 @@ class Lexer(TokenSource):
 
     def get_token_quietly(self):
         '''Lex a token, without issuing diagnostics, and return it.'''
-        prior = self.pp.set_diagnostic_consumer(None)
+        self.pp.ignore_diagnostics += 1
         token = Token.create()
         self.get_token(token)
-        self.pp.set_diagnostic_consumer(prior)
+        self.pp.ignore_diagnostics -= 1
         return token
 
     def peek_token_kind(self):

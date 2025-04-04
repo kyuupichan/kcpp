@@ -156,6 +156,7 @@ class Preprocessor:
         self.error_limit = 20
         self.expand_macros = True
         self.halt = False
+        self.ignore_diagnostics = 0
         self.in_directive = False
         self.in_if_elif_directive = False
         self.in_header_name = False
@@ -338,7 +339,8 @@ class Preprocessor:
 
     def emit(self, diagnostic):
         # Suppress diagnostics with source locations
-        if self.halt and diagnostic.loc >= 0:
+        if (self.halt or self.ignore_diagnostics) and (
+                diagnostic.loc not in (location_none, location_command_line)):
             return
         # Emit these instead as invalid token concatentation or stringizing
         if self.lexing_scratch and diagnostic.did in (
