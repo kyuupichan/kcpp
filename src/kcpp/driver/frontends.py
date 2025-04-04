@@ -95,8 +95,8 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         token = Token.create()
         write = self.write
         locator = pp.locator
-        prior_loc = None
-        prior_spelling = None
+        loc = None
+        spelling = None
 
         while True:
             pp.get_token(token)
@@ -111,12 +111,13 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                     write(' ' * location.column_offset)
             elif token.flags & TokenFlags.WS:
                 write(' ')
-            elif self.separate_tokens(prior_loc, prior_spelling, token):
+            elif self.separate_tokens(loc, spelling, token):
                 write(' ')
 
-            prior_loc = token.loc
-            prior_spelling = pp.token_spelling(token)
-            write(prior_spelling.decode())
+            loc = token.loc
+            spelling = pp.token_spelling(token)
+            write(spelling.decode())
+            self.line_number += spelling.count(b'\n')
             self.at_bol = False
 
         self.finish_line()
