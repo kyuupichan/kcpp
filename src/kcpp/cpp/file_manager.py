@@ -32,12 +32,12 @@ class IncludeDirectory:
 
 
 @dataclass(slots=True)
-class SearchResult:
-    '''This describes the result of a header search.'''
+class File:
+    '''Represents a file in the file system.'''
     # The include directory it was found in.  None for absolute header names.
     directory: IncludeDirectory
-    # The path of the header file found.  This will begin with directory.path, then the
-    # header name, and finally any suffix that was used.
+    # The path of the file.  If directory is not None, this will begin with
+    # directory.path, then the header name, and finally any suffix that was used.
     path: str
 
 
@@ -56,7 +56,7 @@ class FileManager:
     '''
     def __init__(self, host):
         self.host = host
-        self.file_stack = []        # a list of SearchResult objects
+        self.file_stack = []        # a list of File objects
         self.current_file_search = True
         # Lists of include directories
         self.user_quoted = []       # --quoted-dir.  for "" searches only
@@ -104,7 +104,7 @@ class FileManager:
             return None
         if not self.host.stat_is_regular_file(stat_result):
             return None
-        return SearchResult(directory, path)
+        return File(directory, path)
 
     def search_directory(self, header_name, directory):
         if directory and not directory.exists:
@@ -175,10 +175,11 @@ class FileManager:
         angled_lists = [self.user_angled, self.user_system, self.standard, self.user_final]
         return self.search_directory_lists(header_name, angled_lists)
 
-    def dummy_search_result(self, path):
+    def file_for_path(self, path):
+        '''Return a File object for path.'''
         dirname = self.host.path_dirname(path)
         directory = IncludeDirectory(dirname, DirectoryKind.none, True)
-        return SearchResult(directory, path)
+        return File(directory, path)
 
     def read_file(self, path):
         # No caching yet - pass it on to the host function

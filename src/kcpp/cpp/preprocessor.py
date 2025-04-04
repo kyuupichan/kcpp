@@ -17,7 +17,7 @@ from ..unicode import CodepointOutputKind, Charset
 
 from .basic import IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding
 from .expressions import ExprParser
-from .file_manager import FileManager, SearchResult, DirectoryKind
+from .file_manager import FileManager, File, DirectoryKind
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator, ScratchEntryKind
@@ -248,6 +248,9 @@ class Preprocessor:
                 yield f'#define {name} {definition}'
             for name in config.undefines:
                 yield f'#undef {name}'
+            # Note: because the command line pseudo-file-name does not have a path, the
+            # current file has no path name, so includes are looked up relative to the
+            # current working directory.  This is the same as GCC.
             for filename in config.includes:
                 yield f'#include "{filename}"'
             yield ''   # So join() adds a final newline
@@ -488,19 +491,18 @@ class Preprocessor:
         return exit_code
 
     def push_buffer(self, raw, filename):
-        '''Push a lexer token source for the raw bytes, and return it.
-
-        Also push an entry in the file manager's file stack, and inform listeners that
-        the source file changed.
+        '''Push a lexer token source for the raw bytes of filename (which can be a string or a
+        file manager File object) , and return it.  Also push an entry in the file
+        manager's file stack, and inform listeners that the source file changed.
         '''
         # Deal with stacking an entry in the file manager
-        if isinstance(filename, SearchResult):
-            search_result = filename
+        if isinstance(filename, File):
+            file = filename
         else:
-            search_result = self.file_manager.dummy_search_result(filename)
-        self.file_manager.enter_file(search_result)
+            file = self.file_manager.file_for_path(filename)
+        self.file_manager.enter_file(file)
         # Get the filename as a string literal and create the lexer token source
-        filename_literal = self.filename_to_string_literal(search_result.path)
+        filename_literal = self.filename_to_string_literal(file.path)
         raw += b'\0'
         buffer = Buffer(raw)
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
@@ -676,30 +678,30 @@ class Preprocessor:
         spelling = self.token_spelling(header_token)
         header_name = spelling[1:-1].decode(sys.getfilesystemencoding(), 'surrogateescape')
         if spelling[0] == 60:    # '<'
-            search_result = self.file_manager.search_angled_header(header_name)
+            file = self.file_manager.search_angled_header(header_name)
         else:
-            search_result = self.file_manager.search_quoted_header(header_name)
+            file = self.file_manager.search_quoted_header(header_name)
 
-        if search_result is None:
+        if file is None:
             if diagnose_if_not_found:
                 self.diag(DID.header_file_not_found, header_token.loc, [header_name])
             raw = None
         else:
-            raw = self.read_file(search_result.path, header_token.loc)
-        return raw, search_result
+            raw = self.read_file(file.path, header_token.loc)
+        return raw, file
 
     def on_include(self, lexer, token):
         self.expand_macros = True
         header_token = self.create_header_name(in__has_include=False)
         self.skip_to_eod(token, header_token is not None)
         if header_token:
-            raw, search_result = self.read_header_file(header_token, diagnose_if_not_found=True)
+            raw, file = self.read_header_file(header_token, diagnose_if_not_found=True)
             if raw is not None:
                 if self.file_manager.include_depth() >= self.max_include_depth:
                     self.diag(DID.max_include_depth_reached, header_token.loc,
                               [self.max_include_depth])
                 else:
-                    self.push_buffer(raw, search_result)
+                    self.push_buffer(raw, file)
 
     def create_header_name(self, *, in__has_include):
         '''Read a header name, returning a new token or None.  Return a token of kind
