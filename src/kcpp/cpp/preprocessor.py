@@ -539,8 +539,11 @@ class Preprocessor:
             self.pop_buffer()
 
     def pop_buffer(self):
-        # FIXME: unclosed #if
-        self.buffer_states.pop()
+        buffer_state = self.buffer_states.pop()
+        # Diagnose unclosed conditional blocks
+        for if_section in reversed(buffer_state.if_sections):
+            if_loc = if_section.opening_loc
+            self.diag(DID.unclosed_if_block, if_loc, [self.token_spelling_at_loc(if_loc)])
         self.file_manager.leave_file()
         self.predefining_macros = False
         if self.actions and self.sources:

@@ -134,6 +134,7 @@ class DID(IntEnum):
     token_concatenation_failed = auto()
     too_few_macro_arguments = auto()
     too_many_macro_arguments = auto()
+    unclosed_if_block = auto()
     unknown_charset = auto()
     unknown_target = auto()
     unrecognized_escape_sequence = auto()
@@ -801,6 +802,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'too many arguments passed to macro %q0',
+    ),
+    DID.unclosed_if_block: DiagnosticDefinition(
+        DID.unclosed_if_block,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'unclosed #%0 directive block',
     ),
     DID.unknown_charset: DiagnosticDefinition(
         DID.unknown_charset,

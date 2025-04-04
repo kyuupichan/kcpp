@@ -5,12 +5,8 @@
 #
 
 #
-# Directive diagnostics
+# preprocessor if section diagnostics
 #
-
-duplicate_macro_parameter:
-  severity: error
-  text: duplicate macro parameter %q0
 
 else_without_if:
   severity: error
@@ -27,6 +23,18 @@ else_location:
 endif_without_if:
   severity: error
   text: "#endif without #if"
+
+unclosed_if_block:
+  severity: error
+  text: "unclosed #%0 directive block"
+
+#
+# Directive diagnostics
+#
+
+duplicate_macro_parameter:
+  severity: error
+  text: duplicate macro parameter %q0
 
 error_directive:
   severity: fatal
