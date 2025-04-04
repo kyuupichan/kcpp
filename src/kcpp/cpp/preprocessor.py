@@ -81,6 +81,7 @@ class Config:
     '''
     output: str
     error_output: str
+    diagnostic_consumer: object
     language: Language
     target_name: str
     narrow_exec_charset: str
@@ -98,6 +99,7 @@ class Config:
     def default(cls):
         return cls(
             '', '',                   # output, error_output
+            None,                     # diagnostic consumer
             Language('C++', 2023),    # language
             '',                       # target_name
             '', '',                   # narrow and wide exec charsets
@@ -182,6 +184,8 @@ class Preprocessor:
         # Get error output redirected first
         if config.error_output:
             set_output(config.error_output, 'stderr')
+        if config.diagnostic_consumer:
+            self.diagnostic_consumer = config.diagnostic_consumer
         if config.output:
             set_output(config.output, 'stdout')
 
@@ -328,12 +332,6 @@ class Preprocessor:
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
 
-    def set_diagnostic_consumer(self, consumer):
-        '''Set the consumer, return the previous one.'''
-        result = self.diagnostic_consumer
-        self.diagnostic_consumer = consumer
-        return result
-
     def diag(self, did, loc, args=None):
         self.emit(Diagnostic(did, loc, args))
 
@@ -349,10 +347,9 @@ class Preprocessor:
             return False
 
         consumer = self.diagnostic_consumer
-        if consumer:
-            consumer.emit(diagnostic)
-            if consumer.fatal_error_count or consumer.error_count >= self.error_limit:
-                self.halt_compilation()
+        consumer.emit(diagnostic)
+        if consumer.fatal_error_count or consumer.error_count >= self.error_limit:
+            self.halt_compilation()
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)

@@ -68,23 +68,15 @@ class Skin:
         if multiple:
             pp.starting_compilation(source)
 
+        # Create the front end, customize diagnostics, then initialize the preprocessor.
+        # Finally customize the front end.
         frontend = self.frontend_class(pp)
-
-        # Set up diagnostics first so that they are customized as early as possible.
-        consumer = frontend.diagnostic_class(pp)
-        pp.set_diagnostic_consumer(consumer)
-        self.customize_diagnostics(consumer, pp)
-
-        # Next customize the preprocessor and initialize it
-        pp.initialize(self.preprocessor_configuration(source))
-
-        # Finally customize the front end
+        consumer = self.customize_diagnostics(frontend, pp)
+        pp.initialize(self.preprocessor_configuration(consumer, source))
         self.customize_frontend(frontend, pp)
 
-        # Process the source
+        # Now do the work and tidy up
         frontend.process_source(source)
-
-        # Tidy up
         return pp.finish()
 
 
@@ -143,8 +135,9 @@ class KCPP(Skin):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def preprocessor_configuration(self, source):
+    def preprocessor_configuration(self, consumer, source):
         config = Config.default()
+        config.diagnostic_consumer = consumer
         config.error_output = self.command_line.error_output
         config.output = self.command_line.output
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
@@ -167,7 +160,8 @@ class KCPP(Skin):
             frontend.suppress_linemarkers = self.command_line.P
             frontend.list_macros = self.command_line.list_macros
 
-    def customize_diagnostics(self, consumer, pp):
+    def customize_diagnostics(self, frontend, pp):
+        consumer = frontend.diagnostic_class(pp)
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
             if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
@@ -175,3 +169,4 @@ class KCPP(Skin):
                 consumer.set_sgr_code_assignments(colour_string)
             if pp.host.is_a_tty(pp.stderr):
                 consumer.terminal_width = pp.host.terminal_width(pp.stderr)
+        return consumer
