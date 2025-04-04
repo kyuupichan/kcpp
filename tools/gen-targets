@@ -1,0 +1,2 @@
+# Presumped to run from the top-level kcpp directory
+/usr/bin/env python tools/gen-targets.py src/kcpp/core > src/kcpp/core/targets.py

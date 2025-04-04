@@ -135,6 +135,7 @@ class DID(IntEnum):
     too_few_macro_arguments = auto()
     too_many_macro_arguments = auto()
     unknown_charset = auto()
+    unknown_target = auto()
     unrecognized_escape_sequence = auto()
     unrecognized_universal_character_name = auto()
     unterminated_argument_list = auto()
@@ -806,6 +807,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'unknown character set %q0',
+    ),
+    DID.unknown_target: DiagnosticDefinition(
+        DID.unknown_target,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'unknown target %q0',
     ),
     DID.unrecognized_escape_sequence: DiagnosticDefinition(
         DID.unrecognized_escape_sequence,

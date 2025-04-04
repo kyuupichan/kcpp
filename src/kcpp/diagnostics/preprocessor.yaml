@@ -80,6 +80,10 @@ unknown_charset:
   severity: error
   text: unknown character set %q0
 
+unknown_target:
+  severity: error
+  text: unknown target %q0
+
 unterminated_argument_list:
   severity: error
   text: unerminated argument list invoking macro %q0

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..core import Buffer, Host, TargetMachine, IntegerKind
+from ..core import Buffer, Host, Target, IntegerKind, targets
 from ..diagnostics import (
     DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )
@@ -133,7 +133,7 @@ class Preprocessor:
         self.source_date_epoch = None
         self.command_line_buffer = None
 
-    def initialize(self, target=None, exec_charset=None, wide_exec_charset=None):
+    def initialize(self, exec_charset=None, wide_exec_charset=None):
         def set_charset(attrib, charset_name, integer_kind):
             if charset_name:
                 try:
@@ -150,9 +150,8 @@ class Preprocessor:
                     return
                 setattr(self.target, attrib, charset)
 
-        # Set the target first
-        self.target = target or TargetMachine.default()
-
+        if self.target is None:
+            self.target = targets['aarch64-apple-darwin']
         # These are dependent on target so must come later
         self.literal_interpreter = LiteralInterpreter(self, False)
         self.expr_parser = ExprParser(self)
@@ -228,6 +227,13 @@ class Preprocessor:
 
     def set_output(self, filename):
         self._set_output(filename, 'stdout')
+
+    def set_target(self, target_name):
+        target = targets.get(target_name)
+        if not target:
+            self.diag(DID.unknown_target, location.command_line, [target_name])
+        else:
+            self.target = target
 
     def set_include_directories(self, quoted_dirs, angled_dirs, system_dirs):
         self.file_manager.add_search_paths(quoted_dirs, DirectoryKind.quoted)

@@ -1,0 +1,137 @@
+---
+# Copyright (c) 2025, Neil Booth.
+#
+# All rights reserved.
+#
+
+#
+# Target definitions
+#
+# Integer kinds must be one of:
+#     char, schar, uchar, short, ushort, int, uint, long, ulong, long_long, ulong_long
+#
+# Character sets must be one of:
+#     UTF-8, UTF-16, UTF-32,
+# The endiannness of UTF-16 and UTF-32 is taken from is_little_endian.
+#
+# Architecture must be one of:
+#    aarch64, s390, x86_64
+#
+# Vendor must be one of:
+#    apple, ibm, pc, unknown
+#
+# os must be one of:
+#    darwin, dragonflybsd, freebsd, linux, netbsd, openbsd, opened, windows
+#
+
+aarch64-apple-darwin:
+    is_little_endian: true
+    char_width: 8
+    short_width: 16
+    int_width: 32
+    long_width: 64
+    long_long_width: 64
+    char_kind: schar
+    size_t_kind: ulong
+    wchar_t_kind: int
+    char16_t_kind: ushort
+    char32_t_kind: uint
+    narrow_charset: UTF-8
+    wide_charset: UTF-32
+    architecture: aarch64
+    vendor: apple
+    os: darwin
+
+x86_64-unknown-linux:
+    is_little_endian: true
+    char_width: 8
+    short_width: 16
+    int_width: 32
+    long_width: 64
+    long_long_width: 64
+    char_kind: schar
+    size_t_kind: ulong
+    wchar_t_kind: int
+    char16_t_kind: ushort
+    char32_t_kind: uint
+    narrow_charset: UTF-8
+    wide_charset: UTF-32
+    architecture: x86_64
+    vendor: unknown
+    os: linux
+
+x86_64-unknown-linux:
+    is_little_endian: true
+    char_width: 8
+    short_width: 16
+    int_width: 32
+    long_width: 64
+    long_long_width: 64
+    char_kind: schar
+    size_t_kind: ulong
+    wchar_t_kind: int
+    char16_t_kind: ushort
+    char32_t_kind: uint
+    narrow_charset: UTF-8
+    wide_charset: UTF-32
+    architecture: x86_64
+    vendor: unknown
+    os: linux
+
+s390-ibm-zos:
+    # I'm not sure of this stuff but it's good for testing.  Linux on s390 is similar to
+    # on x86 except its big-endian.  It uses ASCII and UTF-8.
+    is_little_endian: false
+    char_width: 8
+    short_width: 16
+    int_width: 32
+    long_width: 32
+    long_long_width: 64
+    char_kind: schar
+    size_t_kind: ulong
+    wchar_t_kind: ushort
+    char16_t_kind: ushort
+    char32_t_kind: uint
+    narrow_charset: cp500
+    wide_charset: UTF-16
+    architecture: s390
+    vendor: ibm
+    os: zos
+
+test-char-16:
+    # For testing targets with a 16-bit "char"
+    is_little_endian: True
+    char_width: 16
+    short_width: 16
+    int_width: 32
+    long_width: 32
+    long_long_width: 64
+    char_kind: schar
+    size_t_kind: ulong
+    wchar_t_kind: uint
+    char16_t_kind: uchar
+    char32_t_kind: uint
+    narrow_charset: UTF-8
+    wide_charset: UTF-32
+    architecture: test
+    vendor: test
+    os: test
+
+test-int-16:
+    # For testing targets with a 16-bit "int"
+    is_little_endian: True
+    char_width: 8
+    short_width: 16
+    int_width: 16
+    long_width: 32
+    long_long_width: 64
+    char_kind: schar
+    size_t_kind: ulong
+    wchar_t_kind: uint
+    char16_t_kind: uint
+    char32_t_kind: ulong
+    narrow_charset: UTF-8
+    wide_charset: UTF-32
+    architecture: test
+    vendor: test
+    os: test
