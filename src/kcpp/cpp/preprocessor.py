@@ -71,8 +71,11 @@ class PreprocessorActions:
 
     def on_source_file_change(self, loc, reason):
         '''Called when entering a new soure file, leaving a source file, or on a #line directive
-        (even if the file name remains unchanged).  loc is the first location of the new
-        context, and reason is a SourcefileChangeReason.'''
+        (even if the file name remains unchanged).  Not called on leaving the primary
+        source file.
+
+        loc is the first location of the new context, and reason is a SourcefileChangeReason.
+        '''
         pass
 
     def on_macro_defined(self, macro):
@@ -157,10 +160,8 @@ class Preprocessor:
 
         # Token source stack
         self.sources = []
-
-        # Buffer state stack, and the top
+        # Buffer state stack
         self.buffer_states = []
-        self.buffer_state = None
 
         # Internal state
         self.collecting_arguments = False
@@ -435,7 +436,6 @@ class Preprocessor:
         processing doesn't begin until EOF).
         '''
         assert not self.sources
-
         if filename == '-':
             file = self.file_manager.virtual_file('<stdin>', self.read_stdin())
         else:
@@ -443,10 +443,7 @@ class Preprocessor:
             self.read_file(file, location_command_line)
 
         # Push a buffer even if we are going to halt.  We expect the locator to know the
-        # primary source file name and its simplest to push a file anyway.  For now.  But
-        # prevent line markers.
-        if self.halt:
-            self.actions = None
+        # primary source file name and its simplest to push a file anyway.  For now.
         self.push_buffer(file)
         if self.halt:
             self.halt_compilation()
@@ -460,21 +457,27 @@ class Preprocessor:
 
     def halt_compilation(self):
         self.halt = True
+        self.actions = None   # Prevent spurious linemarkers, etc.
         if not self.sources:
             # push_main_source_file() will call us back
             return
         # Move the main lexer to EOF and drop other token sources, so that frontends exit
         # immediately
+        while len(self.sources) > 1:
+            self.pop_source()
+        assert len(self.buffer_states) == 1
         lexer = self.sources[0]
         lexer.cursor = len(lexer.buff) - 1  # The NUL byte
-        self.sources = [lexer]
 
     def finish(self):
         '''Emit a compilation summary and return an exit code.
 
         The preprocessor frontend should call this when it has finished processing, and it will
         no longer call get_token().'''
-        assert len(self.sources) == 1
+        assert self.sources
+        self.pop_source()
+        assert not self.sources
+        assert not self.buffer_states
 
         fatal_error_count = self.diagnostic_consumer.fatal_error_count
         error_count = self.diagnostic_consumer.error_count
@@ -519,7 +522,6 @@ class Preprocessor:
         self.push_source(lexer)
         # Maintain buffer states
         self.buffer_states.append(BufferState([]))
-        self.buffer_state = self.buffer_states[-1]
         if self.actions:
             self.actions.on_source_file_change(first_loc, SourceFileChangeReason.enter)
         return lexer
@@ -534,16 +536,14 @@ class Preprocessor:
     def pop_source(self):
         source = self.sources.pop()
         if isinstance(source, Lexer):
-            self.left_buffer()
-        return self.sources[-1]
+            self.pop_buffer()
 
-    def left_buffer(self):
+    def pop_buffer(self):
         # FIXME: unclosed #if
         self.buffer_states.pop()
-        self.buffer_state = self.buffer_states[-1]
         self.file_manager.leave_file()
         self.predefining_macros = False
-        if self.actions:
+        if self.actions and self.sources:
             cursor_loc = self.sources[-1].cursor_loc()
             self.actions.on_source_file_change(cursor_loc, SourceFileChangeReason.leave)
 
@@ -603,7 +603,8 @@ class Preprocessor:
                 if self.pass_through_eof(source):
                     pass
                 else:
-                    source = self.pop_source()
+                    self.pop_source()
+                    source = self.sources[-1]
                     continue
             elif self.skipping:
                 continue
@@ -1063,7 +1064,7 @@ class Preprocessor:
             -1,                 # else_loc
             token.loc           # opening_loc
         )
-        self.buffer_state.if_sections.append(section)
+        self.buffer_states[-1].if_sections.append(section)
         if not self.skipping:
             self.in_if_elif_directive = True
             section.true_condition_seen = condition(lexer, token)
@@ -1071,11 +1072,12 @@ class Preprocessor:
             self.skipping = not section.true_condition_seen
 
     def else_section(self, lexer, token, condition):
-        if not self.buffer_state.if_sections:
+        buffer_state = self.buffer_states[-1]
+        if not buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
             return
 
-        section = self.buffer_state.if_sections[-1]
+        section = buffer_state.if_sections[-1]
         if section.was_skipping:
             self.skip_to_eod(token, False)
             return
@@ -1124,7 +1126,7 @@ class Preprocessor:
 
     def on_endif(self, lexer, token):
         try:
-            if_section = self.buffer_state.if_sections.pop()
+            if_section = self.buffer_states[-1].if_sections.pop()
             self.skipping = if_section.was_skipping
         except IndexError:
             self.diag(DID.endif_without_if, token.loc)
