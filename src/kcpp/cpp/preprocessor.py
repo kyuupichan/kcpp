@@ -682,7 +682,7 @@ class Preprocessor:
         lexer.get_token(token)
         self.skipping = was_skipping
         handler = get_handler(lexer, token)
-        handler(lexer, token)
+        handler(token)
         self.expand_macros = True
         self.in_directive = False
 
@@ -700,7 +700,7 @@ class Preprocessor:
             return None
         return self.read_file(file, header_token.loc)
 
-    def on_include(self, lexer, token):
+    def on_include(self, token):
         self.expand_macros = True
         header_token = self.create_header_name(in__has_include=False)
         self.skip_to_eod(token, header_token is not None)
@@ -778,8 +778,9 @@ class Preprocessor:
         token.flags &= ~TokenFlags.BOL
         return token, lexer.cursor >= len(spelling)
 
-    def on_define(self, lexer, token):
+    def on_define(self, token):
         '''#define directive processing.'''
+        lexer = self.sources[-1]
         lexer.get_token(token)
         is_good = self.is_macro_name(token, 1)
         if is_good:
@@ -1007,15 +1008,16 @@ class Preprocessor:
                 return False
         return True
 
-    def on_undef(self, lexer, token):
+    def on_undef(self, token):
         '''#undef directive processing.'''
+        lexer = self.sources[-1]
         lexer.get_token(token)
         is_macro_name = self.is_macro_name(token, 2)
         if is_macro_name:
             token.extra.macro = None
         self.skip_to_eod(token, is_macro_name)
 
-    def on_line(self, lexer, token):
+    def on_line(self, token):
         self.expand_macros = True
         # Read the line number - a digit-sequence (i.e. 0-9 with optional ')
         self.get_token(token)
@@ -1038,20 +1040,20 @@ class Preprocessor:
             if self.actions:
                 self.actions.on_source_file_change(start_loc, SourceFileChangeReason.line)
 
-    def on_error(self, lexer, token):
-        self.diagnostic_directive(lexer, token, DID.error_directive)
+    def on_error(self, token):
+        self.diagnostic_directive(token, DID.error_directive)
 
-    def on_warning(self, lexer, token):
-        self.diagnostic_directive(lexer, token, DID.warning_directive)
+    def on_warning(self, token):
+        self.diagnostic_directive(token, DID.warning_directive)
 
-    def on_pragma(self, lexer, token):
+    def on_pragma(self, token):
         # FIXME
         self.skip_to_eod(token, False)
 
-    def ignore_directive(self, _lexer, _token):
+    def ignore_directive(self, token):
         pass
 
-    def enter_if_section(self, lexer, token, condition):
+    def enter_if_section(self, token, condition):
         section = IfSection(
             self.skipping,      # was_skipping
             False,              # true_condition_seen
@@ -1061,11 +1063,11 @@ class Preprocessor:
         self.buffer_states[-1].if_sections.append(section)
         if not self.skipping:
             self.in_if_elif_directive = True
-            section.true_condition_seen = condition(lexer, token)
+            section.true_condition_seen = condition(token)
             self.in_if_elif_directive = False
             self.skipping = not section.true_condition_seen
 
-    def else_section(self, lexer, token, condition):
+    def else_section(self, token, condition):
         buffer_state = self.buffer_states[-1]
         if not buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
@@ -1089,7 +1091,7 @@ class Preprocessor:
                 self.skip_to_eod(token, False)
             else:
                 self.skipping = False
-                section.true_condition_seen = condition(lexer, token)
+                section.true_condition_seen = condition(token)
                 self.skipping = not section.true_condition_seen
         else:  # unconditional else
             section.else_loc = token.loc
@@ -1097,28 +1099,28 @@ class Preprocessor:
             section.true_condition_seen = True
             self.skip_to_eod(token, True)
 
-    def on_if(self, lexer, token):
-        self.enter_if_section(lexer, token, self.evaluate_pp_expression)
+    def on_if(self, token):
+        self.enter_if_section(token, self.evaluate_pp_expression)
 
-    def on_ifdef(self, lexer, token):
-        self.enter_if_section(lexer, token, partial(self.test_defined, False))
+    def on_ifdef(self, token):
+        self.enter_if_section(token, partial(self.test_defined, False))
 
-    def on_ifndef(self, lexer, token):
-        self.enter_if_section(lexer, token, partial(self.test_defined, True))
+    def on_ifndef(self, token):
+        self.enter_if_section(token, partial(self.test_defined, True))
 
-    def on_elif(self, lexer, token):
-        self.else_section(lexer, token, self.evaluate_pp_expression)
+    def on_elif(self, token):
+        self.else_section(token, self.evaluate_pp_expression)
 
-    def on_elifdef(self, lexer, token):
-        self.else_section(lexer, token, partial(self.test_defined, False))
+    def on_elifdef(self, token):
+        self.else_section(token, partial(self.test_defined, False))
 
-    def on_elifndef(self, lexer, token):
-        self.else_section(lexer, token, partial(self.test_defined, True))
+    def on_elifndef(self, token):
+        self.else_section(token, partial(self.test_defined, True))
 
-    def on_else(self, lexer, token):
-        self.else_section(lexer, token, None)
+    def on_else(self, token):
+        self.else_section(token, None)
 
-    def on_endif(self, lexer, token):
+    def on_endif(self, token):
         try:
             if_section = self.buffer_states[-1].if_sections.pop()
             self.skipping = if_section.was_skipping
@@ -1143,12 +1145,13 @@ class Preprocessor:
         while token.kind != TokenKind.EOF:
             lexer.get_token(token)
 
-    def invalid_directive(self, lexer, token):
+    def invalid_directive(self, token):
         self.diag(DID.invalid_directive, token.loc, [self.token_spelling(token)])
         self.skip_to_eod(token, False)
 
-    def diagnostic_directive(self, lexer, token, did):
+    def diagnostic_directive(self, token, did):
         '''Handle #error and #warning.'''
+        lexer = self.sources[-1]
         diag_loc = token.loc
         text = bytearray()
         while True:
@@ -1160,7 +1163,7 @@ class Preprocessor:
             text.extend(lexer.fast_utf8_spelling(token.loc - lexer.start_loc, lexer.cursor))
         self.diag(did, diag_loc, [bytes(text)])
 
-    def evaluate_pp_expression(self, lexer, token):
+    def evaluate_pp_expression(self, token):
         self.expand_macros = True
         value, token = self.expr_parser.parse_and_evaluate_constant_expr()
         # 1 rather than True means "do not consume token"
@@ -1206,8 +1209,8 @@ class Preprocessor:
             return bool(token.extra.macro), True
         return False, False
 
-    def test_defined(self, negate, lexer, token):
-        lexer.get_token(token)
+    def test_defined(self, negate, token):
+        self.get_token(token)
         is_defined, is_macro_name = self.is_defined(token)
         self.skip_to_eod(token, is_macro_name)
         return not is_defined if negate else bool(is_defined)
