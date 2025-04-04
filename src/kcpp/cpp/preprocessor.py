@@ -44,6 +44,12 @@ class IfSection:
 
 
 @dataclass(slots=True)
+class BufferState:
+    '''Maintains per-bufer preprocessor state.'''
+    if_sections: list
+
+
+@dataclass(slots=True)
 class Language:
     kind: str         # Should be 'C' or 'C++'
     year: int
@@ -151,6 +157,10 @@ class Preprocessor:
 
         # Token source stack
         self.sources = []
+
+        # Buffer state stack, and the top
+        self.buffer_states = []
+        self.buffer_state = None
 
         # Internal state
         self.collecting_arguments = False
@@ -506,8 +516,10 @@ class Preprocessor:
         buffer = Buffer(file.nul_terminated_contents())
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
         lexer = Lexer(self, buffer.text, first_loc)
-        lexer.if_sections = []
         self.push_source(lexer)
+        # Maintain buffer states
+        self.buffer_states.append(BufferState([]))
+        self.buffer_state = self.buffer_states[-1]
         if self.actions:
             self.actions.on_source_file_change(first_loc, SourceFileChangeReason.enter)
         return lexer
@@ -522,12 +534,18 @@ class Preprocessor:
     def pop_source(self):
         source = self.sources.pop()
         if isinstance(source, Lexer):
-            self.file_manager.leave_file()
-            self.predefining_macros = False
-            if self.actions:
-                cursor_loc = self.sources[-1].cursor_loc()
-                self.actions.on_source_file_change(cursor_loc, SourceFileChangeReason.leave)
+            self.left_buffer()
         return self.sources[-1]
+
+    def left_buffer(self):
+        # FIXME: unclosed #if
+        self.buffer_states.pop()
+        self.buffer_state = self.buffer_states[-1]
+        self.file_manager.leave_file()
+        self.predefining_macros = False
+        if self.actions:
+            cursor_loc = self.sources[-1].cursor_loc()
+            self.actions.on_source_file_change(cursor_loc, SourceFileChangeReason.leave)
 
     def filename_to_string_literal(self, filename):
         '''Convert a python command-line string to a string literal.
@@ -1045,7 +1063,7 @@ class Preprocessor:
             -1,                 # else_loc
             token.loc           # opening_loc
         )
-        lexer.if_sections.append(section)
+        self.buffer_state.if_sections.append(section)
         if not self.skipping:
             self.in_if_elif_directive = True
             section.true_condition_seen = condition(lexer, token)
@@ -1053,11 +1071,11 @@ class Preprocessor:
             self.skipping = not section.true_condition_seen
 
     def else_section(self, lexer, token, condition):
-        if not lexer.if_sections:
+        if not self.buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
             return
 
-        section = lexer.if_sections[-1]
+        section = self.buffer_state.if_sections[-1]
         if section.was_skipping:
             self.skip_to_eod(token, False)
             return
@@ -1105,11 +1123,11 @@ class Preprocessor:
         self.else_section(lexer, token, None)
 
     def on_endif(self, lexer, token):
-        if not lexer.if_sections:
-            self.diag(DID.endif_without_if, token.loc)
-        else:
-            if_section = lexer.if_sections.pop()
+        try:
+            if_section = self.buffer_state.if_sections.pop()
             self.skipping = if_section.was_skipping
+        except IndexError:
+            self.diag(DID.endif_without_if, token.loc)
         self.skip_to_eod(token, True)
 
     def skip_to_eod(self, token, diagnose):
