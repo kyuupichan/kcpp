@@ -585,29 +585,25 @@ class Preprocessor:
         return True
 
     def get_token(self, token):
-        # Take tokens from the currently active source.
-        source = self.sources[-1]
-
         while True:
+            # Take tokens from the currently active source.
+            source = self.sources[-1]
             source.get_token(token)
 
             # Handle preprocessing directives.  This must happen before macro expansion.
             if token.kind == TokenKind.HASH and token.flags & TokenFlags.BOL:
                 self.handle_directive(source, token)
-                source = self.sources[-1]
                 continue
 
             if token.kind == TokenKind.EOF:
                 if not self.pass_through_eof(source):
                     self.pop_source()
-                    # Return EOF if there are no more sources
+                    # Continue if there are more sources, otherwise pass on the EOF
                     if self.sources:
-                        source = self.sources[-1]
                         continue
             elif self.skipping:
                 continue
-
-            if token.kind == TokenKind.IDENTIFIER:
+            elif token.kind == TokenKind.IDENTIFIER:
                 self.maybe_enter_macro(token)
 
             return
