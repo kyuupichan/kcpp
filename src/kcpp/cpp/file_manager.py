@@ -55,8 +55,8 @@ class File:
         result = self.contents.raw
         assert isinstance(result, (bytes, str))
         if isinstance(result, str):
-            result = b''
-        return result + b'\0'
+            return b'\0'
+        return result
 
 
 class FileManager:
@@ -191,7 +191,7 @@ class FileManager:
         current working directory of the process.
         '''
         directory = IncludeDirectory('', DirectoryKind.none, True)
-        contents = FileContents(raw, is_virtual=True)
+        contents = FileContents(raw + b'\0', is_virtual=True)
         return File(directory, filename, contents)
 
     def file_for_path(self, path):
@@ -202,7 +202,7 @@ class FileManager:
 
     def read_file(self, file):
         if file.contents.raw is None:
-            file.contents.raw = self.host.read_file(file.path)
+            file.contents.raw = self.host.read_file(file.path, nul_terminate=True)
         return file.contents.raw
 
     def enter_file(self, search_result):
