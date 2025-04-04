@@ -402,11 +402,13 @@ class Preprocessor:
         return self.token_spelling_at_loc(token.loc)
 
     def read_file(self, file, diag_loc):
-        '''Diagnoses read errors at diag_loc.'''
-        error_str = self.file_manager.read_file(file)
-        if isinstance(error_str, str):
-            filename = self.filename_to_string_literal(file.path)
-            self.diag(DID.cannot_read_file, diag_loc, [filename, error_str])
+        '''Diagnoses read errors at diag_loc.  Return file on success, None on failure.'''
+        result = self.file_manager.read_file(file)
+        if isinstance(result, bytes):
+            return file
+        filename = self.filename_to_string_literal(file.path)
+        self.diag(DID.cannot_read_file, diag_loc, [filename, result])
+        return None
 
     def starting_compilation(self, filename):
         '''Emit a message saying we are starting the compilation of filename.'''
@@ -431,6 +433,11 @@ class Preprocessor:
             file = self.file_manager.file_for_path(filename)
             self.read_file(file, location_command_line)
 
+        # Push a buffer even if we are going to halt.  We expect the locator to know the
+        # primary source file name and its simplest to push a file anyway.  For now.  But
+        # prevent line markers.
+        if self.halt:
+            self.actions = None
         self.push_buffer(file)
         if self.halt:
             self.halt_compilation()
@@ -678,9 +685,8 @@ class Preprocessor:
         if file is None:
             if diagnose_if_not_found:
                 self.diag(DID.header_file_not_found, header_token.loc, [header_name])
-        else:
-            self.read_file(file, header_token.loc)
-        return file
+            return None
+        return self.read_file(file, header_token.loc)
 
     def on_include(self, lexer, token):
         self.expand_macros = True
