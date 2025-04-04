@@ -4,15 +4,19 @@
 #
 '''Basic types.  Should have no dependencies on external modules.'''
 
-
-__all__ = ['Buffer', 'BufferPosition', 'PresumedLocation',
-           'UnicodeKind', 'SIMPLE_ESCAPES', 'CONTROL_CHARACTER_LETTERS']
-
 from bisect import bisect_left
+from codecs import getincrementalencoder
 from dataclasses import dataclass
 from enum import IntEnum, auto
+from typing import ClassVar
 
-from ..unicode import is_control_character, is_printable, utf8_cp
+from ..unicode import is_control_character, is_printable, utf8_cp, REPLACEMENT_CHAR
+
+
+__all__ = [
+    'Buffer', 'BufferPosition', 'PresumedLocation', 'IntegerKind', 'RealKind',
+    'CodepointOutputKind', 'Charset', 'SIMPLE_ESCAPES', 'CONTROL_CHARACTER_LETTERS',
+]
 
 
 def line_offsets_gen(raw):
@@ -119,8 +123,8 @@ class Buffer:
         return memoryview(text[start:end])
 
 
-class UnicodeKind(IntEnum):
-    '''Describes how to output a unicode codepoint.'''
+class CodepointOutputKind(IntEnum):
+    '''Describes how to output unicode codepoints in human-readable form.'''
     # Unicode characters themselves if printable, otherwise as_ucns.
     character = auto()
     # \uNNNN or \UNNNNNNNN sequences
@@ -137,10 +141,10 @@ class UnicodeKind(IntEnum):
             return chr(cp)
 
         kind = self.value
-        if kind == UnicodeKind.character:
+        if kind == self.character:
             if is_printable(cp):
                 return chr(cp)
-        if kind != UnicodeKind.hex_escape and cp > 0xff:
+        if kind != self.hex_escape and cp > 0xff:
             if cp <= 0xffff:
                 return f'\\u{cp:04X}'
             return f'\\U{cp:08X}'
@@ -203,6 +207,77 @@ class PresumedLocation:
         elif text[offset] in {10, 13}:
             return BufferPosition.END_OF_LINE
         return BufferPosition.WITHIN_LINE
+
+
+class IntegerKind(IntEnum):
+    '''Integer kinds.  Not all are supported by all standards.'''
+    error = auto()
+    bool = auto()
+    char = auto()
+    schar = auto()
+    uchar = auto()
+    short = auto()
+    ushort = auto()
+    int = auto()
+    uint = auto()
+    long = auto()
+    ulong = auto()
+    long_long = auto()
+    ulong_long = auto()
+    char8_t = auto()
+    char16_t = auto()
+    char32_t = auto()
+    wchar_t = auto()
+    enumeration = auto()
+
+    def __repr__(self):
+        return f'IntegerKind.{self.name}'
+
+
+class RealKind(IntEnum):
+    '''Real floating point kinds.  Not all are supported by all standards.'''
+    error = auto()
+    float = auto()
+    double = auto()
+    long_double = auto()
+    float16_t = auto()
+    float32_t = auto()
+    float64_t = auto()
+    float128_t = auto()
+    bfloat16_t = auto()
+    decimal32_t = auto()
+    decimal64_t = auto()
+    decimal128_t = auto()
+
+    def __repr__(self):
+        return f'RealKind.{self.name}'
+
+
+@dataclass(slots=True)
+class Charset:
+    name: str
+    is_unicode: bool
+    replacement_char: int
+    encoder: any
+
+    unicode_charsets: ClassVar[set] = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be',
+                                       'utf16le', 'utf8', 'cp65001'}
+
+    @classmethod
+    def from_name(cls, name):
+        '''Construct a Charset object from a charset name.  Raises LookupError if the
+        charset name is not recognized.'''
+        encoder = getincrementalencoder(name)().encode
+        encoder('\0')  # Skip any BOM
+        is_unicode = name.replace('_', '').replace('-', '').lower() in cls.unicode_charsets
+        replacement_char = REPLACEMENT_CHAR if is_unicode else 63  # '?'
+        return cls(name, is_unicode, replacement_char, encoder)
+
+    def encoding_unit_size(self):
+        '''Returns the length of encoding units of the character set in bytes.  Each character is
+        encoded into one or more units of this size.
+        '''
+        return len(self.encoder('\0'))
 
 
 # A map from escape letters (e.g. 't', 'n') to their unicode codepoints

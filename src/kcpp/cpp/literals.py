@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from struct import Struct
 
-from ..core import SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS
+from ..core import SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, Charset, IntegerKind, RealKind
 from ..diagnostics import DID, SpellingRange, Diagnostic, location_in_args
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
@@ -17,8 +17,7 @@ from ..unicode import (
 )
 
 from .basic import (
-    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Charset, Encoding, IdentifierInfo,
-    IntegerKind, RealKind, Token, value_width
+    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Encoding, IdentifierInfo, Token, value_width
 )
 
 

@@ -9,17 +9,14 @@ Should not import other cpp modules.
 '''
 
 from abc import ABC, abstractmethod
-from codecs import getincrementalencoder
 from dataclasses import dataclass
 from enum import IntEnum, auto
-from typing import ClassVar
 
-from ..unicode import REPLACEMENT_CHAR
+from ..core import IntegerKind
 
 
 __all__ = [
-    'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IntegerKind', 'RealKind',
-    'IdentifierInfo', 'SpecialKind', 'TargetMachine',
+    'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'IdentifierInfo', 'SpecialKind',
 ]
 
 
@@ -289,50 +286,6 @@ class TokenFlags(IntEnum):
         return Encoding((flags >> 8) & 0xf)
 
 
-class IntegerKind(IntEnum):
-    '''Integer kinds.  Not all are supported by all standards.'''
-    error = auto()
-    bool = auto()
-    char = auto()
-    schar = auto()
-    uchar = auto()
-    short = auto()
-    ushort = auto()
-    int = auto()
-    uint = auto()
-    long = auto()
-    ulong = auto()
-    long_long = auto()
-    ulong_long = auto()
-    char8_t = auto()
-    char16_t = auto()
-    char32_t = auto()
-    wchar_t = auto()
-    enumeration = auto()
-
-    def __repr__(self):
-        return f'IntegerKind.{self.name}'
-
-
-class RealKind(IntEnum):
-    '''Real floating point kinds.  Not all are supported by all standards.'''
-    error = auto()
-    float = auto()
-    double = auto()
-    long_double = auto()
-    float16_t = auto()
-    float32_t = auto()
-    float64_t = auto()
-    float128_t = auto()
-    bfloat16_t = auto()
-    decimal32_t = auto()
-    decimal64_t = auto()
-    decimal128_t = auto()
-
-    def __repr__(self):
-        return f'RealKind.{self.name}'
-
-
 class Encoding(IntEnum):
     '''Encodings for character and string literals.'''
     # The bottom 3 bits give the encoding kind, the 4th bit indicates if the literal is a
@@ -358,33 +311,6 @@ class Encoding(IntEnum):
 
     def integer_kind(self):
         return self.basic_integer_kinds[self.basic_encoding()]
-
-
-@dataclass(slots=True)
-class Charset:
-    name: str
-    is_unicode: bool
-    replacement_char: int
-    encoder: any
-
-    unicode_charsets: ClassVar[set] = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be',
-                                       'utf16le', 'utf8', 'cp65001'}
-
-    @classmethod
-    def from_name(cls, name):
-        '''Construct a Charset object from a charset name.  Raises LookupError if the
-        charset name is not recognized.'''
-        encoder = getincrementalencoder(name)().encode
-        encoder('\0')  # Skip any BOM
-        is_unicode = name.replace('_', '').replace('-', '').lower() in cls.unicode_charsets
-        replacement_char = REPLACEMENT_CHAR if is_unicode else 63  # '?'
-        return cls(name, is_unicode, replacement_char, encoder)
-
-    def encoding_unit_size(self):
-        '''Returns the length of encoding units of the character set in bytes.  Each character is
-        encoded into one or more units of this size.
-        '''
-        return len(self.encoder('\0'))
 
 
 Encoding.basic_integer_kinds = [IntegerKind.char, IntegerKind.wchar_t, IntegerKind.char8_t,
@@ -448,76 +374,6 @@ class IdentifierInfo:
 
 # A dummy used for a lexed identifier when skipping
 IdentifierInfo.dummy = IdentifierInfo('!', None, 0)
-
-
-@dataclass(slots=True)
-class TargetMachine:
-    '''Specification of a target machine.  Determines how numeric and character literals
-    are interpreted.'''
-    # If integers are stored little-endian
-    is_little_endian: bool
-
-    char_width: int
-    short_width: int
-    int_width: int
-    long_width: int
-    long_long_width: int
-
-    char_kind: IntegerKind
-    size_t_kind: IntegerKind
-    wchar_t_kind: IntegerKind
-    char16_t_kind: IntegerKind
-    char32_t_kind: IntegerKind
-
-    narrow_charset: Charset
-    wide_charset: Charset
-
-    @classmethod
-    def default(cls):
-        # e.g. Apple-Silicon
-        return cls(True, 8, 16, 32, 64, 64, IntegerKind.schar,
-                   IntegerKind.ulong, IntegerKind.int, IntegerKind.ushort, IntegerKind.uint,
-                   Charset.from_name('UTF-8'), Charset.from_name('UTF-32LE'))
-
-    def pp_arithmetic_width(self):
-        return self.long_long_width
-
-    def underlying_kind(self, kind):
-        if kind == IntegerKind.char:
-            return self.char_kind
-        if kind == IntegerKind.char8_t:
-            return IntegerKind.uchar
-        if kind == IntegerKind.wchar_t:
-            return self.wchar_t_kind
-        if kind == IntegerKind.char16_t:
-            return self.char16_t_kind
-        if kind == IntegerKind.char32_t:
-            return self.char32_t_kind
-        return kind
-
-    def is_unsigned(self, kind):
-        ukind = self.underlying_kind(kind)
-        if ukind in (IntegerKind.schar, IntegerKind.short, IntegerKind.int, IntegerKind.long,
-                     IntegerKind.long_long):
-            return False
-        if ukind in (IntegerKind.uchar, IntegerKind.ushort, IntegerKind.uint, IntegerKind.ulong,
-                     IntegerKind.ulong_long):
-            return True
-        raise RuntimeError(f'kind {kind} not handled in is_signed()')
-
-    def integer_width(self, kind):
-        kind = self.underlying_kind(kind)
-        if kind in (IntegerKind.schar, IntegerKind.uchar):
-            return self.char_width
-        if kind in (IntegerKind.short, IntegerKind.ushort):
-            return self.short_width
-        if kind in (IntegerKind.int, IntegerKind.uint):
-            return self.int_width
-        if kind in (IntegerKind.long, IntegerKind.ulong):
-            return self.long_width
-        if kind in (IntegerKind.long_long, IntegerKind.ulong_long):
-            return self.long_long_width
-        raise RuntimeError(f'kind {kind} not handled in is_signed()')
 
 
 DIGIT_VALUES = {ord(c): ord(c) - 48 for c in '0123456789'}

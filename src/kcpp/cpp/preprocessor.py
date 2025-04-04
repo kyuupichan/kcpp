@@ -9,15 +9,12 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..core import Buffer, Host, UnicodeKind
+from ..core import Buffer, Host, CodepointOutputKind, TargetMachine, IntegerKind, Charset
 from ..diagnostics import (
     DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )
 
-from .basic import (
-    IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding,
-    TargetMachine, IntegerKind, Charset
-)
+from .basic import IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding
 from .expressions import ExprParser
 from .file_manager import FileManager, SearchResult, DirectoryKind
 from .lexer import Lexer
@@ -494,9 +491,9 @@ class Preprocessor:
         # Convert them to their original byte form.
         if isinstance(filename, str):
             filename = filename.encode(sys.getfilesystemencoding(), 'surrogateescape')
-        # Some language standards should degrade the UnicodeKind so the string literals
-        # can be read back in.
-        return UnicodeKind.character.bytes_to_string_literal(filename)
+        # Some language standards should degrade the CodepointOutputKind so the string
+        # literals can be read back in.
+        return CodepointOutputKind.character.bytes_to_string_literal(filename)
 
     def pass_through_eof(self, source):
         # EOF is currently generated in 3 cases: 1) by the lexer at end-of-buffer, 2) by
