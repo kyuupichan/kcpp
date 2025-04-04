@@ -5,17 +5,12 @@
 '''Basic types.  Should have no dependencies on external modules.'''
 
 from bisect import bisect_left
-from codecs import getincrementalencoder
 from dataclasses import dataclass
 from enum import IntEnum, auto
-from typing import ClassVar
-
-from ..unicode import is_control_character, is_printable, utf8_cp, REPLACEMENT_CHAR
 
 
 __all__ = [
     'Buffer', 'BufferPosition', 'PresumedLocation', 'IntegerKind', 'RealKind',
-    'CodepointOutputKind', 'Charset', 'SIMPLE_ESCAPES', 'CONTROL_CHARACTER_LETTERS',
 ]
 
 
@@ -123,53 +118,6 @@ class Buffer:
         return memoryview(text[start:end])
 
 
-class CodepointOutputKind(IntEnum):
-    '''Describes how to output unicode codepoints in human-readable form.'''
-    # Unicode characters themselves if printable, otherwise as_ucns.
-    character = auto()
-    # \uNNNN or \UNNNNNNNN sequences
-    ucn = auto()
-    # As hex escapes
-    hex_escape = auto()
-
-    def codepoint_or_escape(self, cp):
-        if is_control_character(cp):
-            if (esc := CONTROL_CHARACTER_LETTERS.get(cp)):
-                # If possible, control characters get output as simple escapes
-                return '\\' + esc
-        elif cp <= 0x80:
-            return chr(cp)
-
-        kind = self.value
-        if kind == self.character:
-            if is_printable(cp):
-                return chr(cp)
-        if kind != self.hex_escape and cp > 0xff:
-            if cp <= 0xffff:
-                return f'\\u{cp:04X}'
-            return f'\\U{cp:08X}'
-        return escape_bytes(chr(cp).encode(), True)
-
-    def bytes_to_string_literal(self, raw):
-        '''Convert a byte sequence to a valid C or C++ string literal, escaping characters
-        appropriately.  raw is a bytes-like object.'''
-        result = '"'
-
-        cursor = 0
-        limit = len(raw)
-        while cursor < limit:
-            cp, size = utf8_cp(raw, cursor)
-            assert size > 0
-            if cp < 0:
-                result += escape_bytes(raw[cursor: cursor + size], True)
-            else:
-                result += self.codepoint_or_escape(cp)
-            cursor += size
-
-        result += '"'
-        return result
-
-
 class BufferPosition(IntEnum):
     '''Describes a position within a buffer.'''
     WITHIN_LINE = auto()
@@ -251,44 +199,3 @@ class RealKind(IntEnum):
 
     def __repr__(self):
         return f'RealKind.{self.name}'
-
-
-@dataclass(slots=True)
-class Charset:
-    name: str
-    is_unicode: bool
-    replacement_char: int
-    encoder: any
-
-    unicode_charsets: ClassVar[set] = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be',
-                                       'utf16le', 'utf8', 'cp65001'}
-
-    @classmethod
-    def from_name(cls, name):
-        '''Construct a Charset object from a charset name.  Raises LookupError if the
-        charset name is not recognized.'''
-        encoder = getincrementalencoder(name)().encode
-        encoder('\0')  # Skip any BOM
-        is_unicode = name.replace('_', '').replace('-', '').lower() in cls.unicode_charsets
-        replacement_char = REPLACEMENT_CHAR if is_unicode else 63  # '?'
-        return cls(name, is_unicode, replacement_char, encoder)
-
-    def encoding_unit_size(self):
-        '''Returns the length of encoding units of the character set in bytes.  Each character is
-        encoded into one or more units of this size.
-        '''
-        return len(self.encoder('\0'))
-
-
-# A map from escape letters (e.g. 't', 'n') to their unicode codepoints
-SIMPLE_ESCAPES = {ord(c): ord(d) for c, d in zip('\\\'?"abfnrtv', '\\\'?"\a\b\f\n\r\t\v')}
-
-# A map from control character codepoints to escape letters (e.g. 9 -> 't')
-CONTROL_CHARACTER_LETTERS = {d: chr(c) for c, d in SIMPLE_ESCAPES.items() if d < 32}
-
-
-def escape_bytes(raw, use_hex_escapes):
-    '''Escape a sequence of bytes as a sequence of hexadecimal or octal escapes.'''
-    if use_hex_escapes:
-        return ''.join(f'\\x{c:02x}' for c in raw)
-    return ''.join(oct(c)[2:] for c in raw)

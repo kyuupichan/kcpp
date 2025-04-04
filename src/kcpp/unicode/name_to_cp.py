@@ -8,6 +8,8 @@ from enum import IntEnum
 from io import BytesIO
 from struct import Struct
 
+__all__ = ['name_to_cp']
+
 # The only valid characters in unicode character names
 CHARS = ' -0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 

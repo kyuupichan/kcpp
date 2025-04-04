@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import partial
 
-from ..core import Buffer, Host, CodepointOutputKind, TargetMachine, IntegerKind, Charset
+from ..core import Buffer, Host, TargetMachine, IntegerKind
 from ..diagnostics import (
     DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )
+from ..unicode import CodepointOutputKind, Charset
 
 from .basic import IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding
 from .expressions import ExprParser
