@@ -174,6 +174,9 @@ class Macro:
 
             if token.kind == TokenKind.PAREN_OPEN:
                 paren_depth += 1
+            elif token.kind == TokenKind.CONCAT:
+                # Do not produce concat operators from arguments
+                token.kind = TokenKind.OTHER
 
             # Save the token and continue looking for the ')'.
             tokens.append(copy(token))
