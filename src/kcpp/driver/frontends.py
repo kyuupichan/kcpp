@@ -22,9 +22,9 @@ class FrontEndBase(ABC):
         super().__init__()
         self.pp = pp
 
-    def process(self, source):
+    def process(self, source, multiple):
         '''Front ends customize how they handle the token stream here.'''
-        self.pp.push_main_source_file(source)
+        self.pp.push_main_source_file(source, multiple)
 
 
 class PreprocessedOutput(FrontEndBase, PreprocessorActions):
@@ -82,9 +82,10 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             else:
                 self.write_line_marker()
 
-    def process(self, source):
+    def process(self, source, multiple):
+        # Set self.write first as we will immediately get on_source_file_change() callback
         write = self.write = self.pp.stdout.write
-        super().process(source)
+        super().process(source, multiple)
         pp = self.pp
         token = Token.create()
         locator = pp.locator
@@ -152,10 +153,10 @@ class FrontEnd(FrontEndBase):
 
     help_group_name = 'token dumper'
 
-    def process(self, source):
+    def process(self, source, multiple):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present
         this is used for debugging purposes.'''
-        super().process(source)
+        super().process(source, multiple)
         pp = self.pp
         token = Token.create()
         write = pp.stdout.write

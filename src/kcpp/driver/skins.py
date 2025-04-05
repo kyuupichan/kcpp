@@ -65,16 +65,13 @@ class Skin:
 
     def run(self, source, multiple):
         pp = Preprocessor()
-        if multiple:
-            pp.starting_compilation(source)
 
         # Prepare to push the main source file.
         consumer = self.customize_diagnostics(pp)
         if pp.initialize(self.preprocessor_configuration(consumer, source)):
-            # Now do the work and tidy up
-            frontend = self.frontend_class(pp)
-            self.customize_frontend(frontend, pp)
-            frontend.process(source)
+            # If initialization succeeded, create the frontend and process the file
+            frontend = self.create_frontend(pp)
+            frontend.process(source, multiple)
 
         return pp.finish(source)
 
@@ -154,10 +151,12 @@ class KCPP(Skin):
         config.system_dirs = self.command_line.system_dir
         return config
 
-    def customize_frontend(self, frontend, pp):
+    def create_frontend(self, pp):
+        frontend = self.frontend_class(pp)
         if isinstance(frontend, PreprocessedOutput):
             frontend.suppress_linemarkers = self.command_line.P
             frontend.list_macros = self.command_line.list_macros
+        return frontend
 
     def customize_diagnostics(self, pp):
         consumer = self.frontend_class.diagnostic_class(pp)

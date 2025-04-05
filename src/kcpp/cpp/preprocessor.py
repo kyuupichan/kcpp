@@ -420,17 +420,18 @@ class Preprocessor:
         self.diag(DID.cannot_read_file, diag_loc, [filename, result])
         return None
 
-    def starting_compilation(self, filename):
-        '''Emit a message saying we are starting the compilation of filename.'''
-        filename_literal = self.filename_to_string_literal(filename)
-        self.diag(DID.starting_compilation, location_none, [filename_literal])
-
-    def push_main_source_file(self, filename):
+    def push_main_source_file(self, filename, multiple):
         '''Push the main source file onto the preprocessor's source file stack.
         filename is the path to the filename.  '-' reads from stdin (all at once -
         processing doesn't begin until EOF).
         '''
         assert not self.sources
+        # Emit a message saying we are starting the compilation of filename if we are
+        # compiling multiple sources.
+        if multiple:
+            filename_literal = self.filename_to_string_literal(filename)
+            self.diag(DID.starting_compilation, location_none, [filename_literal])
+
         if filename == '-':
             file = self.file_manager.virtual_file('<stdin>', self.read_stdin())
         else:
