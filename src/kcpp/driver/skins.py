@@ -64,12 +64,10 @@ class Skin:
         return self.command_line.files
 
     def run(self, source, multiple):
+        # Create and initialize a preprocessor; if that succeeds create the frontend and
+        # process the source file.
         pp = Preprocessor()
-
-        # Prepare to push the main source file.
-        consumer = self.customize_diagnostics(pp)
-        if pp.initialize(self.preprocessor_configuration(consumer, source)):
-            # If initialization succeeded, create the frontend and process the file
+        if pp.initialize(self.preprocessor_configuration(pp, source)):
             frontend = self.create_frontend(pp)
             frontend.process(source, multiple)
 
@@ -131,9 +129,9 @@ class KCPP(Skin):
         group.add_argument('--tabstop', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def preprocessor_configuration(self, consumer, source):
+    def preprocessor_configuration(self, pp, source):
         config = Config.default()
-        config.diagnostic_consumer = consumer
+        config.diagnostic_consumer = self.diagnostic_consumer(pp)
         config.error_output = self.command_line.error_output
         config.output = self.command_line.output
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
@@ -158,7 +156,7 @@ class KCPP(Skin):
             frontend.list_macros = self.command_line.list_macros
         return frontend
 
-    def customize_diagnostics(self, pp):
+    def diagnostic_consumer(self, pp):
         consumer = self.frontend_class.diagnostic_class(pp)
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
