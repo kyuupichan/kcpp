@@ -17,7 +17,7 @@ from ..unicode import CodepointOutputKind, Charset
 
 from .basic import IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, Encoding
 from .expressions import ExprParser
-from .file_manager import FileManager, File, DirectoryKind
+from .file_manager import FileManager, DirectoryKind
 from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator, ScratchEntryKind
