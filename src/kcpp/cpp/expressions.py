@@ -11,7 +11,7 @@ from enum import IntEnum, auto
 
 from ..diagnostics import Diagnostic, DID, TokenRange
 from .basic import Token, TokenKind, IntegerKind
-from .macros import BuiltinKind
+from .macros import BuiltinKind, lex_token_from_builtin_spelling
 from .literals import LiteralInterpreter
 
 
@@ -228,14 +228,15 @@ class ExprParser:
         token = self.get_token(state)
         kind = token.kind
 
-        # Primary expressions
+        # Primary expressions.
         if kind == TokenKind.IDENTIFIER:
             ident = token.extra
             if ident is self.defined:
                 return self.parse_defined_macro_expr(state, token)
             if ident.macro and ident.macro.is_builtin():
-                return self.parse_has_feature_expr(state, token)
-            return self.evaluate_identifier_expr(token, is_evaluated)
+                return self.parse_has_feature_expr(state, token, is_evaluated)
+            else:
+                return self.evaluate_identifier_expr(token, is_evaluated)
 
         if kind == TokenKind.NUMBER or kind == TokenKind.CHARACTER_LITERAL:
             return self.evaluate_literal(token, is_evaluated)
@@ -289,33 +290,33 @@ class ExprParser:
         return ExprValue(int(is_defined), False, not is_macro_name,
                          TokenRange(defined.loc, token.loc))
 
-    def parse_has_feature_expr(self, state, has_token):
+    def parse_has_feature_expr(self, state, macro_token, is_evaluated):
         token = self.get_token(state)
         if token.kind == TokenKind.PAREN_OPEN:
             self.enter_context(state, token.kind, token.loc)
-            is_available, is_erroneous = self.parse_has_feature_body(state, token, has_token)
+            self.parse_has_feature_body(state, macro_token, is_evaluated)
             token = self.leave_context(state)
+            if macro_token.kind == TokenKind.NUMBER:
+                return self.evaluate_literal(macro_token, is_evaluated)
         else:
-            is_available = False
-            is_erroneous = True
             self.diag(DID.expected_open_paren, token.loc)
-        return ExprValue(int(is_available), False, is_erroneous,
-                         TokenRange(has_token.loc, token.loc))
+        return ExprValue(0, False, True, TokenRange(macro_token.loc, token.loc))
 
-    def parse_has_feature_body(self, state, paren, has_token):
+    def parse_has_feature_body(self, state, macro_token, is_evaluated):
         # We have consumed the open parenthesis.
-        assert has_token.extra.macro is BuiltinKind.has_include
+        assert macro_token.extra.macro is BuiltinKind.has_include
         header_token = self.pp.create_header_name(in__has_include=True)
         if header_token is None:
-            return False, True
-        # According to the standard, "The has-include-expression evaluates to 1 if the
-        # search for the source file succeeds, and to 0 if the search fails."  It is not
-        # clear what constitutes a search succeeding, but Clang and GCC diagnose the
-        # search as for an include except that not-found is ignored.  In particular, an
-        # unreadable file is a fatal error, but a directory is considered a header that is
-        # not found.  This is reasonable so we do the same.
-        file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
-        return file is not None, False
+            macro_token.kind = TokenKind.ERROR
+        else:
+            # "The has-include-expression evaluates to 1 if the search for the source file
+            # succeeds, and to 0 if the search fails."  It is not clear what constitutes a
+            # search succeeding, but Clang and GCC diagnose the search as for an include
+            # except that not-found is ignored.  In particular, an unreadable file is a
+            # fatal error, but a directory is considered a header that is not found.  This
+            # is reasonable so we do the same.
+            file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
+            lex_token_from_builtin_spelling(self.pp, macro_token, '1' if file else '0')
 
     def overflow(self, lhs, op, args):
         '''Diagnose overflow of lhs at the operator 'op' with the given arguments.'''
