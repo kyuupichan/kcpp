@@ -4,7 +4,7 @@
 #
 '''Preprocessor frontends.'''
 
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from kcpp.cpp import Token, TokenKind, TokenFlags, PreprocessorActions
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
