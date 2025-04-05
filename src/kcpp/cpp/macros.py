@@ -546,9 +546,13 @@ def expand_builtin_macro(pp, token):
 
 
 def lex_token_from_builtin_spelling(pp, token, spelling):
+    ws = token.flags & TokenFlags.WS
     btoken, all_consumed = pp.lex_from_scratch(spelling.encode(), token.loc,
                                                ScratchEntryKind.builtin)
     assert all_consumed
+    assert not (btoken.flags & TokenFlags.WS)
+    if ws:
+        btoken.flags |= TokenFlags.WS
     token.set_to(btoken, btoken.loc)
 
 
