@@ -22,8 +22,8 @@ from .lexer import Lexer
 from .literals import LiteralInterpreter
 from .locator import Locator, ScratchEntryKind
 from .macros import (
-    Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinMacroExpansion,
-    BuiltinKind, predefines,
+    Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinKind,
+    expand_builtin_macro, predefines,
 )
 
 
@@ -620,14 +620,15 @@ class Preprocessor:
         if macro is None:
             return
         if isinstance(macro, BuiltinKind):
-            # __has_include, etc., are handled by the preprocessor expression parser.
-            # However, this captures invalid uses outside of #if / #elif.
             if macro.is_has_feature():
+                # __has_include, etc., are handled by the preprocessor expression parser.
+                # However, this captures invalid uses outside of #if / #elif.
                 if not self.in_if_elif_directive:
                     self.diag(DID.builtin_macro_only_if_elif, token.loc,
                               [self.token_spelling(token)])
-                return
-            self.push_source(BuiltinMacroExpansion.from_builtin_kind(self, token.loc, macro))
+            else:
+                expand_builtin_macro(self, token)
+            return
         else:
             if macro.is_disabled():
                 # Disable this token forever from later expansion

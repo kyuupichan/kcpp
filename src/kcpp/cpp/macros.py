@@ -15,7 +15,7 @@ from .basic import Token, TokenKind, TokenFlags
 from .locator import ScratchEntryKind
 
 __all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion',
-           'predefines']
+           'expand_builtin_macro', 'predefines']
 
 
 class MacroFlags(IntEnum):
@@ -512,49 +512,44 @@ class UnexpandedArgument(SimpleTokenList):
             self.cursor = cursor + 1
 
 
-class BuiltinMacroExpansion(SimpleTokenList):
-
-    def __init__(self, pp, invocation_loc, spelling):
-        assert isinstance(spelling, str)
-        self.pp = pp
-        self.invocation_loc = invocation_loc
-        self.spelling = spelling
-
-    def get_token(self, token):
-        btoken, all_consumed = self.pp.lex_from_scratch(
-            self.spelling.encode(), self.invocation_loc, ScratchEntryKind.builtin)
-        assert all_consumed
-        token.set_to(btoken, btoken.loc)
-        self.pp.pop_source()
-
-    @classmethod
-    def from_builtin_kind(cls, pp, invocation_loc, kind):
-        if kind == BuiltinKind.LINE or kind == BuiltinKind.FILE:
-            location = pp.locator.presumed_location(invocation_loc, True)
-            if kind == BuiltinKind.LINE:
-                spelling = str(location.presumed_line_number)
-            else:
-                spelling = location.presumed_filename
-        elif kind == BuiltinKind.TIME or kind == BuiltinKind.DATE:
-            # First time?
-            if pp.time_str is None:
-                epoch = pp.source_date_epoch
-                if epoch is None:
-                    epoch = datetime.today()
-                else:
-                    epoch = datetime.fromtimestamp(epoch)
-                months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
-                pp.time_str = f'"{epoch.hour:02d}:{epoch.minute:02d}:{epoch.second:02d}"'
-                pp.date_str = f'"{months[epoch.month - 1]} {epoch.day:2d} {epoch.year:4d}"'
-
-            if kind == BuiltinKind.TIME:
-                spelling = pp.time_str
-            else:
-                spelling = pp.date_str
+def expand_builtin_macro(pp, token):
+    '''Token is a built-in macro like __LINE__.  Replace token with the result of lexing
+    the spelling of the macro's expansion.
+    '''
+    kind = token.extra.macro
+    if kind == BuiltinKind.LINE or kind == BuiltinKind.FILE:
+        location = pp.locator.presumed_location(token.loc, True)
+        if kind == BuiltinKind.LINE:
+            spelling = str(location.presumed_line_number)
         else:
-            assert False
+            spelling = location.presumed_filename
+    elif kind == BuiltinKind.TIME or kind == BuiltinKind.DATE:
+        # First time?
+        if pp.time_str is None:
+            epoch = pp.source_date_epoch
+            if epoch is None:
+                epoch = datetime.today()
+            else:
+                epoch = datetime.fromtimestamp(epoch)
+            months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
+            pp.time_str = f'"{epoch.hour:02d}:{epoch.minute:02d}:{epoch.second:02d}"'
+            pp.date_str = f'"{months[epoch.month - 1]} {epoch.day:2d} {epoch.year:4d}"'
 
-        return cls(pp, invocation_loc, spelling)
+        if kind == BuiltinKind.TIME:
+            spelling = pp.time_str
+        else:
+            spelling = pp.date_str
+    else:
+        assert False
+
+    return lex_token_from_builtin_spelling(pp, token, spelling)
+
+
+def lex_token_from_builtin_spelling(pp, token, spelling):
+    btoken, all_consumed = pp.lex_from_scratch(spelling.encode(), token.loc,
+                                               ScratchEntryKind.builtin)
+    assert all_consumed
+    token.set_to(btoken, btoken.loc)
 
 
 def predefines(pp):
