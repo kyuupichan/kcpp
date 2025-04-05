@@ -449,10 +449,9 @@ class Preprocessor:
             self.halt_compilation()
         else:
             if self.command_line_buffer:
-                self.push_buffer(self.file_manager.virtual_file('<command line>',
-                                                                self.command_line_buffer))
+                self.push_virtual_buffer('<command line>', self.command_line_buffer)
             raw_predefines = predefines(self).encode()
-            self.push_buffer(self.file_manager.virtual_file('<predefines>', raw_predefines))
+            self.push_virtual_buffer('<predefines>', raw_predefines)
             self.predefining_macros = True
 
     def halt_compilation(self):
@@ -523,6 +522,9 @@ class Preprocessor:
         if self.actions:
             self.actions.on_source_file_change(first_loc, SourceFileChangeReason.enter)
         return lexer
+
+    def push_virtual_buffer(self, name, raw):
+        return self.push_buffer(self.file_manager.virtual_file(name, raw))
 
     def push_source(self, source):
         self.sources.append(source)
