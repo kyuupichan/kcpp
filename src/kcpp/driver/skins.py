@@ -69,16 +69,14 @@ class Skin:
             pp.starting_compilation(source)
 
         # Prepare to push the main source file.
-        frontend = self.frontend_class(pp)
-        self.customize_frontend(frontend, pp)
-        consumer = self.customize_diagnostics(frontend, pp)
-        config = self.preprocessor_configuration(consumer, source)
-        pp.push_main_source_file(source, config)
+        consumer = self.customize_diagnostics(pp)
+        if pp.initialize(self.preprocessor_configuration(consumer, source)):
+            # Now do the work and tidy up
+            frontend = self.frontend_class(pp)
+            self.customize_frontend(frontend, pp)
+            frontend.process(source)
 
-        # Now do the work and tidy up
-        frontend.process()
-
-        return pp.finish()
+        return pp.finish(source)
 
 
 class KCPP(Skin):
@@ -161,8 +159,8 @@ class KCPP(Skin):
             frontend.suppress_linemarkers = self.command_line.P
             frontend.list_macros = self.command_line.list_macros
 
-    def customize_diagnostics(self, frontend, pp):
-        consumer = frontend.diagnostic_class(pp)
+    def customize_diagnostics(self, pp):
+        consumer = self.frontend_class.diagnostic_class(pp)
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
             if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):

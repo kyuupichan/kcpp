@@ -279,7 +279,7 @@ class Preprocessor:
         if config.max_include_depth >= 0:
             self.max_include_depth = config.max_include_depth
 
-    def _initialize(self, config):
+    def initialize(self, config):
         '''Configure and then finish general initialization.'''
         self._configure(config)
 
@@ -337,6 +337,8 @@ class Preprocessor:
 
         # Built-in has-feature pseudo-macros
         self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
+
+        return not self.halt
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
@@ -420,18 +422,14 @@ class Preprocessor:
 
     def starting_compilation(self, filename):
         '''Emit a message saying we are starting the compilation of filename.'''
-        if filename == '-':
-            filename = '<stdin>'
         filename_literal = self.filename_to_string_literal(filename)
         self.diag(DID.starting_compilation, location_none, [filename_literal])
 
-    def push_main_source_file(self, filename, config=None):
+    def push_main_source_file(self, filename):
         '''Push the main source file onto the preprocessor's source file stack.
         filename is the path to the filename.  '-' reads from stdin (all at once -
         processing doesn't begin until EOF).
         '''
-        self._initialize(config)
-
         assert not self.sources
         if filename == '-':
             file = self.file_manager.virtual_file('<stdin>', self.read_stdin())
@@ -465,7 +463,7 @@ class Preprocessor:
         lexer = self.sources[0]
         lexer.cursor = len(lexer.buff) - 1  # The NUL byte
 
-    def finish(self):
+    def finish(self, primary_source_filename):
         '''Emit a compilation summary and return an exit code.
 
         The preprocessor frontend should call this when it has finished processing, and it will
@@ -475,7 +473,11 @@ class Preprocessor:
 
         fatal_error_count = self.diagnostic_consumer.fatal_error_count
         error_count = self.diagnostic_consumer.error_count
+        # Returns None if no primary source file was pushed
         filename = self.locator.primary_source_file_name()
+        if filename is None:
+            filename = self.filename_to_string_literal(primary_source_filename)
+
         if fatal_error_count:
             self.emit(Diagnostic(DID.compilation_halted, location_none))
             if error_count:
@@ -568,6 +570,8 @@ class Preprocessor:
         # Python passes around magically encoded strings if they are not valid UTF-8.
         # Convert them to their original byte form.
         if isinstance(filename, str):
+            if filename == '-':
+                filename = '<stdin>'
             filename = filename.encode(sys.getfilesystemencoding(), 'surrogateescape')
         # Some language standards should degrade the CodepointOutputKind so the string
         # literals can be read back in.

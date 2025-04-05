@@ -232,7 +232,9 @@ class Locator:
 
     def primary_source_file_name(self):
         '''Return the string literal that is the name of the primary source file.'''
-        return self.buffer_spans[0].line_ranges[0].name
+        if self.buffer_spans:
+            return self.buffer_spans[0].line_ranges[0].name
+        return None
 
     def next_macro_span_start(self):
         try:
