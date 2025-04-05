@@ -315,7 +315,9 @@ class ExprParser:
             # except that not-found is ignored.  In particular, an unreadable file is a
             # fatal error, but a directory is considered a header that is not found.  This
             # is reasonable so we do the same.
-            file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
+            file = None
+            if is_evaluated:
+                file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
             lex_token_from_builtin_spelling(self.pp, macro_token, '1' if file else '0')
 
     def overflow(self, lhs, op, args):
