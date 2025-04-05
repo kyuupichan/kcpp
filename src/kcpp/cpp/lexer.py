@@ -9,7 +9,7 @@ from ..unicode import (
     is_surrogate
 )
 
-from ..diagnostics import BufferRange, DID, location_in_args
+from ..diagnostics import BufferRange, DID
 
 from .basic import (
     Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, SpecialKind, HEX_DIGIT_VALUES
@@ -111,9 +111,7 @@ class Lexer(TokenSource):
         the single character at that position is diagnosed.  If end is in the middle of a
         multi-byte character, the diagnosis extends to the end of that character.
         '''
-        args = args or []
-        args.append(BufferRange(start + self.start_loc, end + self.start_loc))
-        self.pp.diag(did, location_in_args, args)
+        self.pp.diag(did, BufferRange(start + self.start_loc, end + self.start_loc), args)
 
     def read_logical_byte(self, cursor):
         # Return the next byte skipping escaped newlines

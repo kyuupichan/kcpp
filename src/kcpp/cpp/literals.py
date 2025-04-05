@@ -10,7 +10,7 @@ from enum import IntEnum
 from struct import Struct
 
 from ..core import IntegerKind, RealKind
-from ..diagnostics import DID, SpellingRange, Diagnostic, location_in_args
+from ..diagnostics import DID, SpellingRange, Diagnostic
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
     codepoint_to_hex, SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, Charset,
@@ -230,8 +230,7 @@ class LiteralInterpreter:
                 self.pp.diag(DID.floating_point_in_pp_expr, token.loc)
                 result = IntegerLiteral(IntegerKind.error, 0, None)
             elif result.ud_suffix:
-                self.pp.diag(DID.user_defined_suffix_in_pp_expr, location_in_args,
-                             [result.ud_suffix.loc])
+                self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
                 result.kind = IntegerKind.error
 
         return result
@@ -354,8 +353,8 @@ class LiteralInterpreter:
             selector = None
 
         if selector is not None:
-            self.pp.diag(DID.invalid_in_filename, location_in_args,
-                         [self.string_spelling_range(token, selector), selector])
+            self.pp.diag(DID.invalid_in_filename, self.string_spelling_range(token, selector),
+                         [selector])
             return None
 
         encoded = bytearray()
@@ -682,11 +681,12 @@ class LiteralInterpreter:
     def concatenate_string_literals(self, token):
         '''Concatenate and interpret string literals beginning with token.'''
         def diagnose_conflict(token, bad_tokens, selector):
-            args = [self.string_spelling_range(token, selector), selector]
-            args.extend([Diagnostic(DID.string_concatenation_prior, location_in_args,
-                                    [selector, self.string_spelling_range(bad_token, selector)])
+            args = [selector]
+            args.extend([Diagnostic(DID.string_concatenation_prior,
+                                    self.string_spelling_range(bad_token, selector), [selector])
                          for bad_token in bad_tokens])
-            self.pp.diag(DID.string_concatenation_conflict, location_in_args, args)
+            diag_loc = self.string_spelling_range(token, selector)
+            self.pp.diag(DID.string_concatenation_conflict, diag_loc, args)
 
         assert token.kind == TokenKind.STRING_LITERAL
 
@@ -981,7 +981,7 @@ class LiteralInterpreter:
 
     def expected_close_brace(self, state, cursor, brace_loc):
         loc = SpellingRange(state.token.loc, brace_loc, brace_loc + 1)
-        note = Diagnostic(DID.prior_match, location_in_args, [loc, '{'])
+        note = Diagnostic(DID.prior_match, loc, ['{'])
         state.diag_char(DID.expected_close_brace, cursor, [note])
 
 
@@ -1030,9 +1030,7 @@ class State:
         self.diag_char_range(did, start, start + 1, args)
 
     def diag_char_range(self, did, start, end, args=None):
-        args = args or []
-        args.append(SpellingRange(self.token.loc, start, end))
-        self.diags.append((did, location_in_args, args))
+        self.diags.append((did, SpellingRange(self.token.loc, start, end), args))
 
     def first_non_decimal_digit(self, cursor):
         '''Return the first character starting from cursor that is not a decimal digit.'''

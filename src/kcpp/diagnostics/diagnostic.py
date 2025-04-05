@@ -18,7 +18,7 @@ __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine', 'DiagnosticContext',
     'DiagnosticListener', 'DiagnosticPrinter',
     'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords',
-    'location_command_line', 'location_none', 'location_in_args',
+    'location_command_line', 'location_none',
 ]
 
 
@@ -30,7 +30,6 @@ __all__ = [
 # Locations for diagnostics with a special meaning.
 location_none = -1
 location_command_line = -2
-location_in_args = -3
 
 
 @dataclass(slots=True)
@@ -142,7 +141,6 @@ class Diagnostic:
         self.loc = loc
         self.arguments = args or []
         self.emit = None
-        assert isinstance(loc, int)
         assert all(isinstance(arg, (int, str, bytes, Diagnostic, BufferRange,
                                     SpellingRange, TokenRange))
                    for arg in self.arguments)
@@ -165,25 +163,20 @@ class Diagnostic:
         source_ranges = []
         nested_diagnostics = []
 
-        if self.loc == location_in_args:
-            caret_range = None
-        else:
-            caret_range = TokenRange(self.loc, self.loc)
+        caret_range = self.loc
+        if isinstance(caret_range, int):
+            caret_range = TokenRange(caret_range, caret_range)
 
         for arg in self.arguments:
             if isinstance(arg, (str, bytes, int)):
                 substitutions.append(arg)
             elif isinstance(arg, (TokenRange, SpellingRange, BufferRange)):
-                if caret_range is None:
-                    caret_range = arg
-                else:
-                    source_ranges.append(arg)
+                source_ranges.append(arg)
             elif isinstance(arg, Diagnostic):
                 nested_diagnostics.append(arg)
             else:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
-        assert caret_range
         context = DiagnosticContext(self.did, severity, substitutions, caret_range, source_ranges)
         return context, nested_diagnostics
 
