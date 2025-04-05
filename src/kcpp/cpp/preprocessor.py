@@ -125,9 +125,8 @@ class Preprocessor:
     read_stdin = sys.stdin.buffer.read
 
     def __init__(self):
-        '''Perform initialization that is not dependent on customization of, e.g., choice of
-        language standard or target.  Such context-sensitive initialization is done by the
-        caller calling initialize(), which must happen before pushing the main file.
+        '''Basic initialization.  Customization, and initialization based on that, comes
+        with a call to push_main_source_file().
         '''
         # Language and target
         self.language = None
@@ -185,6 +184,7 @@ class Preprocessor:
         self.command_line_buffer = None
 
     def _configure(self, config):
+        '''Configure the preprocessor.'''
         def set_output(self, filename, attrib):
             result = self.host.open_file_for_writing(filename)
             if isinstance(result, str):
@@ -192,6 +192,7 @@ class Preprocessor:
             else:
                 setattr(self, attrib, result)
 
+        config = config or Config.default()
         # Get error output redirected first
         if config.error_output:
             set_output(config.error_output, 'stderr')
@@ -278,14 +279,11 @@ class Preprocessor:
         if config.max_include_depth >= 0:
             self.max_include_depth = config.max_include_depth
 
-    def initialize(self, config=None):
-        self._configure(config or Config.default())
+    def _initialize(self, config):
+        '''Configure and then finish general initialization.'''
+        self._configure(config)
 
-        #
-        # Now general initialization
-        #
-
-        # These are dependent on target so must come after configuration
+        # These are dependent on target so come after configuration
         self.literal_interpreter = LiteralInterpreter(self, False)
         self.expr_parser = ExprParser(self)
 
@@ -427,14 +425,13 @@ class Preprocessor:
         filename_literal = self.filename_to_string_literal(filename)
         self.diag(DID.starting_compilation, location_none, [filename_literal])
 
-    def push_main_source_file(self, filename):
-        '''Push the main source file onto the preprocessor's source file stack.  Return True on
-        success.  Otherwise return False, and the caller must abandon the compilation and
-        not call get_token().
-
+    def push_main_source_file(self, filename, config=None):
+        '''Push the main source file onto the preprocessor's source file stack.
         filename is the path to the filename.  '-' reads from stdin (all at once -
         processing doesn't begin until EOF).
         '''
+        self._initialize(config)
+
         assert not self.sources
         if filename == '-':
             file = self.file_manager.virtual_file('<stdin>', self.read_stdin())

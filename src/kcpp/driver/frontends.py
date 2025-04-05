@@ -22,10 +22,6 @@ class FrontEndBase(ABC):
         super().__init__()
         self.pp = pp
 
-    def process_source(self, source):
-        self.pp.push_main_source_file(source)
-        self.process()
-
     @abstractmethod
     def process(self):
         '''Front ends customize how they handle the token stream here.'''

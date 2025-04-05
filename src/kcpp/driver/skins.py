@@ -68,15 +68,16 @@ class Skin:
         if multiple:
             pp.starting_compilation(source)
 
-        # Create the front end, customize diagnostics, then initialize the preprocessor.
-        # Finally customize the front end.
+        # Prepare to push the main source file.
         frontend = self.frontend_class(pp)
-        consumer = self.customize_diagnostics(frontend, pp)
-        pp.initialize(self.preprocessor_configuration(consumer, source))
         self.customize_frontend(frontend, pp)
+        consumer = self.customize_diagnostics(frontend, pp)
+        config = self.preprocessor_configuration(consumer, source)
+        pp.push_main_source_file(source, config)
 
         # Now do the work and tidy up
-        frontend.process_source(source)
+        frontend.process()
+
         return pp.finish()
 
 
