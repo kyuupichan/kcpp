@@ -627,7 +627,7 @@ class Preprocessor:
                     self.diag(DID.builtin_macro_only_if_elif, token.loc,
                               [self.token_spelling(token)])
                 return
-            self.push_source(BuiltinMacroExpansion(self, token.loc, macro))
+            self.push_source(BuiltinMacroExpansion.from_builtin_kind(self, token.loc, macro))
         else:
             if macro.is_disabled():
                 # Disable this token forever from later expansion

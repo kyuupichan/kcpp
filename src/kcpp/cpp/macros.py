@@ -514,42 +514,47 @@ class UnexpandedArgument(SimpleTokenList):
 
 class BuiltinMacroExpansion(SimpleTokenList):
 
-    def __init__(self, pp, parent_loc, kind):
+    def __init__(self, pp, invocation_loc, spelling):
+        assert isinstance(spelling, str)
         self.pp = pp
-        self.parent_loc = parent_loc
-        self.kind = kind
+        self.invocation_loc = invocation_loc
+        self.spelling = spelling
 
-    def spelling(self):
-        if self.kind == BuiltinKind.LINE or self.kind == BuiltinKind.FILE:
-            location = self.pp.locator.presumed_location(self.parent_loc, True)
-            if self.kind == BuiltinKind.LINE:
-                return str(location.presumed_line_number)
-            return location.presumed_filename
+    def get_token(self, token):
+        btoken, all_consumed = self.pp.lex_from_scratch(
+            self.spelling.encode(), self.invocation_loc, ScratchEntryKind.builtin)
+        assert all_consumed
+        token.set_to(btoken, btoken.loc)
+        self.pp.pop_source()
 
-        if self.kind == BuiltinKind.TIME or self.kind == BuiltinKind.DATE:
-            if self.pp.time_str is None:
-                epoch = self.pp.source_date_epoch
+    @classmethod
+    def from_builtin_kind(cls, pp, invocation_loc, kind):
+        if kind == BuiltinKind.LINE or kind == BuiltinKind.FILE:
+            location = pp.locator.presumed_location(invocation_loc, True)
+            if kind == BuiltinKind.LINE:
+                spelling = str(location.presumed_line_number)
+            else:
+                spelling = location.presumed_filename
+        elif kind == BuiltinKind.TIME or kind == BuiltinKind.DATE:
+            # First time?
+            if pp.time_str is None:
+                epoch = pp.source_date_epoch
                 if epoch is None:
                     epoch = datetime.today()
                 else:
                     epoch = datetime.fromtimestamp(epoch)
                 months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
-                self.pp.time_str = f'"{epoch.hour:02d}:{epoch.minute:02d}:{epoch.second:02d}"'
-                self.pp.date_str = f'"{months[epoch.month - 1]} {epoch.day:2d} {epoch.year:4d}"'
+                pp.time_str = f'"{epoch.hour:02d}:{epoch.minute:02d}:{epoch.second:02d}"'
+                pp.date_str = f'"{months[epoch.month - 1]} {epoch.day:2d} {epoch.year:4d}"'
 
-            if self.kind == BuiltinKind.TIME:
-                return self.pp.time_str
-            return self.pp.date_str
+            if kind == BuiltinKind.TIME:
+                spelling = pp.time_str
+            else:
+                spelling = pp.date_str
+        else:
+            assert False
 
-        assert False
-
-    def get_token(self, token):
-        spelling = self.spelling()
-        btoken, all_consumed = self.pp.lex_from_scratch(spelling.encode(), self.parent_loc,
-                                                        ScratchEntryKind.builtin)
-        assert all_consumed
-        token.set_to(btoken, btoken.loc)
-        self.pp.pop_source()
+        return cls(pp, invocation_loc, spelling)
 
 
 def predefines(pp):
