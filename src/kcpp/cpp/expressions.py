@@ -9,7 +9,7 @@ and diagnostics.
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..diagnostics import Diagnostic, DID, TokenRange
+from ..diagnostics import DID, TokenRange
 from .basic import Token, TokenKind, IntegerKind
 from .macros import BuiltinKind, lex_token_from_builtin_spelling
 from .literals import LiteralInterpreter
@@ -63,39 +63,6 @@ class BOP(IntEnum):
     multiplicative = auto()     # / % *
 
 
-@dataclass(slots=True)
-class ContextMetadata:
-    '''Static metadata about a grammatical context; see docstring for Context.'''
-    want_kind: TokenKind
-    did: DID
-    open_punc: str
-
-
-# Context metadata applicable to pp expressions.
-ContextMetadata.kinds = {
-    TokenKind.QUESTION_MARK: ContextMetadata(TokenKind.COLON, DID.expected_colon, '?'),
-    TokenKind.PAREN_OPEN: ContextMetadata(TokenKind.PAREN_CLOSE, DID.expected_close_paren, '('),
-}
-
-
-@dataclass(slots=True)
-class Context:
-    '''A simple data structure used to aid parser recovery from syntax errors.  A context is
-    generally a grammatic construct that, once entered, expects a later token to usually
-    complete it.  For exanple, after '(' there must eventually be a ')'.  Similarly after
-    '?' at some point we expect a ':' ,
-    '''
-    start_loc: int
-    metadata: ContextMetadata
-
-
-@dataclass(slots=True)
-class ParserState:
-    '''Parser state.  Separate from the parser so it is stateless and reusable.'''
-    token: Token
-    context_stack: list
-
-
 class ExprParser:
     '''A modified form of recursive descent based on operator precedence, which I believe is
     the best approach to the relatively simple expressions a preprocessor must accept.
@@ -113,62 +80,14 @@ class ExprParser:
         # Pass diagnostics on to the preprocessor.
         self.diag = pp.diag
 
-    def get_token(self, state):
-        '''Get the next token.  Use a lookahead token if there is one, otherwise ask the
-        preprocessor.
-        '''
-        if state.token is None:
-            token = Token.create()
-            self.pp.get_token(token)
-        else:
-            token = state.token
-            state.token = None
-        return token
-
-    def enter_context(self, state, kind, loc):
-        '''Enter a grammatical context.'''
-        state.context_stack.append(Context(loc, ContextMetadata.kinds[kind]))
-
-    def leave_context(self, state):
-        '''Leave a grammatical context.  Diagnoses if the next token is not of the expected
-        kind.'''
-        token = self.get_token(state)
-        context = state.context_stack[-1]
-        if token.kind != context.metadata.want_kind:
-            note = Diagnostic(DID.prior_match, context.start_loc, [context.metadata.open_punc])
-            self.diag(context.metadata.did, token.loc, [note])
-            token = self.recover(state, token)
-            if token.kind == context.metadata.want_kind:
-                state.token = None
-        state.context_stack.pop()
-        return token
-
-    def recover(self, state, token):
-        '''Attempt to recover from a grammatical error in a smart way.  The goal is to not have a
-        cascade of errors owing to this error, but also to continue parsing as early as
-        possible so other genuine issues are still diagnosed.
-        '''
-        state.token = token
-        stopping_tokens = {context.metadata.want_kind for context in state.context_stack}
-        stopping_tokens.add(TokenKind.EOF)
-        while True:
-            token = self.get_token(state)
-            if token.kind in stopping_tokens:
-                state.token = token
-                return token
-            if token.kind in ContextMetadata.kinds:
-                # Recurse
-                self.enter_context(state, token.kind, token.loc)
-                self.recover(state, None)
-                self.leave_context(state)
-
     def parse_and_evaluate_constant_expr(self):
         '''The external interface - parse and evaluate a preprocessor expression.  Return a
         (value, token) pair.  The value is an ExprValue instance and token is the
         lookahead token.
         '''
         # As per the grammar, comma expressions are not acceptable at the top level.
-        state = ParserState(None, [])
+        from ..parsing import ParserState
+        state = ParserState.from_pp(self.pp)
         return self.parse_conditional_expr(state, True), state.token
 
     def parse_expr(self, state, is_evaluated):
@@ -189,10 +108,10 @@ class ExprParser:
         # shift operation.
         lhs = self.parse_unary_expr(state, is_evaluated)
         while True:
-            token = self.get_token(state)
+            token = state.get_token()
             precedence, evaluator = binary_ops.get(token.kind, (BOP.minimal, None))
             if precedence <= reduce_precedence:
-                state.token = token
+                state.save_token(token)
                 return lhs
 
             if precedence == BOP.conditional:
@@ -210,9 +129,9 @@ class ExprParser:
 
     def parse_conditional_branches(self, state, token, condition_truth, is_evaluated):
         '''Parse and evaluate the branches of a conditional operator.'''
-        self.enter_context(state, token.kind, token.loc)
+        state.enter_context(token.kind, token.loc)
         lhs = self.parse_expr(state, condition_truth and is_evaluated)
-        colon = self.leave_context(state)
+        colon = state.leave_context()
         if colon.kind != TokenKind.COLON:
             return lhs
         rhs = self.parse_conditional_expr(state, not condition_truth and is_evaluated)
@@ -225,7 +144,7 @@ class ExprParser:
 
     def parse_unary_expr(self, state, is_evaluated):
         '''Parse and evaluate a unary or primary expression.'''
-        token = self.get_token(state)
+        token = state.get_token()
         kind = token.kind
 
         # Primary expressions.
@@ -262,9 +181,9 @@ class ExprParser:
 
     def parse_parenthesized_expr(self, state, paren_open, is_evaluated):
         '''Parse and evaluate a parenthesized expression.'''
-        self.enter_context(state, paren_open.kind, paren_open.loc)
+        state.enter_context(paren_open.kind, paren_open.loc)
         expr = self.parse_expr(state, is_evaluated)
-        token = self.leave_context(state)
+        token = state.leave_context()
         expr.loc.start = paren_open.loc
         expr.loc.end = token.loc
         return expr
@@ -276,26 +195,26 @@ class ExprParser:
             self.diag(DID.macro_produced_defined, defined.loc)
         self.pp.expand_macros = False
         paren = False
-        token = self.get_token(state)
+        token = state.get_token()
         if token.kind == TokenKind.PAREN_OPEN:
-            self.enter_context(state, token.kind, token.loc)
-            token = self.get_token(state)
+            state.enter_context(token.kind, token.loc)
+            token = state.get_token()
             paren = True
         is_defined, is_macro_name = self.pp.is_defined(token)
         if not is_macro_name:
-            token = self.recover(state, token)
+            token = state.recover(token)
         if paren:
-            token = self.leave_context(state)
+            token = state.leave_context()
         self.pp.expand_macros = True
         return ExprValue(int(is_defined), False, not is_macro_name,
                          TokenRange(defined.loc, token.loc))
 
     def parse_has_feature_expr(self, state, macro_token, is_evaluated):
-        token = self.get_token(state)
+        token = state.get_token()
         if token.kind == TokenKind.PAREN_OPEN:
-            self.enter_context(state, token.kind, token.loc)
+            state.enter_context(token.kind, token.loc)
             spelling = self.parse_body_method(macro_token.extra.macro)(state, is_evaluated)
-            token = self.leave_context(state)
+            token = state.leave_context()
             if spelling is not None:
                 lex_token_from_builtin_spelling(self.pp, macro_token, spelling)
                 assert macro_token.kind == TokenKind.NUMBER
@@ -313,11 +232,11 @@ class ExprParser:
             assert False
 
     def expect_identifier(self, state):
-        token = self.get_token(state)
+        token = state.get_token()
         if token.kind == TokenKind.IDENTIFIER:
             return token.extra
         self.diag(DID.expected_identifier, token.loc)
-        self.recover(state, token)
+        state.recover(token)
         return None
 
     def parse_has_attribute_body(self, state, is_evaluated):
@@ -329,7 +248,7 @@ class ExprParser:
 
         scope_spelling = scope_name.spelling
         if self.pp.peek_token_kind() == TokenKind.SCOPE:
-            token = self.get_token(state)
+            token = state.get_token()
             assert token.kind == TokenKind.SCOPE
             attrib_name = self.expect_identifier(state)
             if not attrib_name:
