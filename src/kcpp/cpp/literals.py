@@ -23,7 +23,7 @@ from .basic import (
 
 __all__ = [
     'LiteralInterpreter', 'IntegerLiteral', 'FloatingPointLiteral', 'StringLiteral',
-    'printable_form',
+    'printable_form', 'destringize',
 ]
 
 
@@ -1060,6 +1060,19 @@ class State:
             assert cp != -1 or size == 0
             return cp, cursor + size
         return -1, cursor
+
+
+def destringize(token):
+    assert token.kind == TokenKind.STRING_LITERAL
+    spelling, _ = token.extra
+    cursor, limit = find_literal_body(spelling)
+    result = bytearray()
+    while cursor < limit:
+        if spelling[cursor] == 92 and spelling[cursor + 1] in (34, 92):
+            cursor += 1
+        result.append(spelling[cursor])
+        cursor += 1
+    return bytes(result)
 
 
 def find_literal_body(spelling):
