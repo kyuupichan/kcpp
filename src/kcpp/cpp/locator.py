@@ -132,8 +132,7 @@ class ScratchBufferSpan(Buffer):
         '''Return the parent location (i.e. the location of the ## or # token) of a scratch buffer
         location.  loc is an offset into the scratch buffer.
         '''
-        loc -= self.start
-        assert 0 <= loc < len(self.text)
+        assert 0 <= loc - self.start < len(self.text)
         return self.entries[bisect_left(self.entries, loc + 1, key=lambda e: e.offset) - 1]
 
     def spelling_loc(self, loc):
