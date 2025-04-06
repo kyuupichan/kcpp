@@ -126,6 +126,8 @@ class ScratchBufferSpan(Buffer):
             return DID.in_expansion_of_builtin, [pp.token_spelling_at_loc(entry.parent_loc)]
         elif entry.kind == ScratchEntryKind.header:
             return DID.from_formation_of_header_name, []
+        elif entry.kind == ScratchEntryKind.pragma:
+            return DID.from_Pragma, []
         raise RuntimeError('unknown ScratchEntryKind')
 
     def entry_for_loc(self, loc):
@@ -155,6 +157,7 @@ class ScratchEntryKind(IntEnum):
     stringize = auto()
     builtin = auto()
     header = auto()
+    pragma = auto()
 
 
 @dataclass(slots=True)

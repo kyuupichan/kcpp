@@ -74,12 +74,14 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     def on_pragma(self, token):
         def parts(token):
             pp = self.pp
-            yield '#pragma'
+            yield '#pragma '
+            not_first = False
             while token.kind != TokenKind.EOF:
-                if token.flags & TokenFlags.WS:
+                if not_first and token.flags & TokenFlags.WS:
                     yield ' '
                 yield pp.token_spelling(token).decode()
                 pp.get_token(token)
+                not_first = True
             yield '\n'
 
         location = self.pp.locator.presumed_location(token.loc, True)

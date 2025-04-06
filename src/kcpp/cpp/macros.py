@@ -45,6 +45,9 @@ class BuiltinKind(IntEnum):
     FILE = auto()
     LINE = auto()
 
+    # _Pragma unary operator
+    Pragma = auto()
+
     # Pseudo function-like macros.  The do not necessarily collect arguments like a
     # function-like macro.  However they are considered defined, and must not be used in
     # contexts other than #if and #elif.
@@ -544,7 +547,7 @@ def expand_builtin_macro(pp, token):
     else:
         assert False
 
-    return lex_token_from_builtin_spelling(pp, token, spelling)
+    lex_token_from_builtin_spelling(pp, token, spelling)
 
 
 def lex_token_from_builtin_spelling(pp, token, spelling):

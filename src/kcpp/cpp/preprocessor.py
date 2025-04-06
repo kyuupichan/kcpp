@@ -19,7 +19,7 @@ from .basic import IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags, En
 from .expressions import ExprParser
 from .file_manager import FileManager, DirectoryKind
 from .lexer import Lexer
-from .literals import LiteralInterpreter
+from .literals import LiteralInterpreter, destringize
 from .locator import Locator, ScratchEntryKind
 from .macros import (
     Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinKind,
@@ -188,6 +188,9 @@ class Preprocessor:
         self.lexing_scratch = False
         self.skipping = False
         self.predefining_macros = False
+        # Collected whilst in a macro-expanding directive.  Handled when leaving the
+        # directive.
+        self._Pragma_strings = []
 
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
@@ -347,6 +350,7 @@ class Preprocessor:
         self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
         self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
+        self.get_identifier(b'_Pragma').macro = BuiltinKind.Pragma
 
         # Built-in has-feature pseudo-macros
         self.get_identifier(b'__has_cpp_attribute').macro = BuiltinKind.has_cpp_attribute
@@ -659,15 +663,18 @@ class Preprocessor:
         if macro is None:
             return
         if isinstance(macro, BuiltinKind):
-            if macro.is_has_feature():
+            if token.extra.macro == BuiltinKind.Pragma:
+                self.on_Pragma(token)
+            elif macro.is_has_feature():
                 # __has_include, etc., are handled by the preprocessor expression parser.
                 # However, this captures invalid uses outside of #if / #elif.
                 if not self.in_if_elif_directive:
                     self.diag(DID.builtin_macro_only_if_elif, token.loc,
                               [self.token_spelling(token)])
+                return
             else:
                 expand_builtin_macro(self, token)
-            return
+                return
         else:
             if macro.is_disabled():
                 # Disable this token forever from later expansion
@@ -688,7 +695,8 @@ class Preprocessor:
             else:
                 self.push_source(ObjectLikeExpansion(self, macro, token))
 
-        # We get the first token (or the next token if collect_arguments() failed).
+        # We get the first token (or the next token if collect_arguments() failed, or for
+        # has_feature pseudo-macros, or after _Pragma.
         self.get_token(token)
 
     def peek_token_kind(self):
@@ -717,8 +725,8 @@ class Preprocessor:
             return self.invalid_directive
 
         assert isinstance(lexer, Lexer)
-        self.in_directive = True
         self.expand_macros = False
+        self.in_directive = True
         # Turn off skipping whilst getting the directive name so that identifier
         # information is attached, and vertical whitespace is caught.
         was_skipping = self.skipping
@@ -727,8 +735,12 @@ class Preprocessor:
         self.skipping = was_skipping
         handler = get_handler(lexer, token)
         handler(token)
-        self.expand_macros = True
         self.in_directive = False
+        if self._Pragma_strings:
+            for string in self._Pragma_strings:
+                self.process_Pragma_string(string)
+            self._Pragma_strings.clear()
+        self.expand_macros = True
 
     def has_attribute_spelling(self, scope_spelling, attrib_spelling):
         values = self.attributes_by_scope.get(scope_spelling)
@@ -1109,6 +1121,41 @@ class Preprocessor:
         else:
             diagnose_extra_tokens = False
         self.skip_to_eod(token, diagnose_extra_tokens)
+
+    def read_Pragma_string(self, token):
+        self.get_token(token)
+        if token.kind != TokenKind.PAREN_OPEN:
+            self.diag(DID.expected_open_paren, token.loc)
+            return None
+
+        from ..parsing import ParserState
+        state = ParserState.from_pp(self)
+        state.enter_context(token.kind, token.loc)
+        string = state.get_token()
+        if string.kind != TokenKind.STRING_LITERAL:
+            self.diag(DID.expected_string_literal, string.loc)
+            state.recover(string)
+            string = None
+        state.leave_context()
+        return string
+
+    def process_Pragma_string(self, string):
+        raw = destringize(string)
+        scratch_loc = self.locator.new_scratch_token(raw, string.loc, ScratchEntryKind.pragma)
+        lexer = Lexer(self, raw + b'\0', scratch_loc)
+        self.push_source(lexer)
+        self.in_directive = True
+        self.on_pragma(string)
+        self.in_directive = False
+        self.sources.pop()
+
+    def on_Pragma(self, token):
+        string = self.read_Pragma_string(token)
+        if string is not None:
+            if self.in_directive:
+                self._Pragma_strings.append(string)
+            else:
+                self.process_Pragma_string(string)
 
     def ignore_directive(self, token):
         self.skip_to_eod(token, False)
