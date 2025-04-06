@@ -82,6 +82,9 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 pp.get_token(token)
             yield '\n'
 
+        location = self.pp.locator.presumed_location(token.loc, True)
+        if location.presumed_line_number != self.line_number:
+            self.move_to_line_number(location.presumed_line_number)
         pragma_line = ''.join(parts(token))
         self.write(pragma_line)
         self.line_number += pragma_line.count('\n')
