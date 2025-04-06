@@ -32,6 +32,10 @@ expected_open_paren:
   severity: error
   text: expected a %q{(}
 
+expected_string_literal:
+  severity: error
+  text: expected a string literal
+
 prior_match:
   severity: note
   text: to match this %q0

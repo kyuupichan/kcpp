@@ -73,11 +73,13 @@ class DID(IntEnum):
     expected_macro_parameter = auto()
     expected_open_brace = auto()
     expected_open_paren = auto()
+    expected_string_literal = auto()
     extra_directive_tokens = auto()
     fatal_error_and_error_summary = auto()
     fatal_error_summary = auto()
     filename_should_be_string = auto()
     floating_point_in_pp_expr = auto()
+    from_Pragma = auto()
     from_formation_of_header_name = auto()
     function_like_macro_not_defined = auto()
     hash_requires_macro_parameter = auto()
@@ -436,6 +438,12 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'expected a %q{(}',
     ),
+    DID.expected_string_literal: DiagnosticDefinition(
+        DID.expected_string_literal,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'expected a string literal',
+    ),
     DID.extra_directive_tokens: DiagnosticDefinition(
         DID.extra_directive_tokens,
         DiagnosticSeverity.error,
@@ -466,6 +474,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'floating point numbers are not permitted in preprocessor expressions',
+    ),
+    DID.from_Pragma: DiagnosticDefinition(
+        DID.from_Pragma,
+        DiagnosticSeverity.note,
+        DiagnosticGroup.none,
+        'from _Pragma operator',
     ),
     DID.from_formation_of_header_name: DiagnosticDefinition(
         DID.from_formation_of_header_name,

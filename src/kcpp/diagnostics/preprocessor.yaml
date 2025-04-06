@@ -28,6 +28,10 @@ from_formation_of_header_name:
   severity: note
   text: from formation of header name
 
+from_Pragma:
+  severity: note
+  text: from _Pragma operator
+
 invalid_charset:
   severity: error
   text: "%q0 encoding cannot be used for type %q1 with width %2 bits"
