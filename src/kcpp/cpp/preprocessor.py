@@ -82,6 +82,16 @@ class PreprocessorActions:
         '''Called when a macro is defined.'''
         pass
 
+    def on_pragma(self, token):
+        '''Called on #pragma whose namespace is not registered.  token is the first token after
+        the #pragma (the namespace token).  Obtain subsequent tokens with pp.get_token().
+        A token will have kind TokenKind.EOF at the end of the directive.
+
+        Return True to diagnose extra tokens in the directive on return, False to not
+        diagnose extra tokens.
+        '''
+        return False
+
 
 @dataclass(slots=True)
 class Config:
@@ -161,6 +171,8 @@ class Preprocessor:
         self.sources = []
         # Buffer state stack
         self.buffer_states = []
+        # Map from pragma namespace identifier strings (in binary) to callbacks.
+        self.pragma_namespaces = {}
 
         # Internal state
         self.collecting_arguments = False
@@ -356,6 +368,16 @@ class Preprocessor:
         }
 
         return not self.halt
+
+    def register_pragma_namespace(self, spelling, handler):
+        '''Register a pragma namespace with the given handler, and return the previously
+        registered handler (or None).  The handler has the same signature and semantics as
+        actions.on_pragma().  It is passed the namespace token.
+        '''
+        assert isinstance(spelling, bytes)
+        prior_handler = self.pragma_namespaces.get(spelling)
+        self.pragma_namespaces[spelling] = handler
+        return prior_handler
 
     def interpret_literal(self, token):
         return self.literal_interpreter.interpret(token)
@@ -1075,11 +1097,21 @@ class Preprocessor:
         self.diagnostic_directive(token, DID.warning_directive)
 
     def on_pragma(self, token):
-        # FIXME
-        self.skip_to_eod(token, False)
+        # Get the namespace token, if any
+        self.get_token(token)
+        handler = None
+        if token.kind == TokenKind.IDENTIFIER:
+            handler = self.pragma_namespaces.get(token.extra.spelling)
+        if not handler and self.actions:
+            handler = self.actions.on_pragma
+        if handler:
+            diagnose_extra_tokens = handler(token)
+        else:
+            diagnose_extra_tokens = False
+        self.skip_to_eod(token, diagnose_extra_tokens)
 
     def ignore_directive(self, token):
-        pass
+        self.skip_to_eod(token, False)
 
     def enter_if_section(self, token, condition):
         section = IfSection(

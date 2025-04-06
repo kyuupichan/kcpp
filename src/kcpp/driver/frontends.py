@@ -71,6 +71,22 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         self.line_number += 1
         self.at_bol = True
 
+    def on_pragma(self, token):
+        def parts(token):
+            pp = self.pp
+            yield '#pragma'
+            while token.kind != TokenKind.EOF:
+                if token.flags & TokenFlags.WS:
+                    yield ' '
+                yield pp.token_spelling(token).decode()
+                pp.get_token(token)
+            yield '\n'
+
+        pragma_line = ''.join(parts(token))
+        self.write(pragma_line)
+        self.line_number += pragma_line.count('\n')
+        return False
+
     def move_to_line_number(self, line_number):
         self.finish_line()
         count = line_number - self.line_number
