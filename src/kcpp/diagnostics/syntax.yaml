@@ -8,6 +8,10 @@
 # Parser and syntax-related diagnostics
 #
 
+expected_identifier:
+  severity: error
+  text: expected an identifier
+
 expected_close_brace:
   severity: error
   text: expected a %q{}}

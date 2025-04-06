@@ -176,6 +176,7 @@ class Preprocessor:
         self.lexing_scratch = False
         self.skipping = False
         self.predefining_macros = False
+
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.time_str = None
         self.date_str = None
@@ -336,7 +337,23 @@ class Preprocessor:
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
 
         # Built-in has-feature pseudo-macros
+        self.get_identifier(b'__has_cpp_attribute').macro = BuiltinKind.has_cpp_attribute
         self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
+
+        self.attributes_by_scope = {
+            b'': {
+                b'assume': '202207L',
+                b'carries_dependency': '200809L',
+                b'deprecated': '201309L',
+                b'fallthrough': '201603L',
+                b'likely': '201803L',
+                b'maybe_unused': '201603L',
+                b'no_unique_address': '201803L',
+                b'nodiscard': '201907L',
+                b'noreturn': '200809L',
+                b'unlikely': '201803L'
+            }
+        }
 
         return not self.halt
 
@@ -690,6 +707,12 @@ class Preprocessor:
         handler(token)
         self.expand_macros = True
         self.in_directive = False
+
+    def has_attribute_spelling(self, scope_spelling, attrib_spelling):
+        values = self.attributes_by_scope.get(scope_spelling)
+        if values is not None:
+            return values.get(attrib_spelling, '0')
+        return '0'
 
     def read_header_file(self, header_token, *, diagnose_if_not_found):
         spelling = self.token_spelling(header_token)

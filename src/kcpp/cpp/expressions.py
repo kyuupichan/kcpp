@@ -294,31 +294,68 @@ class ExprParser:
         token = self.get_token(state)
         if token.kind == TokenKind.PAREN_OPEN:
             self.enter_context(state, token.kind, token.loc)
-            self.parse_has_feature_body(state, macro_token, is_evaluated)
+            spelling = self.parse_body_method(macro_token.extra.macro)(state, is_evaluated)
             token = self.leave_context(state)
-            if macro_token.kind == TokenKind.NUMBER:
+            if spelling is not None:
+                lex_token_from_builtin_spelling(self.pp, macro_token, spelling)
+                assert macro_token.kind == TokenKind.NUMBER
                 return self.evaluate_literal(macro_token, is_evaluated)
         else:
             self.diag(DID.expected_open_paren, token.loc)
         return ExprValue(0, False, True, TokenRange(macro_token.loc, token.loc))
 
-    def parse_has_feature_body(self, state, macro_token, is_evaluated):
-        # We have consumed the open parenthesis.
-        assert macro_token.extra.macro is BuiltinKind.has_include
+    def parse_body_method(self, kind):
+        if kind is BuiltinKind.has_include:
+            return self.parse_has_include_body
+        elif kind is BuiltinKind.has_cpp_attribute:
+            return self.parse_has_attribute_body
+        else:
+            assert False
+
+    def expect_identifier(self, state):
+        token = self.get_token(state)
+        if token.kind == TokenKind.IDENTIFIER:
+            return token.extra
+        self.diag(DID.expected_identifier, token.loc)
+        self.recover(state, token)
+        return None
+
+    def parse_has_attribute_body(self, state, is_evaluated):
+        # C and C++ require an attribute-token, which is either identifer or
+        # identifier::identifier.
+        scope_name = self.expect_identifier(state)
+        if not scope_name:
+            return None
+
+        scope_spelling = scope_name.spelling
+        if self.pp.peek_token_kind() == TokenKind.SCOPE:
+            token = self.get_token(state)
+            assert token.kind == TokenKind.SCOPE
+            attrib_name = self.expect_identifier(state)
+            if not attrib_name:
+                return None
+            attrib_spelling = attrib_name.spelling
+        else:
+            attrib_spelling = scope_spelling
+            scope_spelling = b''
+        return self.pp.has_attribute_spelling(scope_spelling, attrib_spelling)
+
+    def parse_has_include_body(self, state, is_evaluated):
         header_token = self.pp.create_header_name(in__has_include=True)
         if header_token is None:
-            macro_token.kind = TokenKind.ERROR
+            return None
+
+        # "The has-include-expression evaluates to 1 if the search for the source file
+        # succeeds, and to 0 if the search fails."  It is not clear what constitutes a
+        # search succeeding, but Clang and GCC diagnose the search as for an include
+        # except that not-found is ignored.  In particular, an unreadable file is a
+        # fatal error, but a directory is considered a header that is not found.  This
+        # is reasonable so we do the same.
+        if is_evaluated:
+            file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
         else:
-            # "The has-include-expression evaluates to 1 if the search for the source file
-            # succeeds, and to 0 if the search fails."  It is not clear what constitutes a
-            # search succeeding, but Clang and GCC diagnose the search as for an include
-            # except that not-found is ignored.  In particular, an unreadable file is a
-            # fatal error, but a directory is considered a header that is not found.  This
-            # is reasonable so we do the same.
             file = None
-            if is_evaluated:
-                file = self.pp.read_header_file(header_token, diagnose_if_not_found=False)
-            lex_token_from_builtin_spelling(self.pp, macro_token, '1' if file else '0')
+        return '1' if file else '0'
 
     def overflow(self, lhs, op, args):
         '''Diagnose overflow of lhs at the operator 'op' with the given arguments.'''

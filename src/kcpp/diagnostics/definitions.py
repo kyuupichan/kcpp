@@ -68,6 +68,7 @@ class DID(IntEnum):
     expected_comma_in_parameter_list = auto()
     expected_expression = auto()
     expected_header_name = auto()
+    expected_identifier = auto()
     expected_macro_name = auto()
     expected_macro_parameter = auto()
     expected_open_brace = auto()
@@ -404,6 +405,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'expected a header name of the form "FILENAME" or <FILENAME>',
+    ),
+    DID.expected_identifier: DiagnosticDefinition(
+        DID.expected_identifier,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'expected an identifier',
     ),
     DID.expected_macro_name: DiagnosticDefinition(
         DID.expected_macro_name,

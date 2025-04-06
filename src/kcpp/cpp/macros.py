@@ -53,6 +53,8 @@ class BuiltinKind(IntEnum):
     has_embed = auto()           # __has_embed
     has_include = auto()         # __has_include
 
+    first_has_attribute = has_c_attribute
+
     def is_predefined(self):
         return False
 
@@ -60,7 +62,7 @@ class BuiltinKind(IntEnum):
         return True
 
     def is_has_feature(self):
-        return self.value >= self.has_include
+        return self.value >= self.first_has_attribute
 
 
 @dataclass(slots=True)

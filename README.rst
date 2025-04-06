@@ -132,7 +132,7 @@ bugs and cleanups:
 - expression evaluation
 - preprocessed output
 - all directives other than #pragma
-- _has_include
+- __has_include, __has_cpp_attribute
 - the diagnostic framework.  Colourized output to a Unicode terminal is supported,
   as are translations (none provided!).  The framework could be hooked up to an IDE.
 - display of the macro expansion stack in diagnostics with precise caret locations and
@@ -147,13 +147,11 @@ bugs and cleanups:
 Incomplete or Missing
 =====================
 
-The following are missing.  The framework is already in place so that adding them is
-almost trivial, and only held-up by refactoring and testing:
+The following are not yet implemented.  The framework is already in place so that adding
+them is not difficult and only held-up by refactoring and testing:
 
-- #pragma
-- _Pragma operator
+- _Pragma() operator
 - multiple-include optimisation
-- _has_cpp_attribute
 
 The following are serious projects:
 
