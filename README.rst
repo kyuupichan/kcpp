@@ -121,8 +121,9 @@ cleaned up later in 2025 as part of my goal of learning C++ properly.
 Features that are essentially complete
 ======================================
 
-The following features are bascially complete to the C++23 specifications, modulo silly
-bugs and cleanups:
+The following features are bascially complete, to the C++23 specifications where
+applicable.  I am aware of a handful of minor outstanding conformance issues, which should
+not be noticed in normal circumstances, that I will fix soon.
 
 - lexing
 - macro expansion, including __VA_OPT__ and whitespace correctness
@@ -131,7 +132,8 @@ bugs and cleanups:
 - expression parsing
 - expression evaluation
 - preprocessed output
-- all directives other than #pragma
+- all directives
+- _Pragma
 - __has_include, __has_cpp_attribute
 - the diagnostic framework.  Colourized output to a Unicode terminal is supported,
   as are translations (none provided!).  The framework could be hooked up to an IDE.
@@ -147,11 +149,7 @@ bugs and cleanups:
 Incomplete or Missing
 =====================
 
-The following are not yet implemented.  The framework is already in place so that adding
-them is not difficult and only held-up by refactoring and testing:
-
-- _Pragma() operator
-- multiple-include optimisation
+The multiple-include optimization is not yet implemented.
 
 The following are serious projects:
 
@@ -193,22 +191,26 @@ Bug reports are also welcome.
 ChangeLog
 =========
 
-0.1  2025-03-16
+0.5 2025-04-07
 
-Initial release.  Quite incomplete but progress from here should be rapid.
+_Pragma, #pragma, __has_include(), __has_cpp_attribute() implemented.  Several bugs fixed.
 
-0.2  2025-03-23
+0.4.1 2025-04-02
 
-Object-like macro expansion, and diagnostics with a macro stack, are implemented.
-
-0.3  2025-03-28
-
-Macro expansion imlementation complete.  #line implemented.
+Change directory layout so I don't have to fight setuptools.
 
 0.4 2025-04-02
 
 #include implemented.  Skinning.  Preprocessed output done.
 
-0.4.1 2025-04-02
+0.3  2025-03-28
 
-Change directory layout so I don't have to fight setuptools.
+Macro expansion imlementation complete.  #line implemented.
+
+0.2  2025-03-23
+
+Object-like macro expansion, and diagnostics with a macro stack, are implemented.
+
+0.1  2025-03-16
+
+Initial release.  Quite incomplete but progress from here should be rapid.

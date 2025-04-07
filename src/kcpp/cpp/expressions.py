@@ -123,7 +123,7 @@ class ExprParser:
                 elif token.kind == TokenKind.LOGICAL_OR:
                     rhs_is_evaluated = rhs_is_evaluated and not bool(lhs.value)
                 rhs = self.parse_binary_expr(state, precedence, rhs_is_evaluated)
-                if not lhs.is_erroneous and not rhs.is_erroneous:
+                if not (lhs.is_erroneous or rhs.is_erroneous):
                     evaluator(self, lhs, rhs, token, is_evaluated)
                 lhs.loc.end = rhs.loc.end
 
