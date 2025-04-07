@@ -123,8 +123,8 @@ class ExprParser:
                 elif token.kind == TokenKind.LOGICAL_OR:
                     rhs_is_evaluated = rhs_is_evaluated and not bool(lhs.value)
                 rhs = self.parse_binary_expr(state, precedence, rhs_is_evaluated)
-                if is_evaluated and not lhs.is_erroneous and not rhs.is_erroneous:
-                    evaluator(self, lhs, rhs, token)
+                if not lhs.is_erroneous and not rhs.is_erroneous:
+                    evaluator(self, lhs, rhs, token, is_evaluated)
                 lhs.loc.end = rhs.loc.end
 
     def parse_conditional_branches(self, state, token, condition_truth, is_evaluated):
@@ -135,8 +135,8 @@ class ExprParser:
         if colon.kind != TokenKind.COLON:
             return lhs
         rhs = self.parse_conditional_expr(state, not condition_truth and is_evaluated)
-        if is_evaluated and not (lhs.is_erroneous or rhs.is_erroneous):
-            self.integer_promotions(lhs, rhs, colon)
+        if not (lhs.is_erroneous or rhs.is_erroneous):
+            self.integer_promotions(lhs, rhs, colon, is_evaluated)
         result = lhs if condition_truth else rhs
         result.loc.start = lhs.loc.start
         result.loc.end = rhs.loc.end
@@ -158,7 +158,7 @@ class ExprParser:
                 return self.evaluate_identifier_expr(token, is_evaluated)
 
         if kind == TokenKind.NUMBER or kind == TokenKind.CHARACTER_LITERAL:
-            return self.evaluate_literal(token, is_evaluated)
+            return self.evaluate_literal(token)
 
         # Unary ops
         if kind in unary_ops:
@@ -218,7 +218,7 @@ class ExprParser:
             if spelling is not None:
                 lex_token_from_builtin_spelling(self.pp, macro_token, spelling)
                 assert macro_token.kind == TokenKind.NUMBER
-                return self.evaluate_literal(macro_token, is_evaluated)
+                return self.evaluate_literal(macro_token)
         else:
             self.diag(DID.expected_open_paren, token.loc)
         return ExprValue(0, False, True, TokenRange(macro_token.loc, token.loc))
@@ -281,8 +281,9 @@ class ExprParser:
         self.diag(DID.integer_overflow, op.loc, args)
         lhs.is_erroneous = True
 
-    def evaluate_literal(self, token, is_evaluated):
-        '''Evaluate a character constant or number.'''
+    def evaluate_literal(self, token):
+        '''Evaluate a character constant or number.  This needs to be done even in unevaluated
+        contexts.'''
         value, is_unsigned, is_erroneous = 0, False, False
         literal = self.literal_interpreter.interpret(token)
         if literal.kind == IntegerKind.error:
@@ -322,7 +323,7 @@ class ExprParser:
         elif kind == TokenKind.TILDE:
             rhs.value = self.mask - rhs.value
 
-    def integer_promotions(self, lhs, rhs, op):
+    def integer_promotions(self, lhs, rhs, op, is_evaluated):
         '''Perform the usual arithmetic conversions on lhs and rhs.'''
         if lhs.is_unsigned != rhs.is_unsigned:
             # Find the side to convert to unsigned
@@ -330,13 +331,15 @@ class ExprParser:
             # Read its value before setting is_unsigned
             old_value = side.get(self.mask)
             side.is_unsigned = True
-            if old_value < 0:
+            if is_evaluated and old_value < 0:
                 args = [side.loc, f'{old_value:,d}', f'{side.get(self.mask):,d}']
                 self.diag(DID.value_changes_sign, op.loc, args)
 
-    def evaluate_arithmetic(self, lhs, rhs, op):
+    def evaluate_arithmetic(self, lhs, rhs, op, is_evaluated):
         '''Evaluate several kinds of binary expression.'''
-        self.integer_promotions(lhs, rhs, op)
+        self.integer_promotions(lhs, rhs, op, is_evaluated)
+        if not is_evaluated:
+            return
         kind = op.kind
         lhs_value, rhs_value = lhs.get(self.mask), rhs.get(self.mask)
         if kind == TokenKind.PLUS:
@@ -380,9 +383,11 @@ class ExprParser:
                     result = lhs_value % rhs_value
                 assert not lhs.set(result, self.mask)
 
-    def evaluate_arithmetic_direct(self, lhs, rhs, op):
+    def evaluate_arithmetic_direct(self, lhs, rhs, op, is_evaluated):
         '''These operate directly on the value with no need for get / set operations.'''
-        self.integer_promotions(lhs, rhs, op)
+        self.integer_promotions(lhs, rhs, op, is_evaluated)
+        if not is_evaluated:
+            return
         kind = op.kind
         if kind == TokenKind.EQ:
             lhs.set_boolean(lhs.value == rhs.value)
@@ -396,8 +401,10 @@ class ExprParser:
             assert kind == TokenKind.BITWISE_AND
             lhs.value &= rhs.value
 
-    def evaluate_shift(self, lhs, rhs, op):
+    def evaluate_shift(self, lhs, rhs, op, is_evaluated):
         '''Evaluate shift expressions.'''
+        if not is_evaluated:
+            return
         lhs_value, rhs_value = lhs.get(self.mask), rhs.get(self.mask)
         # Check negative or too large
         if rhs_value < 0:
@@ -434,7 +441,7 @@ class ExprParser:
             else:
                 lhs.value >>= rhs_value
 
-    def evaluate_logical(self, lhs, rhs, op):
+    def evaluate_logical(self, lhs, rhs, op, is_evaluated):
         '''Evaluate short-circuiting logical expressions (&& and ||).'''
         if op.kind == TokenKind.LOGICAL_AND:
             lhs.set_boolean(bool(lhs.value) and bool(rhs.value))
@@ -442,7 +449,7 @@ class ExprParser:
             assert op.kind == TokenKind.LOGICAL_OR
             lhs.set_boolean(bool(lhs.value) or bool(rhs.value))
 
-    def evaluate_comma(self, lhs, rhs, _op):
+    def evaluate_comma(self, lhs, rhs, op, is_evaluated):
         '''Evaluate a comma expression.'''
         # Fine from C++11.  Reject in C89, in C99 valid if unevaluated.  C++90?
         lhs.value = rhs.value
