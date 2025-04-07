@@ -460,8 +460,8 @@ unary_ops = {TokenKind.PLUS, TokenKind.MINUS, TokenKind.TILDE, TokenKind.LOGICAL
 binary_ops = {
     TokenKind.COMMA: (BOP.comma, ExprParser.evaluate_comma),
     TokenKind.QUESTION_MARK: (BOP.conditional, None),
-    TokenKind.LOGICAL_OR: (BOP.logical_and, ExprParser.evaluate_logical),
-    TokenKind.LOGICAL_AND: (BOP.logical_or, ExprParser.evaluate_logical),
+    TokenKind.LOGICAL_OR: (BOP.logical_or, ExprParser.evaluate_logical),
+    TokenKind.LOGICAL_AND: (BOP.logical_and, ExprParser.evaluate_logical),
     TokenKind.BITWISE_OR: (BOP.bitwise_or, ExprParser.evaluate_arithmetic_direct),
     TokenKind.BITWISE_XOR: (BOP.bitwise_xor, ExprParser.evaluate_arithmetic_direct),
     TokenKind.BITWISE_AND: (BOP.bitwise_and, ExprParser.evaluate_arithmetic_direct),
