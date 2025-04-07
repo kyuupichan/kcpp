@@ -284,12 +284,11 @@ class ExprParser:
     def evaluate_literal(self, token, is_evaluated):
         '''Evaluate a character constant or number.'''
         value, is_unsigned, is_erroneous = 0, False, False
-        if is_evaluated:
-            literal = self.literal_interpreter.interpret(token)
-            if literal.kind == IntegerKind.error:
-                is_erroneous = True
-            else:
-                value, is_unsigned = literal.value, self.pp.target.is_unsigned(literal.kind)
+        literal = self.literal_interpreter.interpret(token)
+        if literal.kind == IntegerKind.error:
+            is_erroneous = True
+        else:
+            value, is_unsigned = literal.value, self.pp.target.is_unsigned(literal.kind)
         return ExprValue(value, is_unsigned, is_erroneous, TokenRange(token.loc, token.loc))
 
     def evaluate_identifier_expr(self, token, is_evaluated):
