@@ -16,6 +16,10 @@ character_not_single_code_unit:
   severity: error
   text: character %q0 cannot be encoded as a single %q1 in character set %q2
 
+comma_in_pp_expression:
+  severity: warning
+  text: comma operator should not be used in a preprocessor expression
+
 division_by_zero:
   severity: error
   text: "%select{division|remainder}0 by zero"

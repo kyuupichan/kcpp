@@ -451,7 +451,11 @@ class ExprParser:
 
     def evaluate_comma(self, lhs, rhs, op, is_evaluated):
         '''Evaluate a comma expression.'''
-        # Fine from C++11.  Reject in C89, in C99 valid if unevaluated.  C++90?
+        # C++11 permits commas in integer constant expressions.  However it seems this was
+        # not intended to apply to the preprocessor
+        # (https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1436).  So we
+        # diagnose unconditionally, but still treat the value appropriately.
+        self.diag(DID.comma_in_pp_expression, op.loc)
         lhs.value = rhs.value
         lhs.is_unsigned = rhs.is_unsigned
         lhs.is_erroneous = rhs.is_erroneous

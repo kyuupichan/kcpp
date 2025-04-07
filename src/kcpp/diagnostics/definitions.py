@@ -48,6 +48,7 @@ class DID(IntEnum):
     codepoint_control_character = auto()
     codepoint_invalid = auto()
     codepoint_surrogate = auto()
+    comma_in_pp_expression = auto()
     compilation_halted = auto()
     delimeter_invalid_character = auto()
     delimeter_too_long = auto()
@@ -287,6 +288,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         '%q0 is a surrogate codepoint',
+    ),
+    DID.comma_in_pp_expression: DiagnosticDefinition(
+        DID.comma_in_pp_expression,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.none,
+        'comma operator should not be used in a preprocessor expression',
     ),
     DID.compilation_halted: DiagnosticDefinition(
         DID.compilation_halted,
