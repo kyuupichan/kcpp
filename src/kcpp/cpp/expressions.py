@@ -438,10 +438,10 @@ class ExprParser:
     def evaluate_logical(self, lhs, rhs, op):
         '''Evaluate short-circuiting logical expressions (&& and ||).'''
         if op.kind == TokenKind.LOGICAL_AND:
-            lhs.set_boolean(lhs.value and rhs.value)
+            lhs.set_boolean(bool(lhs.value) and bool(rhs.value))
         else:
             assert op.kind == TokenKind.LOGICAL_OR
-            lhs.set_boolean(lhs.value or rhs.value)
+            lhs.set_boolean(bool(lhs.value) or bool(rhs.value))
 
     def evaluate_comma(self, lhs, rhs, _op):
         '''Evaluate a comma expression.'''
