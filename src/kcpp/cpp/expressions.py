@@ -136,7 +136,7 @@ class ExprParser:
             return lhs
         rhs = self.parse_conditional_expr(state, not condition_truth and is_evaluated)
         if not (lhs.is_erroneous or rhs.is_erroneous):
-            self.integer_promotions(lhs, rhs, colon, is_evaluated)
+            self.usual_arithmetic_conversions(lhs, rhs, colon, is_evaluated)
         result = lhs if condition_truth else rhs
         result.loc.start = lhs.loc.start
         result.loc.end = rhs.loc.end
@@ -323,7 +323,7 @@ class ExprParser:
         elif kind == TokenKind.TILDE:
             rhs.value = self.mask - rhs.value
 
-    def integer_promotions(self, lhs, rhs, op, is_evaluated):
+    def usual_arithmetic_conversions(self, lhs, rhs, op, is_evaluated):
         '''Perform the usual arithmetic conversions on lhs and rhs.'''
         if lhs.is_unsigned != rhs.is_unsigned:
             # Find the side to convert to unsigned
@@ -337,7 +337,7 @@ class ExprParser:
 
     def evaluate_arithmetic(self, lhs, rhs, op, is_evaluated):
         '''Evaluate several kinds of binary expression.'''
-        self.integer_promotions(lhs, rhs, op, is_evaluated)
+        self.usual_arithmetic_conversions(lhs, rhs, op, is_evaluated)
         if not is_evaluated:
             return
         kind = op.kind
@@ -385,7 +385,7 @@ class ExprParser:
 
     def evaluate_arithmetic_direct(self, lhs, rhs, op, is_evaluated):
         '''These operate directly on the value with no need for get / set operations.'''
-        self.integer_promotions(lhs, rhs, op, is_evaluated)
+        self.usual_arithmetic_conversions(lhs, rhs, op, is_evaluated)
         if not is_evaluated:
             return
         kind = op.kind
