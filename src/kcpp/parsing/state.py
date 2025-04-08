@@ -42,7 +42,7 @@ class ParserContext:
 @dataclass(slots=True)
 class ParserState:
     '''Parser state.  Separate from the parser so it is stateless and reusable.'''
-    pp: 'Preprocessor'
+    pp: object
     token: Token
     context_stack: list
 

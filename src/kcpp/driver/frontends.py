@@ -45,47 +45,50 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         self.list_macros = False
         pp.actions = self
 
-    def finish_line(self):
+    def maybe_write_newline(self):
         if not self.at_bol:
             self.write('\n')
             self.line_number += 1
         self.at_bol = True
 
-    def write_line_marker(self):
+    def maybe_start_new_line(self, loc, *, force):
+        '''Start a new line if loc is on a different line to the current one.'''
+        location = self.pp.locator.presumed_location(loc, True)
+        if location.presumed_line_number != self.line_number or force:
+            self.move_to_line_number(location.presumed_line_number)
+        return location
+
+    def write_line_marker(self, write_filename):
         '''Write a line marker.  On return self.at_bol is True.'''
         if not self.suppress_linemarkers:
-            self.write(f'#line {self.line_number} {self.filename}\n')
+            if write_filename:
+                self.write(f'#line {self.line_number} {self.filename}\n')
+            else:
+                self.write(f'#line {self.line_number}\n')
 
     def on_source_file_change(self, loc, reason):
-        self.finish_line()
+        self.maybe_write_newline()
         location = self.pp.locator.presumed_location(loc, True)
+        file_name_changed = self.filename != location.presumed_filename
         self.line_number = location.presumed_line_number
         self.filename = location.presumed_filename
-        self.write_line_marker()
+        self.write_line_marker(file_name_changed)
 
     def on_define(self, macro):
         if not self.list_macros:
             return
-        location = self.pp.locator.presumed_location(macro.name_loc, True)
-        if location.presumed_line_number != self.line_number:
-            self.move_to_line_number(location.presumed_line_number)
-        self.finish_line()
+        self.maybe_start_new_line(macro.name_loc, force=True)
         macro_name = macro.macro_name(self.pp).decode()
         self.write(f'#define {macro_name}{macro.definition_text(self.pp)}\n')
         self.line_number += 1
-        self.at_bol = True
 
     def on_undef(self, token):
         if not self.list_macros:
             return
-        location = self.pp.locator.presumed_location(token.loc, True)
-        if location.presumed_line_number != self.line_number:
-            self.move_to_line_number(location.presumed_line_number)
-        self.finish_line()
-        macro_name = token.extra.spelling
+        self.maybe_start_new_line(token.loc, force=True)
+        macro_name = token.extra.spelling.decode()
         self.write(f'#undef {macro_name}\n')
         self.line_number += 1
-        self.at_bol = True
 
     def on_pragma(self, token):
         def parts(token):
@@ -100,24 +103,21 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 not_first = True
             yield '\n'
 
-        location = self.pp.locator.presumed_location(token.loc, True)
-        if location.presumed_line_number != self.line_number:
-            self.move_to_line_number(location.presumed_line_number)
+        self.maybe_start_new_line(token.loc, force=True)
         pragma_line = ''.join(parts(token))
         self.write(pragma_line)
         self.line_number += pragma_line.count('\n')
         return False
 
     def move_to_line_number(self, line_number):
-        self.finish_line()
+        self.maybe_write_newline()
         count = line_number - self.line_number
-        assert count >= 0
         self.line_number = line_number
         if not self.suppress_linemarkers:
-            if count < 8:
+            if 0 <= count < 8:
                 self.write('\n' * count)
             else:
-                self.write_line_marker()
+                self.write_line_marker(False)
 
     def process(self, source, multiple):
         # Set self.write first as we will immediately get on_source_file_change() callback
@@ -125,7 +125,6 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         super().process(source, multiple)
         pp = self.pp
         token = Token.create()
-        locator = pp.locator
         loc = None
         spelling = None
 
@@ -134,9 +133,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             if token.kind == TokenKind.EOF:
                 break
 
-            location = locator.presumed_location(token.loc, True)
-            if location.presumed_line_number != self.line_number:
-                self.move_to_line_number(location.presumed_line_number)
+            location = self.maybe_start_new_line(token.loc, force=False)
             if self.at_bol:
                 if location.column_offset > 1:
                     write(' ' * location.column_offset)
@@ -151,7 +148,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             self.line_number += spelling.count(b'\n')
             self.at_bol = False
 
-        self.finish_line()
+        self.maybe_write_newline()
 
     def separate_tokens(self, lhs_loc, lhs_spelling, rhs):
         '''Return True if a space should be output to separate two tokens.'''
