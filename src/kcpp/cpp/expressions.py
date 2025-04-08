@@ -182,6 +182,7 @@ class ExprParser:
             self.diag(DID.string_invalid_in_pp_expression, token.loc)
         else:
             self.diag(DID.expected_expression, token.loc)
+            state.recover(token)
 
         return ExprValue(0, False, True, TokenRange(token.loc, token.loc))
 
@@ -229,6 +230,7 @@ class ExprParser:
                 return self.evaluate_literal(macro_token)
         else:
             self.diag(DID.expected_open_paren, token.loc)
+            state.recover(token)
         # An erroneous result
         return ExprValue(0, False, True, TokenRange(macro_token.loc, token.loc))
 
