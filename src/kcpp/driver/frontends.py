@@ -51,11 +51,19 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             self.line_number += 1
         self.at_bol = True
 
-    def maybe_start_new_line(self, loc, *, force):
+    def start_new_line(self, loc, *, force):
         '''Start a new line if loc is on a different line to the current one.'''
         location = self.pp.locator.presumed_location(loc, True)
-        if location.presumed_line_number != self.line_number or force:
-            self.move_to_line_number(location.presumed_line_number)
+        line_number = location.presumed_line_number
+        if line_number != self.line_number or force:
+            self.maybe_write_newline()
+            count = line_number - self.line_number
+            self.line_number = line_number
+            if not self.suppress_linemarkers:
+                if 0 <= count < 8:
+                    self.write('\n' * count)
+                else:
+                    self.write_line_marker(False)
         return location
 
     def write_line_marker(self, write_filename):
@@ -65,6 +73,12 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 self.write(f'#line {self.line_number} {self.filename}\n')
             else:
                 self.write(f'#line {self.line_number}\n')
+
+    def write_line(self, text_line, loc):
+        '''Start a new line and output a text line that may contain embedded newlines.'''
+        self.start_new_line(loc, force=True)
+        self.write(text_line)
+        self.line_number += text_line.count('\n')
 
     def on_source_file_change(self, loc, reason):
         self.maybe_write_newline()
@@ -77,18 +91,14 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
     def on_define(self, macro):
         if not self.list_macros:
             return
-        self.maybe_start_new_line(macro.name_loc, force=True)
-        macro_name = macro.macro_name(self.pp).decode()
-        self.write(f'#define {macro_name}{macro.definition_text(self.pp)}\n')
-        self.line_number += 1
+        name = macro.macro_name(self.pp).decode()
+        self.write_line(f'#define {name}{macro.definition_text(self.pp)}\n', macro.name_loc)
 
     def on_undef(self, token):
         if not self.list_macros:
             return
-        self.maybe_start_new_line(token.loc, force=True)
-        macro_name = token.extra.spelling.decode()
-        self.write(f'#undef {macro_name}\n')
-        self.line_number += 1
+        name = token.extra.spelling.decode()
+        self.write_line(f'#undef {name}\n', token.loc)
 
     def on_pragma(self, token):
         def parts(token):
@@ -103,21 +113,8 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 not_first = True
             yield '\n'
 
-        self.maybe_start_new_line(token.loc, force=True)
-        pragma_line = ''.join(parts(token))
-        self.write(pragma_line)
-        self.line_number += pragma_line.count('\n')
+        self.write_line(''.join(parts(token)), token.loc)
         return False
-
-    def move_to_line_number(self, line_number):
-        self.maybe_write_newline()
-        count = line_number - self.line_number
-        self.line_number = line_number
-        if not self.suppress_linemarkers:
-            if 0 <= count < 8:
-                self.write('\n' * count)
-            else:
-                self.write_line_marker(False)
 
     def process(self, source, multiple):
         # Set self.write first as we will immediately get on_source_file_change() callback
@@ -133,7 +130,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
             if token.kind == TokenKind.EOF:
                 break
 
-            location = self.maybe_start_new_line(token.loc, force=False)
+            location = self.start_new_line(token.loc, force=False)
             if self.at_bol:
                 if location.column_offset > 1:
                     write(' ' * location.column_offset)
