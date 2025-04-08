@@ -104,7 +104,7 @@ class ExprParser:
         '''
         # Start by parsing a unary expression.  Then, if the next binary operator in the
         # token sequence is of precedence less than or equal to reduce_precedence, then
-        # perform (in LR parsing terminology) a reduction operation, oterhwise perform a
+        # perform (in LR parsing terminology) a reduction operation, otherwise perform a
         # shift operation.
         lhs = self.parse_unary_expr(state, is_evaluated)
         while True:
@@ -130,7 +130,7 @@ class ExprParser:
                 lhs.loc.end = rhs.loc.end
 
     def parse_conditional_branches(self, state, token, condition, is_evaluated):
-        '''Parse and evaluate the branches of a conditional operator.'''
+        '''Parse and evaluate the branches of the conditional operator.'''
         condition_truth = bool(condition.value)
         state.enter_context(token.kind, token.loc)
         lhs = self.parse_expr(state, condition_truth and is_evaluated)
@@ -167,7 +167,7 @@ class ExprParser:
         # Unary ops
         if kind in unary_ops:
             rhs = self.parse_unary_expr(state, is_evaluated)
-            if is_evaluated and not rhs.is_erroneous:
+            if not rhs.is_erroneous and is_evaluated:
                 self.evaluate_unary_op(rhs, token)
             rhs.loc.start = token.loc
             return rhs
@@ -214,9 +214,11 @@ class ExprParser:
                          TokenRange(defined.loc, token.loc))
 
     def parse_has_feature_expr(self, state, macro_token, is_evaluated):
+        '''Parse __has_include() __has_cpp_attribute() operators.'''
         token = state.get_token()
         if token.kind == TokenKind.PAREN_OPEN:
             state.enter_context(token.kind, token.loc)
+            # Get the spelling that is the result of the __has() operator and lex it as a token.
             spelling = self.parse_body_method(macro_token.extra.macro)(state, is_evaluated)
             token = state.leave_context()
             if spelling is not None:
@@ -225,9 +227,11 @@ class ExprParser:
                 return self.evaluate_literal(macro_token)
         else:
             self.diag(DID.expected_open_paren, token.loc)
+        # An erroneous result
         return ExprValue(0, False, True, TokenRange(macro_token.loc, token.loc))
 
     def parse_body_method(self, kind):
+        '''Return the method that is responsible for parsing the part between parentheses.'''
         if kind is BuiltinKind.has_include:
             return self.parse_has_include_body
         elif kind is BuiltinKind.has_cpp_attribute:
@@ -236,6 +240,9 @@ class ExprParser:
             assert False
 
     def expect_identifier(self, state):
+        '''Read an identifier and return is IdentifierInfo.  If it is not an identifier, diagnose
+        that and return None.
+        '''
         token = state.get_token()
         if token.kind == TokenKind.IDENTIFIER:
             return token.extra
@@ -244,6 +251,8 @@ class ExprParser:
         return None
 
     def parse_has_attribute_body(self, state, is_evaluated):
+        '''Parse the parenthesized part of __has_cpp_attribute().  Return the spelling of the
+        result, or None on error.'''
         # C and C++ require an attribute-token, which is either identifer or
         # identifier::identifier.
         scope_name = self.expect_identifier(state)
@@ -264,6 +273,8 @@ class ExprParser:
         return self.pp.has_attribute_spelling(scope_spelling, attrib_spelling)
 
     def parse_has_include_body(self, state, is_evaluated):
+        '''Parse the parenthesized part of __has_include().  Return the spelling of the result,
+        or None on error.'''
         header_token = self.pp.create_header_name(in__has_include=True)
         if header_token is None:
             return None
@@ -287,7 +298,7 @@ class ExprParser:
 
     def evaluate_literal(self, token):
         '''Evaluate a character constant or number.  This needs to be done even in unevaluated
-        contexts.'''
+        contexts because the signedness of the result matters.'''
         literal = self.literal_interpreter.interpret(token)
         if literal.kind == IntegerKind.error:
             value, is_unsigned, is_erroneous = 0, False, True
@@ -317,18 +328,18 @@ class ExprParser:
     def evaluate_unary_op(self, rhs, op):
         '''Evaluate a unary expression.'''
         kind = op.kind
-        if kind == TokenKind.PLUS:
-            pass
-        elif kind == TokenKind.MINUS:
+        if kind == TokenKind.MINUS:
             if rhs.set(-rhs.get(self.mask), self.mask):
                 self.overflow(rhs, op, [rhs.loc])
         elif kind == TokenKind.LOGICAL_NOT:
             rhs.set_boolean(not rhs.value)
         elif kind == TokenKind.TILDE:
             rhs.value = self.mask - rhs.value
+        else:
+            assert kind == TokenKind.PLUS
 
     def usual_arithmetic_conversions(self, lhs, rhs, op, is_evaluated):
-        '''Perform the usual arithmetic conversions on lhs and rhs.'''
+        '''Perform the usual arithmetic conversions in-place on lhs and rhs.'''
         if lhs.is_unsigned != rhs.is_unsigned:
             # Find the side to convert to unsigned
             side = rhs if lhs.is_unsigned else lhs
