@@ -11,8 +11,8 @@ from enum import IntEnum, auto
 
 from ..diagnostics import DID, TokenRange
 from .basic import TokenKind, IntegerKind
-from .macros import BuiltinKind, lex_token_from_builtin_spelling
 from .literals import LiteralInterpreter
+from .macros import BuiltinKind, lex_token_from_builtin_spelling
 
 
 @dataclass(slots=True)
@@ -115,7 +115,7 @@ class ExprParser:
                 return lhs
 
             if precedence == BOP.conditional:
-                lhs = self.parse_conditional_branches(state, token, bool(lhs.value), is_evaluated)
+                lhs = self.parse_conditional_branches(state, token, lhs, is_evaluated)
             else:
                 rhs_is_evaluated = is_evaluated
                 if token.kind == TokenKind.LOGICAL_AND:
@@ -123,21 +123,25 @@ class ExprParser:
                 elif token.kind == TokenKind.LOGICAL_OR:
                     rhs_is_evaluated = rhs_is_evaluated and not bool(lhs.value)
                 rhs = self.parse_binary_expr(state, precedence, rhs_is_evaluated)
-                if not (lhs.is_erroneous or rhs.is_erroneous):
+                if lhs.is_erroneous or rhs.is_erroneous:
+                    lhs.is_erroneous = True
+                else:
                     evaluator(self, lhs, rhs, token, is_evaluated)
                 lhs.loc.end = rhs.loc.end
 
-    def parse_conditional_branches(self, state, token, condition_truth, is_evaluated):
+    def parse_conditional_branches(self, state, token, condition, is_evaluated):
         '''Parse and evaluate the branches of a conditional operator.'''
+        condition_truth = bool(condition.value)
         state.enter_context(token.kind, token.loc)
         lhs = self.parse_expr(state, condition_truth and is_evaluated)
         colon = state.leave_context()
         if colon.kind != TokenKind.COLON:
             return lhs
         rhs = self.parse_conditional_expr(state, not condition_truth and is_evaluated)
-        if not (lhs.is_erroneous or rhs.is_erroneous):
+        if not condition.is_erroneous:
             self.usual_arithmetic_conversions(lhs, rhs, colon, is_evaluated)
         result = lhs if condition_truth else rhs
+        result.is_erroneous = condition.is_erroneous or lhs.is_erroneous or rhs.is_erroneous
         result.loc.start = lhs.loc.start
         result.loc.end = rhs.loc.end
         return result
@@ -284,12 +288,12 @@ class ExprParser:
     def evaluate_literal(self, token):
         '''Evaluate a character constant or number.  This needs to be done even in unevaluated
         contexts.'''
-        value, is_unsigned, is_erroneous = 0, False, False
         literal = self.literal_interpreter.interpret(token)
         if literal.kind == IntegerKind.error:
-            is_erroneous = True
+            value, is_unsigned, is_erroneous = 0, False, True
         else:
             value, is_unsigned = literal.value, self.pp.target.is_unsigned(literal.kind)
+            is_erroneous = False
         return ExprValue(value, is_unsigned, is_erroneous, TokenRange(token.loc, token.loc))
 
     def evaluate_identifier_expr(self, token, is_evaluated):
@@ -384,7 +388,8 @@ class ExprParser:
                 assert not lhs.set(result, self.mask)
 
     def evaluate_arithmetic_direct(self, lhs, rhs, op, is_evaluated):
-        '''These operate directly on the value with no need for get / set operations.'''
+        '''These operate directly on the value with no need for interpretation with get / set
+        operations.'''
         self.usual_arithmetic_conversions(lhs, rhs, op, is_evaluated)
         if not is_evaluated:
             return
@@ -442,7 +447,7 @@ class ExprParser:
                 lhs.value >>= rhs_value
 
     def evaluate_logical(self, lhs, rhs, op, is_evaluated):
-        '''Evaluate short-circuiting logical expressions (&& and ||).'''
+        '''Evaluate the logical operators && and ||.'''
         if op.kind == TokenKind.LOGICAL_AND:
             lhs.set_boolean(bool(lhs.value) and bool(rhs.value))
         else:
@@ -451,10 +456,12 @@ class ExprParser:
 
     def evaluate_comma(self, lhs, rhs, op, is_evaluated):
         '''Evaluate a comma expression.'''
-        # C++11 permits commas in integer constant expressions.  However it seems this was
-        # not intended to apply to the preprocessor
-        # (https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1436).  So we
-        # diagnose unconditionally, but still treat the value appropriately.
+        # C++11 started permitting commas in integer constant expressions.  Previously
+        # they were not permitted, as in C.  It seems this was not intended to apply to
+        # the preprocessor
+        # (https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1436).  We treat
+        # this as a defect in the standard and diagnose unconditionally but treat the
+        # value appropriately.
         self.diag(DID.comma_in_pp_expression, op.loc)
         lhs.value = rhs.value
         lhs.is_unsigned = rhs.is_unsigned
