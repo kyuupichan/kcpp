@@ -10,8 +10,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum, auto
 
+from ..core import Token, TokenKind, TokenFlags
 from ..diagnostics import DID, Diagnostic
-from .basic import Token, TokenKind, TokenFlags
+
 from .locator import ScratchEntryKind
 
 __all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion',

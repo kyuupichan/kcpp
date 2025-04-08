@@ -6,8 +6,8 @@
 
 from dataclasses import dataclass
 
-from kcpp.cpp import Token, TokenKind, Preprocessor
-from kcpp.diagnostics import Diagnostic, DID
+from ..core import Token, TokenKind
+from ..diagnostics import Diagnostic, DID
 
 
 __all__ = ['ParserState']
@@ -42,7 +42,7 @@ class ParserContext:
 @dataclass(slots=True)
 class ParserState:
     '''Parser state.  Separate from the parser so it is stateless and reusable.'''
-    pp: Preprocessor
+    pp: 'Preprocessor'
     token: Token
     context_stack: list
 

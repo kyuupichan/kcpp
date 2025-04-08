@@ -9,17 +9,14 @@ from dataclasses import dataclass
 from enum import IntEnum
 from struct import Struct
 
-from ..core import IntegerKind, RealKind
+from ..core import (
+    IntegerKind, RealKind, TokenKind, TokenFlags, Encoding, IdentifierInfo, Token,
+)
 from ..diagnostics import DID, SpellingRange, Diagnostic
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
     codepoint_to_hex, SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, Charset,
 )
-
-from .basic import (
-    HEX_DIGIT_VALUES, TokenKind, TokenFlags, Encoding, IdentifierInfo, Token, value_width
-)
-
 
 __all__ = [
     'LiteralInterpreter', 'IntegerLiteral', 'FloatingPointLiteral', 'StringLiteral',
@@ -28,8 +25,20 @@ __all__ = [
 
 
 OCTAL_DIGITS = {ord(c) for c in '01234567'}
+DIGIT_VALUES = {ord(c): ord(c) - 48 for c in '0123456789'}
+HEX_DIGIT_VALUES = {
+    ord('a'): 10, ord('b'): 11, ord('c'): 12, ord('d'): 13, ord('e'): 14, ord('f'): 15,
+    ord('A'): 10, ord('B'): 11, ord('C'): 12, ord('D'): 13, ord('E'): 14, ord('F'): 15,
+}
+HEX_DIGIT_VALUES.update(DIGIT_VALUES)
 # Map bases to diagnostic arguments for DID.invalid_digit
 bases = [2, 8, 10, 16]
+
+
+def value_width(value):
+    if value >= 0:
+        return value.bit_length()
+    return (-value - 1).bit_length() + 1
 
 
 @dataclass(slots=True)

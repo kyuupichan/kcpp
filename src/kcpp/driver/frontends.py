@@ -6,7 +6,8 @@
 
 from abc import ABC
 
-from kcpp.cpp import Token, TokenKind, TokenFlags, PreprocessorActions
+from kcpp.core import Token, TokenKind, TokenFlags
+from kcpp.cpp import PreprocessorActions
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
 

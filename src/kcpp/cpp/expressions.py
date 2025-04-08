@@ -9,8 +9,10 @@ and diagnostics.
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
+from ..core import TokenKind, IntegerKind
 from ..diagnostics import DID, TokenRange
-from .basic import TokenKind, IntegerKind
+from ..parsing import ParserState
+
 from .literals import LiteralInterpreter
 from .macros import BuiltinKind, lex_token_from_builtin_spelling
 
@@ -88,7 +90,6 @@ class ExprParser:
         lookahead token.
         '''
         # As per the grammar, comma expressions are not acceptable at the top level.
-        from ..parsing import ParserState
         state = ParserState.from_pp(self.pp)
         return self.parse_conditional_expr(state, True), state.token
 

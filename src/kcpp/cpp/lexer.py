@@ -3,18 +3,15 @@
 # All rights reserved.
 #
 
+from ..core import Token, TokenKind, TokenFlags, IdentifierInfo, SpecialKind
+from ..diagnostics import BufferRange, DID
 from ..unicode import (
     name_to_cp, utf8_cp, REPLACEMENT_CHAR, is_NFC, is_valid_codepoint,
     is_control_character, codepoint_to_hex, is_XID_Start, is_XID_Continue,
     is_surrogate
 )
 
-from ..diagnostics import BufferRange, DID
-
-from .basic import (
-    Token, TokenKind, TokenFlags, TokenSource, IdentifierInfo, SpecialKind, HEX_DIGIT_VALUES
-)
-from .literals import printable_form
+from .literals import printable_form, HEX_DIGIT_VALUES
 
 __all__ = ['Lexer']
 
@@ -32,7 +29,7 @@ BASIC_CHARSET = set.union(ASCII_IDENT_CONTINUE,
 DCHARS = set.difference(BASIC_CHARSET, (ord(c) for c in ' ()\\\t\v\f\r\n'))
 
 
-class Lexer(TokenSource):
+class Lexer:
 
     # The preprocessor is necessary to look up e.g. if an identifier is special, or
     # an alternative token, or language options.
