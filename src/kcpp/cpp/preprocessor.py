@@ -16,7 +16,8 @@ from ..core import (
 from ..diagnostics import (
     DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
 )
-from ..unicode import CodepointOutputKind, Charset
+from ..parsing import ParserState
+from ..unicode import Charset, CodepointOutputKind
 
 from .expressions import ExprParser
 from .file_manager import FileManager, DirectoryKind
@@ -71,17 +72,8 @@ class PreprocessorActions:
     instantiate to customize behaviour.
     '''
 
-    def on_source_file_change(self, loc, reason):
-        '''Called when entering a new soure file, leaving a source file, or on a #line directive
-        (even if the file name remains unchanged).  Not called on leaving the primary
-        source file.
-
-        loc is the first location of the new context, and reason is a SourcefileChangeReason.
-        '''
-        pass
-
-    def on_macro_defined(self, macro):
-        '''Called when a macro is defined.'''
+    def on_define(self, macro):
+        '''Called when a macro is defined.  macro is a Macro object.'''
         pass
 
     def on_pragma(self, token):
@@ -93,6 +85,19 @@ class PreprocessorActions:
         diagnose extra tokens.
         '''
         return False
+
+    def on_source_file_change(self, loc, reason):
+        '''Called when entering a new soure file, leaving a source file, or on a #line directive
+        (even if the file name remains unchanged).  Not called on leaving the primary
+        source file.
+
+        loc is the first location of the new context, and reason is a SourcefileChangeReason.
+        '''
+        pass
+
+    def on_undef(self, token):
+        '''Called when a macro is undefined.  token is the identifier token.'''
+        pass
 
 
 @dataclass(slots=True)
@@ -132,6 +137,7 @@ class Config:
 
 
 class Preprocessor:
+    '''Object that coordinates preprocessing.'''
 
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
     read_stdin = sys.stdin.buffer.read
@@ -853,7 +859,7 @@ class Preprocessor:
             if macro:
                 self.define_macro(macro_ident, macro)
                 if self.actions:
-                    self.actions.on_macro_defined(macro)
+                    self.actions.on_define(macro)
             else:
                 is_good = False
         self.skip_to_eod(token, is_good)
@@ -1079,6 +1085,8 @@ class Preprocessor:
         is_macro_name = self.is_macro_name(token, 2)
         if is_macro_name:
             token.extra.macro = None
+            if self.actions:
+                self.actions.on_undef(token)
         self.skip_to_eod(token, is_macro_name)
 
     def on_line(self, token):
@@ -1130,7 +1138,6 @@ class Preprocessor:
             self.diag(DID.expected_open_paren, token.loc)
             return None
 
-        from ..parsing import ParserState
         state = ParserState.from_pp(self)
         state.enter_context(token.kind, token.loc)
         string = state.get_token()

@@ -63,12 +63,27 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         self.filename = location.presumed_filename
         self.write_line_marker()
 
-    def on_macro_defined(self, macro):
+    def on_define(self, macro):
         if not self.list_macros:
             return
+        location = self.pp.locator.presumed_location(macro.name_loc, True)
+        if location.presumed_line_number != self.line_number:
+            self.move_to_line_number(location.presumed_line_number)
         self.finish_line()
         macro_name = macro.macro_name(self.pp).decode()
         self.write(f'#define {macro_name}{macro.definition_text(self.pp)}\n')
+        self.line_number += 1
+        self.at_bol = True
+
+    def on_undef(self, token):
+        if not self.list_macros:
+            return
+        location = self.pp.locator.presumed_location(token.loc, True)
+        if location.presumed_line_number != self.line_number:
+            self.move_to_line_number(location.presumed_line_number)
+        self.finish_line()
+        macro_name = token.extra.spelling
+        self.write(f'#undef {macro_name}\n')
         self.line_number += 1
         self.at_bol = True
 
