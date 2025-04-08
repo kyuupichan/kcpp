@@ -14,6 +14,8 @@ from .basic import TokenKind, IntegerKind
 from .literals import LiteralInterpreter
 from .macros import BuiltinKind, lex_token_from_builtin_spelling
 
+__all__ = ['ExprParser']
+
 
 @dataclass(slots=True)
 class ExprValue:
