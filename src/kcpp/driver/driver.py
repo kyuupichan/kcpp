@@ -23,9 +23,8 @@ class Driver:
         else:
             argv = sys.argv[1:]
         environ = os.environ if environ is None else environ
+        skin, sources = Skin.skin(argv, environ, frontend_class)
 
-        skin = Skin.skin(argv, environ)
-        sources = skin.sources_to_run(argv, environ, frontend_class)
         exit_code = 0
         for source in sources:
             exit_code = max(exit_code, skin.run(source, len(sources) > 1))
