@@ -79,18 +79,6 @@ class Skin:
 
         return pp.finish(source)
 
-    def diagnostic_consumer(self, pp):
-        consumer = self.frontend_class.diagnostic_class(pp)
-        if isinstance(consumer, UnicodeTerminal):
-            tabstop, colours = self.tabstop_and_colours()
-            consumer.tabstop = tabstop
-            if colours and pp.host.terminal_supports_colours(self.environ):
-                colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
-                consumer.set_sgr_code_assignments(colour_string)
-            if pp.host.is_a_tty(pp.stderr):
-                consumer.terminal_width = pp.host.terminal_width(pp.stderr)
-        return consumer
-
 
 class KCPP(Skin):
 
@@ -169,8 +157,16 @@ class KCPP(Skin):
             frontend.list_macros = self.command_line.list_macros
         return frontend
 
-    def tabstop_and_colours(self):
-        return self.command_line.tabstop, self.command_line.colours
+    def diagnostic_consumer(self, pp):
+        consumer = self.frontend_class.diagnostic_class(pp)
+        if isinstance(consumer, UnicodeTerminal):
+            consumer.tabstop = self.command_line.tabstop
+            if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
+                colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
+                consumer.set_sgr_code_assignments(colour_string)
+            if pp.host.is_a_tty(pp.stderr):
+                consumer.terminal_width = pp.host.terminal_width(pp.stderr)
+        return consumer
 
 
 class GCC(Skin):
@@ -178,7 +174,7 @@ class GCC(Skin):
     COLOURS_ENVVAR = 'GCC_COLORS'
     DEFAULT_COLOURS = (
         'error=01;31:warning=01;35:note=01;36:range1=32:range2=34:locus=01:'
-        'quote=01:path=01;36:fixit-insert=32:fixit-delete=31:'
+        'quote=01:path=01:fixit-insert=32:fixit-delete=31:'
         'diff-filename=01:diff-hunk=32:diff-delete=31:diff-insert=32:'
         'type-diff=01;32:fnname=01;32:targs=35:valid=01;31:invalid=01;32'
         'highlight-a=01;32:highlight-b=01;34'
@@ -249,5 +245,16 @@ class GCC(Skin):
             frontend.list_macros = self.command_line.dD
         return frontend
 
-    def tabstop_and_colours(self):
-        return self.command_line.ftabstop, self.command_line.fdiagnostics_color
+    def diagnostic_consumer(self, pp):
+        consumer = self.frontend_class.diagnostic_class(pp)
+        if isinstance(consumer, UnicodeTerminal):
+            consumer.tabstop = self.command_line.ftabstop
+            if self.command_line.fdiagnostics_color and pp.host.terminal_supports_colours(
+                    self.environ):
+                colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
+                consumer.set_sgr_code_assignments(colour_string)
+            if pp.host.is_a_tty(pp.stderr):
+                consumer.terminal_width = pp.host.terminal_width(pp.stderr)
+            consumer.worded_locations = False
+            consumer.show_columns = True
+        return consumer
