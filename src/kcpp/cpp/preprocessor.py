@@ -764,11 +764,16 @@ class Preprocessor:
         else:
             file = self.file_manager.search_quoted_header(header_name)
 
+        # Set in_header_name so that diagnostics lex correctly
+        self.in_header_name = True
         if file is None:
             if diagnose_if_not_found:
                 self.diag(DID.header_file_not_found, header_token.loc, [header_name])
-            return None
-        return self.read_file(file, header_token.loc)
+            result = None
+        else:
+            result = self.read_file(file, header_token.loc)
+        self.in_header_name = False
+        return result
 
     def on_include(self, token):
         self.expand_macros = True
