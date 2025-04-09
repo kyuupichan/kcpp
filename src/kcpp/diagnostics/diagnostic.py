@@ -22,11 +22,6 @@ __all__ = [
 ]
 
 
-# Note: column numbers, like line numbers, are 1-based.  They could reasonably be any of
-# 1) the column on a terminal, 2) the byte offset in the line, or 3) the count of
-# codepoints (logical characters).  Clang seems to give the byte offset and GCC the
-# terminal column.  For now, like Clang, we give the byte offset on the line plus 1.
-
 # Locations for diagnostics with a special meaning.
 location_none = -1
 location_command_line = -2
@@ -253,9 +248,15 @@ class DiagnosticEngine(DiagnosticConsumer):
         otherwise something like '"file_name": line 25: " for file locations.
         '''
         location = self.pp.locator.presumed_location(caret_loc, False)
+
+        # Column numbers, like line numbers, are 1-based.  They could reasonably be any of
+        # 1) the column on a terminal, 2) the byte offset in the line, or 3) the count of
+        # codepoints (logical characters).  Clang seems to give the byte offset and GCC
+        # the terminal column (but GCC is inconsistent w.r.t. wide and unprintable
+        # characters like \v).  For now, like Clang, we give the byte offset on the line
+        # plus 1, which is at least well-defined.
         arguments = [location.presumed_filename, location.presumed_line_number,
                      location.column_offset + 1]
-
         if self.worded_locations:
             buffer_position = location.buffer_position()
             if buffer_position == BufferPosition.END_OF_SOURCE:
