@@ -94,7 +94,7 @@ class KCPP(Skin):
                                help='output macro definitions with preprocessed source')
 
     def add_preprocessor_commands(self, group):
-        group.add_argument('-target', type=str, metavar='TARGET', default='',
+        group.add_argument('--target', type=str, metavar='TARGET', default='',
                            help='select the target machine')
         group.add_argument('--exec-charset', type=str, metavar='CHARSET',
                            help='set the narrow execution character set')
