@@ -131,9 +131,12 @@ class KCPP(Skin):
     def add_diagnostic_commands(self, group):
         group.add_argument('--error-output', metavar='FILENAME', default='',
                            help='diagnostic output is written to FILENAME instaed of stderr')
-        group.add_argument('--error-limit', metavar='COUNT', default=100, type=int)
-        group.add_argument('--tabstop', metavar='WIDTH', default=8, type=int)
-        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
+        group.add_argument('--error-limit', metavar='COUNT', default=100, type=int,
+                           help='halt compilation after COUNT errors')
+        group.add_argument('--tabstop', metavar='WIDTH', default=8, type=int,
+                           help='assume a tabstop of WIDTH for caret diagnostics')
+        group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True,
+                           help='colourize diagnostic output')
 
     def preprocessor_configuration(self, source):
         config = Config.default()
@@ -163,6 +166,7 @@ class KCPP(Skin):
     def diagnostic_manager(self):
         config = DiagnosticConfig.default()
         config.error_output = self.command_line.error_output
+        config.error_limit = self.command_line.error_limit
         config.worded_locations = True
         config.show_columns = False
 
