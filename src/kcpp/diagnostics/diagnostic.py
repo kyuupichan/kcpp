@@ -235,15 +235,15 @@ class DiagnosticConfig:
         for group_id in parse_groups(self.diag_suppress):
             severity_by_group[group_id] = DiagnosticSeverity.ignored
         for group_id in parse_groups(self.diag_remark):
-            once_by_group[group_id] = DiagnosticSeverity.remark
+            severity_by_group[group_id] = DiagnosticSeverity.remark
         for group_id in parse_groups(self.diag_warning):
-            once_by_group[group_id] = DiagnosticSeverity.warning
+            severity_by_group[group_id] = DiagnosticSeverity.warning
         for group_id in parse_groups(self.diag_error):
-            once_by_group[group_id] = DiagnosticSeverity.error
+            severity_by_group[group_id] = DiagnosticSeverity.error
 
         once_by_group = bytearray(count)
         for group_id in parse_groups(self.diag_once):
-            self.once_by_group[group_id] = True
+            once_by_group[group_id] = True
         return severity_by_group, once_by_group, unknown_groups
 
 
@@ -365,10 +365,12 @@ class DiagnosticManager:
             return True
 
         diagnostic.severity = self.severity(diagnostic)
-        # Elaborate the diagnostic if the consumer wants elaborated ones.
-        if self.consumer.elaborate:
-            diagnostic = self.elaborate(diagnostic)
-        self.consumer.emit(diagnostic)
+        if diagnostic.severity != DiagnosticSeverity.ignored:
+            # Elaborate the diagnostic if the consumer wants elaborated ones.
+            if self.consumer.elaborate:
+                diagnostic = self.elaborate(diagnostic)
+            self.consumer.emit(diagnostic)
+
         return self.should_halt_compilation()
 
     def emit_compilation_summary(self, filename):
@@ -469,7 +471,12 @@ class DiagnosticManager:
         if severity != DiagnosticSeverity.none:
             severity_did, hint = self.severity_map[severity]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
+        # Now add the diagnostic's text
         text_parts.extend(self.substitute_arguments(text, main_context.substitutions))
+        # Finally, if the diagnostic has a group, inform the user of it
+        defn = diagnostic_definitions[main_context.did]
+        if defn.group:
+            text_parts.append((f'  [{defn.group.name}]', 'message'))
 
         # Now convert each range to RangeCoords
         if caret_loc <= location_none:
