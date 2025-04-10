@@ -53,6 +53,30 @@ fatal_error_and_error_summary:
   text:  "%plural{1:fatal error|:fatal errors}0 and %plural{1:error|:errors}1 \
     generated compiling %2."
 
+from_formation_of_header_name:
+  severity: note
+  text: from formation of header name
+
+from_Pragma:
+  severity: note
+  text: from _Pragma operator
+
+in_argument_stringizing:
+  severity: note
+  text: in stringizing of macro argument
+
+in_expansion_of_builtin:
+  severity: note
+  text: in expansion of builtin macro %q0
+
+in_expansion_of_macro:
+  severity: note
+  text: in expansion of macro %q0
+
+in_token_concatenation:
+  severity: note
+  text: in result of token concatenation
+
 severity_remark:
   severity: none
   text: remark

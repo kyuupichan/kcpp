@@ -429,14 +429,15 @@ class ExprParser:
         lhs_value, rhs_value = lhs.get(self.mask), rhs.get(self.mask)
         # Check negative or too large
         if rhs_value < 0:
-            # Undefined behaviour - error
+            # Undefined behaviour - hard error
             self.diag(DID.shift_count_negative, op.loc, [rhs.loc])
             lhs.is_erroneous = True
-        elif rhs_value >= self.width:
-            # Undefined behaviour - error
+            return
+        if rhs_value >= self.width:
+            # Undefined behaviour - we cap the shift
             self.diag(DID.shift_count_too_large, op.loc, [rhs.loc])
-            lhs.is_erroneous = True
-        elif op.kind == TokenKind.LSHIFT:
+            rhs_value = self.width
+        if op.kind == TokenKind.LSHIFT:
             # A masked logical bit-shift where the resulting bit-pattern is then
             # interpreted (in C++23).  In C, and earlier C++, the behaviour is more
             # subtle.
@@ -446,7 +447,7 @@ class ExprParser:
                 # represented in the result's type.  We take the C++ value, but warn in
                 # cases where it is undefined in C.
                 if lhs_value < 0:
-                    self.diag(DID.left_shift_of_negative_value, op.loc, [lhs.loc, 0])
+                    self.diag(DID.shift_of_negative_value, op.loc, [0, lhs.loc])
                 elif value > (self.mask >> 1):
                     self.diag(DID.left_shift_overflows, op.loc, [lhs.loc, rhs.loc])
             lhs.value = value & self.mask
@@ -458,7 +459,7 @@ class ExprParser:
             if lhs_value < 0:
                 # Shift the complement, and complement back.
                 lhs.value = self.mask - ((self.mask - lhs.value) >> rhs_value)
-                self.diag(DID.right_shift_of_negative_value, op.loc, [lhs.loc])
+                self.diag(DID.shift_of_negative_value, op.loc, [1, lhs.loc])
             else:
                 lhs.value >>= rhs_value
 

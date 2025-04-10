@@ -47,10 +47,13 @@ hexadecimal_exponent_required:
   text: hexadecimal floating point numbers require an exponent
 
 integer_overflow:
-  severity: error
+  # A warning.  The correct value is simply truncated.
+  severity: warning
+  group: overflow
   text: integer overflow
 
 integer_too_large:
+  # An error.  Too many questions arise trying to accept it sensibly.
   severity: error
   text: integer value is too large for any integer type
 
@@ -66,14 +69,9 @@ invalid_numeric_suffix:
   severity: error
   text: invalid suffix on numeric literal
 
-left_shift_of_negative_value:
-  severity: warning       # Undefined behaviour in C
-  group: shift_expr
-  text: left shift of negative value
-
 left_shift_overflows:
   severity: warning
-  group: shift_expr
+  group: overflow
   text: left shift overflows
 
 missing_digit_sequence:
@@ -94,14 +92,15 @@ multicharacter_literal_with_prefix:
   severity: error
   text: multicharacter literals cannot have an encoding prefix
 
-right_shift_of_negative_value:
-  severity: warning       # Implementation-defined behaviour, so warning
-  group: shift_expr
-  text: right shift of negative value
+shift_of_negative_value:
+  # Undefined behaviour in C.  C++ defines the semantics and we implement those.
+  severity: warning
+  group: shift_of_negative
+  text: "%select{left|right}0 shift of negative value"
 
 shift_count_negative:
+  # I see no benefit or reason to permmit negative shifts
   severity: error
-  group: shift_count
   text: shift count is negative
 
 shift_count_too_large:
@@ -127,7 +126,8 @@ undefined_identifier:
   text: "%q0 is not defined; replacing with %q{0}"
 
 unrecognized_escape_sequence:
-  severity: error
+  severity: warning
+  group: escape_sequence
   text: invalid escape sequence %q0
 
 unrecognized_universal_character_name:

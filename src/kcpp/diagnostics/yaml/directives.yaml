@@ -49,23 +49,28 @@ expected_header_name:
   text: 'expected a header name of the form "FILENAME" or <FILENAME>'
 
 expected_macro_name:
+  # issued in e.g. #undef, #define, defined()
   severity: error
   text: expected a macro name
 
 expected_macro_parameter:
+  # issued when parsing a macro parameter list
   severity: error
   text: expected a macro parameter name
 
 extra_directive_tokens:
-  severity: error
-  text: 'extra tokens at end of #%0 directive'
+  severity: warning
+  group: extra_tokens
+  text: 'extra tokens ignored at end of #%0 directive'
 
 filename_should_be_string:
+  # issued in #line directives
   severity: error
   text: filename should be a string literal
 
 function_like_macro_not_defined:
-  severity: error   # it would be a syntax error anyway
+  # issued in preprocessor expressions.  An error as it would be a syntax error anyway.
+  severity: error
   text: function-like macro %q0 is not defined
 
 hash_requires_macro_parameter:
@@ -106,11 +111,13 @@ macro_name_not_identifier:
   text: macro name must be an identifier
 
 macro_name_whitespace:
-  severity: error
+  severity: warning
+  group: macro_ws
   text: macro name should be followed by whitespace
 
 macro_redefined:
-  severity: error
+  severity: warning
+  group: macro_redefined
   text: redefinition of macro %q0
 
 nested_va_opt:
@@ -124,12 +131,12 @@ predefined_macro_redefined:
   text: "%select{redefinition|undefinition}1 of predefined macro %q0"
 
 builtin_macro_redefined:
-  # Always an error.
+  # Always an error - what possible good can come from redefining __LINE__?
   severity: error
   text: "%q0 is a built-in macro and cannot be %select{redefined|undefined}1"
 
 cannot_be_defined:
-  # Always an error
+  # Always an error.  Currently only issues for "defined".
   severity: error
   text: "%q0 cannot be %select{defined|undefined}1"
 

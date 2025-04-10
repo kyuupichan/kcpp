@@ -33,14 +33,13 @@ codepoint_surrogate:
   text: "%q0 is a surrogate codepoint"
 
 delimeter_too_long:
-  severity: error
+  severity: warning
   text: raw string literal delimeter is too long
-  group: invalid_pp_token
+  group: raw_delimiter
 
 delimeter_invalid_character:
   severity: error
   text: invalid character %q0 in raw string literal delimeter
-  group: invalid_pp_token
 
 identifier_not_NFC:
   severity: error
@@ -60,9 +59,9 @@ unterminated_block_comment:
   text: unterminated block comment
 
 unterminated_literal:
+  # Is there a good reason to accept these?  If so consequences need care.
   severity: error
   text: unterminated %select{character|string|raw string}0 literal
-  group: invalid_pp_token
 
 utf8_invalid:
   severity: error
@@ -77,5 +76,6 @@ utf8_surrogate:
   text: surrogate in UTF-8 encoding
 
 vertical_whitespace_in_directive:
-  severity: error
+  severity: warning
+  group: directive_ws
   text: "%select{vertical tab|form feed}0 in preprocessing directive"

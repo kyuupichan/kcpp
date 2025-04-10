@@ -13,6 +13,7 @@ bad_source_date_epoch:
   text: source date epoch must be an integer between 0 and %0
 
 builtin_macro_only_if_elif:
+  # For identifiers like __has_include
   severity: error
   text: "use of %q0 is restricted to #if and #elif directives"
 
@@ -24,36 +25,14 @@ cannot_write_file:
   severity: fatal
   text: "cannot write to file %0: %1"
 
-from_formation_of_header_name:
-  severity: note
-  text: from formation of header name
-
-from_Pragma:
-  severity: note
-  text: from _Pragma operator
-
 invalid_charset:
-  severity: error
+  # fatal as caused by command line arguments
+  severity: fatal
   text: "%q0 encoding cannot be used for type %q1 with width %2 bits"
-
-in_argument_stringizing:
-  severity: note
-  text: in stringizing of macro argument
-
-in_expansion_of_builtin:
-  severity: note
-  text: in expansion of builtin macro %q0
-
-in_expansion_of_macro:
-  severity: note
-  text: in expansion of macro %q0
-
-in_token_concatenation:
-  severity: note
-  text: in result of token concatenation
 
 macro_produced_defined:
   severity: error
+  group: defined
   text: macro expansion producing operator %q{defined} is ill-formed
 
 macro_defined_here:
@@ -65,6 +44,7 @@ max_include_depth_reached:
   text: maximum include file depth of %0 reached
 
 stringize_failed:
+  # There is no benefit to accepting this - just fix the code!
   severity: error
   text: stringizing did not produce a valid string literal
 

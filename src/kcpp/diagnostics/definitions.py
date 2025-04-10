@@ -29,12 +29,20 @@ class DiagnosticGroup(IntEnum):
     that belong to a group can have their severity downgraded.'''
     none = auto()
     comma_expr = auto()
+    defined = auto()
+    directive_ws = auto()
+    escape_sequence = auto()
+    extra_tokens = auto()
     invalid_pp_token = auto()
     line_number = auto()
+    macro_redefined = auto()
+    macro_ws = auto()
     multichar = auto()
+    overflow = auto()
     predefined = auto()
+    raw_delimiter = auto()
     shift_count = auto()
-    shift_expr = auto()
+    shift_of_negative = auto()
     sign_change = auto()
     undefined = auto()
     unicode = auto()
@@ -116,7 +124,6 @@ class DID(IntEnum):
     invalid_numeric_suffix = auto()
     invalid_op_in_pp_expression = auto()
     invalid_variadic_identifier_use = auto()
-    left_shift_of_negative_value = auto()
     left_shift_overflows = auto()
     line_number_must_be_digit_sequence = auto()
     line_number_out_of_range = auto()
@@ -136,7 +143,6 @@ class DID(IntEnum):
     predefined_macro_redefined = auto()
     prior_macro_definition = auto()
     prior_match = auto()
-    right_shift_of_negative_value = auto()
     severity_error = auto()
     severity_fatal = auto()
     severity_note = auto()
@@ -144,6 +150,7 @@ class DID(IntEnum):
     severity_warning = auto()
     shift_count_negative = auto()
     shift_count_too_large = auto()
+    shift_of_negative_value = auto()
     starting_compilation = auto()
     string_concatenation_conflict = auto()
     string_concatenation_prior = auto()
@@ -321,13 +328,13 @@ diagnostic_definitions = {
     DID.delimeter_invalid_character: DiagnosticDefinition(
         DID.delimeter_invalid_character,
         DiagnosticSeverity.error,
-        DiagnosticGroup.invalid_pp_token,
+        DiagnosticGroup.none,
         'invalid character %q0 in raw string literal delimeter',
     ),
     DID.delimeter_too_long: DiagnosticDefinition(
         DID.delimeter_too_long,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.invalid_pp_token,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.raw_delimiter,
         'raw string literal delimeter is too long',
     ),
     DID.division_by_zero: DiagnosticDefinition(
@@ -470,9 +477,9 @@ diagnostic_definitions = {
     ),
     DID.extra_directive_tokens: DiagnosticDefinition(
         DID.extra_directive_tokens,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
-        'extra tokens at end of #%0 directive',
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.extra_tokens,
+        'extra tokens ignored at end of #%0 directive',
     ),
     DID.fatal_error_and_error_summary: DiagnosticDefinition(
         DID.fatal_error_and_error_summary,
@@ -573,8 +580,8 @@ diagnostic_definitions = {
     ),
     DID.integer_overflow: DiagnosticDefinition(
         DID.integer_overflow,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.overflow,
         'integer overflow',
     ),
     DID.integer_too_large: DiagnosticDefinition(
@@ -585,7 +592,7 @@ diagnostic_definitions = {
     ),
     DID.invalid_charset: DiagnosticDefinition(
         DID.invalid_charset,
-        DiagnosticSeverity.error,
+        DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         '%q0 encoding cannot be used for type %q1 with width %2 bits',
     ),
@@ -625,16 +632,10 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'use of %q0 is invalid here',
     ),
-    DID.left_shift_of_negative_value: DiagnosticDefinition(
-        DID.left_shift_of_negative_value,
-        DiagnosticSeverity.warning,
-        DiagnosticGroup.shift_expr,
-        'left shift of negative value',
-    ),
     DID.left_shift_overflows: DiagnosticDefinition(
         DID.left_shift_overflows,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.shift_expr,
+        DiagnosticGroup.overflow,
         'left shift overflows',
     ),
     DID.line_number_must_be_digit_sequence: DiagnosticDefinition(
@@ -675,20 +676,20 @@ diagnostic_definitions = {
     ),
     DID.macro_name_whitespace: DiagnosticDefinition(
         DID.macro_name_whitespace,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.macro_ws,
         'macro name should be followed by whitespace',
     ),
     DID.macro_produced_defined: DiagnosticDefinition(
         DID.macro_produced_defined,
         DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticGroup.defined,
         'macro expansion producing operator %q{defined} is ill-formed',
     ),
     DID.macro_redefined: DiagnosticDefinition(
         DID.macro_redefined,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.macro_redefined,
         'redefinition of macro %q0',
     ),
     DID.max_include_depth_reached: DiagnosticDefinition(
@@ -745,12 +746,6 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'to match this %q0',
     ),
-    DID.right_shift_of_negative_value: DiagnosticDefinition(
-        DID.right_shift_of_negative_value,
-        DiagnosticSeverity.warning,
-        DiagnosticGroup.shift_expr,
-        'right shift of negative value',
-    ),
     DID.severity_error: DiagnosticDefinition(
         DID.severity_error,
         DiagnosticSeverity.none,
@@ -784,7 +779,7 @@ diagnostic_definitions = {
     DID.shift_count_negative: DiagnosticDefinition(
         DID.shift_count_negative,
         DiagnosticSeverity.error,
-        DiagnosticGroup.shift_count,
+        DiagnosticGroup.none,
         'shift count is negative',
     ),
     DID.shift_count_too_large: DiagnosticDefinition(
@@ -792,6 +787,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.shift_count,
         'shift count must be less than the integer width',
+    ),
+    DID.shift_of_negative_value: DiagnosticDefinition(
+        DID.shift_of_negative_value,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.shift_of_negative,
+        '%select{left|right}0 shift of negative value',
     ),
     DID.starting_compilation: DiagnosticDefinition(
         DID.starting_compilation,
@@ -874,8 +875,8 @@ diagnostic_definitions = {
     ),
     DID.unrecognized_escape_sequence: DiagnosticDefinition(
         DID.unrecognized_escape_sequence,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.escape_sequence,
         'invalid escape sequence %q0',
     ),
     DID.unrecognized_universal_character_name: DiagnosticDefinition(
@@ -899,7 +900,7 @@ diagnostic_definitions = {
     DID.unterminated_literal: DiagnosticDefinition(
         DID.unterminated_literal,
         DiagnosticSeverity.error,
-        DiagnosticGroup.invalid_pp_token,
+        DiagnosticGroup.none,
         'unterminated %select{character|string|raw string}0 literal',
     ),
     DID.user_defined_suffix_in_pp_expr: DiagnosticDefinition(
@@ -946,8 +947,8 @@ diagnostic_definitions = {
     ),
     DID.vertical_whitespace_in_directive: DiagnosticDefinition(
         DID.vertical_whitespace_in_directive,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.directive_ws,
         '%select{vertical tab|form feed}0 in preprocessing directive',
     ),
     DID.warning_directive: DiagnosticDefinition(
