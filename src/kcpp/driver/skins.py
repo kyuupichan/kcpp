@@ -169,7 +169,7 @@ class KCPP(Skin):
         #         consumer.set_sgr_code_assignments(colour_string)
         # if pp.host.is_a_tty(pp.stderr):
         #     consumer.terminal_width = pp.host.terminal_width(pp.stderr)
-        return DiagnosticManager(config)
+        return DiagnosticManager(config=config)
 
 
 class GCC(Skin):
@@ -262,4 +262,4 @@ class GCC(Skin):
         #         consumer.set_sgr_code_assignments(colour_string)
         #     if pp.host.is_a_tty(pp.stderr):
         #         consumer.terminal_width = pp.host.terminal_width(pp.stderr)
-        return DiagnosticManager(config)
+        return DiagnosticManager(config=config)

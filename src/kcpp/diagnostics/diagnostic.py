@@ -9,7 +9,7 @@ import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from ..core import BufferPosition, PresumedLocation
+from ..core import BufferPosition, PresumedLocation, host
 
 from .definitions import DID, DiagnosticSeverity, diagnostic_definitions
 
@@ -258,7 +258,7 @@ class DiagnosticManager:
         DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
     }
 
-    def __init__(self, config=None):
+    def __init__(self, *, config=None):
         # The locator is only needed for diagnostics with a source file location
         self.locator = None
         self.error_count = 0
@@ -268,7 +268,7 @@ class DiagnosticManager:
         # The remaining members are configurable
         config = config or DiagnosticConfig.default()
         if filename := config.error_output:
-            result = self.host.open_file_for_writing(filename)
+            result = host.open_file_for_writing(filename)
             if isinstance(file, str):
                 self.emit(Diagnostic(DID.cannot_write_file, location_command_line,
                                      [filename, result]))

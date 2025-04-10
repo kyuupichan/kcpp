@@ -4,7 +4,7 @@
 #
 '''Host abstraction.  For a Python implementation Python essentially abstracts the host so
 most logic here appears in HostBase.  However for a C or C++ implementation there should
-be an abstraction layer.
+sbe an abstraction layer.
 '''
 
 import abc
@@ -12,7 +12,7 @@ import os
 import platform
 import stat
 
-__all__ = ['Host']
+__all__ = ['host']
 
 
 class Host(abc.ABC):
@@ -137,3 +137,6 @@ class MacOSX(Host):
 
 class Windows(Host):
     pass
+
+
+host = Host.host()

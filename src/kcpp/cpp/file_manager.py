@@ -7,6 +7,8 @@
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
+from ..core import host
+
 
 __all__ = ['FileManager']
 
@@ -64,8 +66,7 @@ class FileManager:
     and looks up header names on the search path.  It also keeps track of the include
     stack.
     '''
-    def __init__(self, host):
-        self.host = host
+    def __init__(self):
         self.file_stack = []        # a list of File objects
         self.current_file_search = True
         # Lists of include directories
@@ -95,8 +96,8 @@ class FileManager:
             dir_list = self.user_final
 
         for path in paths:
-            stat_result = self.host.stat(path)
-            exists = self.host.stat_is_directory(stat_result)
+            stat_result = host.stat(path)
+            exists = host.stat_is_directory(stat_result)
             dir_list.append(IncludeDirectory(path, kind, exists))
 
     def add_standard_search_paths(self, paths):
@@ -104,15 +105,15 @@ class FileManager:
 
     def lookup_in_directory(self, header_name, directory):
         if directory:
-            path = self.host.path_join(directory.path, header_name)
+            path = host.path_join(directory.path, header_name)
         else:
             path = header_name
 
         # Only accept regular files
-        stat_result = self.host.stat(path)
+        stat_result = host.stat(path)
         if not stat_result:
             return None
-        if not self.host.stat_is_regular_file(stat_result):
+        if not host.stat_is_regular_file(stat_result):
             return None
         return File(directory, path, FileContents(None, False))
 
@@ -120,7 +121,7 @@ class FileManager:
         if directory and not directory.exists:
             return None
 
-        root, suffix = self.host.path_splitext(header_name)
+        root, suffix = host.path_splitext(header_name)
         if suffix:
             return self.lookup_in_directory(header_name, directory)
         for suffix in self.suffixes:
@@ -149,14 +150,14 @@ class FileManager:
     #
 
     def search_quoted_header(self, header_name):
-        if self.host.path_is_absolute(header_name):
+        if host.path_is_absolute(header_name):
             return self.search_absolute(header_name)
 
         # Search in the directory of the current file
         if self.current_file_search:
             entry = self.file_stack[-1]
             # create a new directory entry if it is not a simple filename
-            dirname, filename = self.host.path_split(entry.path)
+            dirname, filename = host.path_split(entry.path)
             if dirname == '' or dirname == '.':
                 directory = entry.directory
             else:
@@ -178,7 +179,7 @@ class FileManager:
     #
 
     def search_angled_header(self, header_name):
-        if self.host.path_is_absolute(header_name):
+        if host.path_is_absolute(header_name):
             return self.search_absolute(header_name)
 
         # Search in four directory lists.
@@ -195,14 +196,14 @@ class FileManager:
         return File(directory, filename, contents)
 
     def file_for_path(self, path):
-        dirname = self.host.path_dirname(path)
+        dirname = host.path_dirname(path)
         directory = IncludeDirectory(dirname, DirectoryKind.none, True)
         contents = FileContents(None, is_virtual=False)
         return File(directory, path, contents)
 
     def read_file(self, file):
         if file.contents.raw is None:
-            file.contents.raw = self.host.read_file(file.path, nul_terminate=True)
+            file.contents.raw = host.read_file(file.path, nul_terminate=True)
         return file.contents.raw
 
     def enter_file(self, search_result):

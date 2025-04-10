@@ -10,8 +10,8 @@ from enum import IntEnum, auto
 from functools import partial
 
 from ..core import (
-    Buffer, Host, IntegerKind, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags,
-    Encoding, targets
+    Buffer, IntegerKind, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags,
+    Encoding, targets, host
 )
 from ..diagnostics import (
     DID, Diagnostic, DiagnosticConfig, location_command_line, location_none,
@@ -158,10 +158,8 @@ class Preprocessor:
 
         # Helper objects.
         self.identifiers = {}
-        # The host abstraction
-        self.host = Host.host()
         # Caches header lookups and file contents
-        self.file_manager = FileManager(self.host)
+        self.file_manager = FileManager()
         # Action listener
         self.actions = None
 
@@ -209,7 +207,7 @@ class Preprocessor:
         config = config or Config.default()
 
         if config.output:
-            result = self.host.open_file_for_writing(filename)
+            result = host.open_file_for_writing(filename)
             if isinstance(result, str):
                 self.diag(DID.cannot_write_file, location_command_line, [filename, result])
             else:
@@ -250,7 +248,7 @@ class Preprocessor:
 
         # Standard search paths; language-dependent
         self.file_manager.add_standard_search_paths(
-            self.host.standard_search_paths(self.language.is_cxx()))
+            host.standard_search_paths(self.language.is_cxx()))
         # User-defined search paths
         self.file_manager.add_search_paths(config.quoted_dirs, DirectoryKind.quoted)
         self.file_manager.add_search_paths(config.angled_dirs, DirectoryKind.angled)
