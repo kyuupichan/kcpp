@@ -212,6 +212,9 @@ class DiagnosticConsumer(ABC):
     wants with them - simply capture them for later analysis or emission, or pretty-print
     them to stderr.
     '''
+    # If False, the argument to emit() is a Diagnostic as are its nested_diagnostics.
+    # Otherwise they are ElaboratedDiagnostic instances.
+    elaborate = False
 
     def __init__(self):
         self.manager = None
@@ -285,6 +288,8 @@ class DiagnosticManager:
     def emit(self, diagnostic):
         '''Emit a diagnostic, return True if compilation should be halted because there
         has been a fatal error, or the error limit has been reached.'''
+        if self.consumer.elaborate:
+            diagnostic = self.elaborate(diagnostic)
         self.consumer.emit(diagnostic)
         return self.fatal_error_count or self.error_count >= self.error_limit
 

@@ -23,6 +23,7 @@ class UnicodeTerminal(DiagnosticConsumer):
     '''Write formatted diagnostics to stderr, in a way that they should be suitable for
     display on a Unicode-enabled terminal.
     '''
+    elaborate = True
 
     def __init__(self):
         '''Diagnostics are written to file.  Colour formatting information, whether colours are
@@ -63,20 +64,19 @@ class UnicodeTerminal(DiagnosticConsumer):
 
     def emit(self, diagnostic: Diagnostic):
         '''Called when the preprocessor emits a diagnostic.'''
-        # Elaborate it, and emit it recursively.
-        self.emit_recursive(self.manager.elaborate(diagnostic), 0)
+        self.emit_recursive(diagnostic, 0)
 
-    def emit_recursive(self, elaborated_diagnostic, indent):
+    def emit_recursive(self, diagnostic, indent):
         '''Emit the top-level diagnostic at the given indentation level.  Then emit nested
         diagnostics at an increased indentation level.
         '''
         orig_indent = indent
-        for n, message_context in enumerate(elaborated_diagnostic.message_contexts):
+        for n, message_context in enumerate(diagnostic.message_contexts):
             if n == 1:
                 indent += self.nested_indent
             for line in self.diagnostic_lines(message_context):
                 print(f'{" " * indent}{line}', file=self.manager.stderr)
-        for nested in elaborated_diagnostic.nested_diagnostics:
+        for nested in diagnostic.nested_diagnostics:
             self.emit_recursive(nested, orig_indent + self.nested_indent)
 
     def diagnostic_lines(self, context):
