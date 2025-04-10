@@ -409,7 +409,7 @@ class DiagnosticManager:
             exit_code = 0
 
         # Close the error output file
-        if not self.consumer.stderr in (sys.stderr, sys.stdout):
+        if self.consumer.stderr not in (sys.stderr, sys.stdout):
             self.consumer.stderr.close()
 
         return exit_code

@@ -257,7 +257,6 @@ class GCC(Skin):
 
     def preprocessor_configuration(self, source):
         config = Config.default()
-        config.diagnostic_consumer = self.diagnostic_consumer(pp)
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
             config.language = Language('C', 2023)
         config.narrow_exec_charset = self.command_line.fexec_charset

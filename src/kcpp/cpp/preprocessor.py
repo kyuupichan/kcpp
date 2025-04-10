@@ -13,9 +13,7 @@ from ..core import (
     Buffer, IntegerKind, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags,
     Encoding, targets, host
 )
-from ..diagnostics import (
-    DID, Diagnostic, DiagnosticConfig, location_command_line, location_none,
-)
+from ..diagnostics import DID, Diagnostic, location_command_line, location_none
 from ..parsing import ParserState
 from ..unicode import Charset, CodepointOutputKind
 
@@ -206,9 +204,9 @@ class Preprocessor:
         config = config or Config.default()
 
         if config.output:
-            result = host.open_file_for_writing(filename)
+            result = host.open_file_for_writing(config.output)
             if isinstance(result, str):
-                self.diag(DID.cannot_write_file, location_command_line, [filename, result])
+                self.diag(DID.cannot_write_file, location_command_line, [config.output, result])
             else:
                 self.stdout = result
 
@@ -503,7 +501,7 @@ class Preprocessor:
         if filename is None:
             filename = self.filename_to_string_literal(primary_source_filename)
         exit_code = self.diag_manager.emit_compilation_summary(filename)
-        if not self.stdout in (sys.stderr, sys.stdout):
+        if self.stdout not in (sys.stderr, sys.stdout):
             self.stdout.close()
         return exit_code
 

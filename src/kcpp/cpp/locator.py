@@ -12,8 +12,8 @@ from enum import IntEnum, auto
 
 from ..core import Buffer, PresumedLocation
 from ..diagnostics import (
-    BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, location_none,
-    RangeCoords, DiagnosticSeverity,
+    BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, RangeCoords,
+    DiagnosticSeverity,
 )
 
 
