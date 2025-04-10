@@ -37,7 +37,6 @@ class UnicodeTerminal(DiagnosticConsumer):
         self.tabstop = 8
         # Take from stderr terminal (if it is a terminal)
         self.terminal_width = 0
-        self.stderr = None
 
     def set_sgr_code_assignments(self, colour_string):
         '''Parse an SGR assignments string.'''

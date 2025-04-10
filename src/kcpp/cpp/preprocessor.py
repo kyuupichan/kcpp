@@ -498,14 +498,14 @@ class Preprocessor:
         no longer call get_token().'''
         assert not self.sources
         assert not self.buffer_states
-        # Close the output file if not the standard stream
-        if self.stdout is not sys.stdout:
-            self.stdout.close()
         # Returns None if no primary source file was pushed
         filename = self.locator.primary_source_file_name()
         if filename is None:
             filename = self.filename_to_string_literal(primary_source_filename)
-        return self.diag_manager.emit_compilation_summary(filename)
+        exit_code = self.diag_manager.emit_compilation_summary(filename)
+        if not self.stdout in (sys.stderr, sys.stdout):
+            self.stdout.close()
+        return exit_code
 
     def push_buffer(self, file):
         '''Push a lexer token source for the raw bytes of filename (which can be a string or a

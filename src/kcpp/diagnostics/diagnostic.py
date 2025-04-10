@@ -220,6 +220,9 @@ class DiagnosticConsumer(ABC):
     # Otherwise they are ElaboratedDiagnostic instances.
     elaborate = False
 
+    def __init__(self):
+        self.stderr = sys.stderr
+
     @abstractmethod
     def emit(self, diagnostic):
         pass
@@ -229,6 +232,7 @@ class DiagnosticListener(DiagnosticConsumer):
     '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
 
     def __init__(self):
+        super().__init__()
         self.diagnostics = []
 
     def emit(self, diagnostic):
@@ -236,13 +240,18 @@ class DiagnosticListener(DiagnosticConsumer):
 
 
 class DiagnosticPrinter(DiagnosticConsumer):
-    '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.  Used
-    for debugging.'''
+    '''A simple diagnostic consumer that prints a summary of the emitted diagnostics to
+    stdout.  Used for debugging.
+    '''
+
+    def __init__(self):
+        super().__init__()
+        self.stderr = sys.stdout
 
     def emit(self, diagnostic):
         # Don't emit compilation summary, etc.
         if diagnostic.loc != location_none:
-            print(diagnostic.to_short_text())
+            print(diagnostic.to_short_text(), file=self.stderr)
 
 
 class DiagnosticManager:
@@ -270,7 +279,6 @@ class DiagnosticManager:
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
-        self.consumer.stderr = sys.stderr
         if filename := config.error_output:
             result = host.open_file_for_writing(filename)
             if isinstance(result, str):
@@ -317,8 +325,8 @@ class DiagnosticManager:
         else:
             exit_code = 0
 
-        # Close the error output file if not the standard stream
-        if self.consumer.stderr is not sys.stderr:
+        # Close the error output file
+        if not self.consumer.stderr in (sys.stderr, sys.stdout):
             self.consumer.stderr.close()
 
         return exit_code
