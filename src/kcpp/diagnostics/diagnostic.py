@@ -246,8 +246,8 @@ class DiagnosticManager:
         DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
     }
 
-    def __init__(self, pp, translations=None):
-        self.pp = pp
+    def __init__(self, translations=None):
+        self.locator = None
         self.error_count = 0
         self.fatal_error_count = 0
         self.translations = translations or DiagnosticTranslations()
@@ -324,7 +324,7 @@ class DiagnosticManager:
         with no location, something like '<command line>: ' for command-line errors, and
         otherwise something like '"file_name": line 25: " for file locations.
         '''
-        location = self.pp.locator.presumed_location(caret_loc, False)
+        location = self.locator.presumed_location(caret_loc, False)
 
         # Column numbers, like line numbers, are 1-based.  They could reasonably be any of
         # 1) the column on a terminal, 2) the byte offset in the line, or 3) the count of
@@ -356,11 +356,21 @@ class DiagnosticManager:
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
         severity = self.remap_diagnostic_severity(diagnostic)
-        diagnostic_context, nested_diagnostics = diagnostic.decompose(severity)
-        message_contexts = [self.message_context(dc) for
-                            dc in self.pp.locator.diagnostic_contexts(diagnostic_context)]
+        main_context, nested_diagnostics = diagnostic.decompose(severity)
+        message_contexts = [self.message_context(dc)
+                            for dc in self.diagnostic_contexts(main_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
-        return ElaboratedDiagnostic(diagnostic_context.did, message_contexts, nested_diagnostics)
+        return ElaboratedDiagnostic(main_context.did, message_contexts, nested_diagnostics)
+
+    def diagnostic_contexts(self, main_context):
+        '''For diagnostics with a location that is in a source file, return the macro context
+        stack.  Otherwise (e.g. compilation summaries, commmand line diagnostics) return
+        just the main context.
+        '''
+        if main_context.caret_range.start <= location_none:
+            assert not main_context.source_ranges
+            return [main_context]
+        return self.locator.diagnostic_contexts(main_context)
 
     def message_context(self, diagnostic_context):
         '''Convert a diagnostic into text (a MessageContext object). '''
@@ -385,8 +395,8 @@ class DiagnosticManager:
         text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
 
         # Now convert each range to RangeCoords
-        caret_range = self.pp.locator.range_coords(caret_range)
-        source_ranges = [self.pp.locator.range_coords(source_range)
+        caret_range = self.locator.range_coords(caret_range)
+        source_ranges = [self.locator.range_coords(source_range)
                          for source_range in diagnostic_context.source_ranges]
         return MessageContext(caret_range, source_ranges, text_parts)
 

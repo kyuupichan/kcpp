@@ -398,14 +398,7 @@ class Locator:
                     return result
                 loc = parent_loc
 
-    def diagnostic_contexts(self, context):
-        # Special diagnostics - those without a source location to highlight, e.g. a
-        # complaint about a command-line option, or a compilation summary - only have a
-        # single location code and no highlight ranges
-        if context.caret_range.start <= location_none:
-            assert not context.source_ranges
-            return [context]
-
+    def diagnostic_contexts(self, main_context):
         def intersections(spans, source_range):
             result = []
             if isinstance(source_range, BufferRange):
@@ -481,17 +474,17 @@ class Locator:
         # evolution would benefit, the code accepts and handles appropriately any of
         # Buffer Range, SpellingRange, TokenRange or single token locations for the caret
         # range and the highlights.
-        caret_spans_and_locs = self.spans_and_locs(context.caret_range.caret_loc())
+        caret_spans_and_locs = self.spans_and_locs(main_context.caret_range.caret_loc())
         caret_spans = [span for span, loc in caret_spans_and_locs]
-        caret_ranges = intersections(caret_spans, context.caret_range)
+        caret_ranges = intersections(caret_spans, main_context.caret_range)
         source_ranges_list = [intersections(caret_spans, source_range)
-                              for source_range in context.source_ranges]
+                              for source_range in main_context.source_ranges]
 
         for n, ((span, caret_loc), caret_range) in enumerate(zip(caret_spans_and_locs,
                                                                  caret_ranges)):
             if isinstance(span, BufferSpan):
-                severity = context.severity
-                did, substitutions = context.did, context.substitutions
+                severity = main_context.severity
+                did, substitutions = main_context.did, main_context.substitutions
             else:
                 severity = DiagnosticSeverity.note
                 did, substitutions = span.did_and_substitutions(self.pp, caret_loc)

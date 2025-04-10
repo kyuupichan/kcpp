@@ -149,8 +149,11 @@ class Preprocessor:
         self.language = None
         self.target = None
 
+        # Tracks locations
+        self.locator = Locator(self)
         # Diagnostics
-        self.diag_manager = DiagnosticManager(self)
+        self.diag_manager = DiagnosticManager()
+        self.diag_manager.locator = self.locator
 
         # Output files
         self.stdout = sys.stdout
@@ -159,8 +162,6 @@ class Preprocessor:
         self.identifiers = {}
         # The host abstraction
         self.host = Host.host()
-        # Tracks locations
-        self.locator = Locator(self)
         # Caches header lookups and file contents
         self.file_manager = FileManager(self.host)
         # Action listener
