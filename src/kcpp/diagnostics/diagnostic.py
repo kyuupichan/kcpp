@@ -231,7 +231,7 @@ class DiagnosticConfig:
 
         count = max(DiagnosticGroup) + 1
         severity_by_group = bytearray(count)
-        unknown_groups = {}
+        unknown_groups = set()
         for group_id in parse_groups(self.diag_suppress):
             severity_by_group[group_id] = DiagnosticSeverity.ignored
         for group_id in parse_groups(self.diag_remark):
@@ -475,7 +475,7 @@ class DiagnosticManager:
         text_parts.extend(self.substitute_arguments(text, main_context.substitutions))
         # Finally, if the diagnostic has a group, inform the user of it
         defn = diagnostic_definitions[main_context.did]
-        if defn.group:
+        if defn.group is not DiagnosticGroup.none:
             text_parts.append((f'  [{defn.group.name}]', 'message'))
 
         # Now convert each range to RangeCoords

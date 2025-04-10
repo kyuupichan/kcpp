@@ -116,7 +116,7 @@ class KCPP(Skin):
                            -U options are processed after all -D options.''')
         group.add_argument('--quoted-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for ""
-                           includes and before the -I directories''')
+                           includes before the -I directories''')
         group.add_argument('-I', '--angled-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the system directories''')
@@ -229,7 +229,7 @@ class GCC(Skin):
                            -U options are processed after all -D options.''')
         group.add_argument('-iquote', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for ""
-                           includes and before the -I directories''')
+                           includes before the -I directories''')
         group.add_argument('-I', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the system directories''')
