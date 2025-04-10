@@ -2,6 +2,7 @@ import pytest
 
 
 from kcpp.cpp import Preprocessor
+from kcpp.diagnostics import DiagnosticManager
 
 
 class TestLexer:
@@ -34,5 +35,5 @@ class TestLexer:
 
 
 def create_lexer(raw):
-    pp = Preprocessor()
+    pp = Preprocessor(DiagnosticManager())
     return pp.push_virtual_buffer('<test>', raw)
