@@ -279,16 +279,24 @@ class DiagnosticManager:
             else:
                 self.consumer.stderr = result
 
+    def should_halt_compilation(self):
+        return self.fatal_error_count or self.error_count >= self.error_limit
+
     def emit(self, diagnostic):
         '''Emit a diagnostic, return True if compilation should be halted because there
         has been a fatal error, or the error limit has been reached.'''
+        # Suppress diagnostics with source locations
+        if self.should_halt_compilation() and (
+                diagnostic.loc not in (location_none, location_command_line)):
+            return True
+
         # Set the severities.  At present nested diagnostics are only notes.
         self.set_severity(diagnostic)
         # Elaborate the diagnostic if the consumer wants elaborated ones.
         if self.consumer.elaborate:
             diagnostic = self.elaborate(diagnostic)
         self.consumer.emit(diagnostic)
-        return self.fatal_error_count or self.error_count >= self.error_limit
+        return self.should_halt_compilation()
 
     def emit_compilation_summary(self, filename):
         '''Emit a compilation summary.  filename is the name of the primary source file.'''

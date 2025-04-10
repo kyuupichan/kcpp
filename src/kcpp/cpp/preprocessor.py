@@ -367,7 +367,7 @@ class Preprocessor:
             }
         }
 
-        return not self.halt
+        return not self.diag_manager.should_halt_compilation()
 
     def register_pragma_namespace(self, spelling, handler):
         '''Register a pragma namespace with the given handler, and return the previously
@@ -386,17 +386,14 @@ class Preprocessor:
         self.emit(Diagnostic(did, loc, args))
 
     def emit(self, diagnostic):
-        # Suppress diagnostics with source locations
-        if (self.halt or self.ignore_diagnostics) and (
-                diagnostic.loc not in (location_none, location_command_line)):
-            return
-        # Emit these instead as invalid token concatentation or stringizing
-        if self.lexing_scratch and diagnostic.did in (
-                DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
-                DID.unterminated_literal):
-            return
-        if self.diag_manager.emit(diagnostic):
-            self.halt_compilation()
+        if not self.ignore_diagnostics:
+            # Emit these instead as invalid token concatentation or stringizing
+            if self.lexing_scratch and diagnostic.did in (
+                    DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
+                    DID.unterminated_literal):
+                return
+            if self.diag_manager.emit(diagnostic):
+                self.halt_compilation()
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)
