@@ -34,6 +34,15 @@ class Skin:
     @classmethod
     def skin(cls, argv, environ, frontend_class):
         '''Determine the skin to use from the command line / environment.'''
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('--skin', choices=['gcc', 'kcpp'], type=str.lower, default='kcpp')
+
+        ns, _ = parser.parse_known_args(argv)
+        if ns.skin == 'gcc':
+            skin = GCC()
+        else:
+            skin = KCPP()
+
         parser = argparse.ArgumentParser(
             prog='kcpp',
             description='A preprocessor for C++23 writen in Python',
@@ -41,12 +50,6 @@ class Skin:
         parser.add_argument('--skin', choices=['gcc', 'kcpp'], type=str.lower, default='kcpp')
         parser.add_argument('files', metavar='files', nargs='*', default=['-'],
                             help='files to preprocess')
-
-        ns, _ = parser.parse_known_args(argv)
-        if ns.skin == 'gcc':
-            skin = GCC()
-        else:
-            skin = KCPP()
 
         if frontend_class is None:
             try:
@@ -128,7 +131,8 @@ class KCPP(Skin):
     def add_diagnostic_commands(self, group):
         group.add_argument('--error-output', metavar='FILENAME', default='',
                            help='diagnostic output is written to FILENAME instaed of stderr')
-        group.add_argument('--tabstop', metavar='WIDTH', nargs='?', default=8, type=int)
+        group.add_argument('--error-limit', metavar='COUNT', default=100, type=int)
+        group.add_argument('--tabstop', metavar='WIDTH', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
     def preprocessor_configuration(self, source):

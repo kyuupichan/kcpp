@@ -482,7 +482,6 @@ class Preprocessor:
     def halt_compilation(self):
         self.actions = None   # Prevent spurious linemarkers, etc.
         if not self.sources:
-            # push_main_source_file() will call us back
             return
         # Move the main lexer to EOF and drop other token sources, so that frontends exit
         # immediately
