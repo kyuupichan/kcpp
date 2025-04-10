@@ -182,7 +182,6 @@ class Preprocessor:
         self.collecting_arguments = False
         self.directive_name_loc = None
         self.expand_macros = True
-        self.halt = False
         self.ignore_diagnostics = 0
         self.in_directive = False
         self.in_if_elif_directive = False
@@ -471,12 +470,9 @@ class Preprocessor:
             file = self.file_manager.file_for_path(filename)
             self.read_file(file, location_command_line)
 
-        # Push a buffer even if we are going to halt.  We expect the locator to know the
-        # primary source file name and its simplest to push a file anyway.  For now.
+        # Push a buffer even if we are going to halt so that get_token() returns EOF.
         self.push_buffer(file)
-        if self.halt:
-            self.halt_compilation()
-        else:
+        if not self.diag_manager.should_halt_compilation():
             if self.command_line_buffer:
                 self.push_virtual_buffer('<command line>', self.command_line_buffer)
             raw_predefines = predefines(self).encode()
@@ -484,7 +480,6 @@ class Preprocessor:
             self.predefining_macros = True
 
     def halt_compilation(self):
-        self.halt = True
         self.actions = None   # Prevent spurious linemarkers, etc.
         if not self.sources:
             # push_main_source_file() will call us back
