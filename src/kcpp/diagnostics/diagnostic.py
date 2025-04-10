@@ -203,6 +203,8 @@ class DiagnosticConfig:
     worded_locations: bool           # "line 5", "at end of source", etc.
     show_columns: bool               # if column numbers appear in diagnostics
     remarks: bool                    # whether to emit remarks
+    warnings: bool                   # whether to emit warnings
+    errors: bool                     # if True, warnings are turned into errors
     translations: Translations
 
     @classmethod
@@ -214,7 +216,7 @@ class DiagnosticConfig:
             '',                      # diag_once
             True,                    # worded_locations
             False,                   # show_columns
-            False,                   # remarks
+            False, True, False,      # remarks, warnings, errors
             Translations(),
         )
 
@@ -318,11 +320,13 @@ class DiagnosticManager:
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
         self.remarks = config.remarks
+        self.warnings = config.warnings
+        self.errors = config.errors
 
         # Severity overrides and once-only settings.
         self.severities, self.onces, unknown_groups = config.parse_group_settings()
 
-        for group in unknown_groups:
+        for group in sorted(unknown_groups):
             self.emit(Diagnostic(DID.unknown_diagnostic_group, location_command_line, [group]))
 
         if filename := config.error_output:
@@ -347,8 +351,14 @@ class DiagnosticManager:
             if group_severity:
                 severity = group_severity
 
-        if severity is DiagnosticSeverity.remark and not self.remarks:
-            severity = DiagnosticSeverity.ignored
+        if severity is DiagnosticSeverity.remark:
+            if not self.remarks:
+                severity = DiagnosticSeverity.ignored
+        elif severity is DiagnosticSeverity.warning:
+            if self.errors:
+                severity = DiagnosticSeverity.error
+            elif not self.warnings:
+                severity = DiagnosticSeverity.ignored
 
         # Update the error counts we maintain
         if severity >= DiagnosticSeverity.error:

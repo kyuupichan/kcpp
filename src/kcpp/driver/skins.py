@@ -135,6 +135,10 @@ class KCPP(Skin):
                            help='halt compilation after COUNT errors')
         group.add_argument('--remarks', action=argparse.BooleanOptionalAction, default=False,
                            help='emit remarks - diagnostics milder than warnings')
+        group.add_argument('--warnings', action=argparse.BooleanOptionalAction, default=True,
+                           help='emit warnings')
+        group.add_argument('--errors', action=argparse.BooleanOptionalAction, default=False,
+                           help='emit warnings as errors')
         group.add_argument('--diag-suppress', metavar='GROUPS', type=str, default='',
                            help='''suppress the listed diagnostics''')
         group.add_argument('--diag-remark', metavar='GROUPS', type=str, default='',
@@ -180,6 +184,8 @@ class KCPP(Skin):
         config.error_output = self.command_line.error_output
         config.error_limit = self.command_line.error_limit
         config.remarks = self.command_line.remarks
+        config.warnings = self.command_line.warnings
+        config.errors = self.command_line.errors
         config.diag_suppress = self.command_line.diag_suppress
         config.diag_remark = self.command_line.diag_remark
         config.diag_warning = self.command_line.diag_warning
