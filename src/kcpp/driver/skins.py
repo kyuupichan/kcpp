@@ -158,7 +158,7 @@ class KCPP(Skin):
         return frontend
 
     def diagnostic_consumer(self, pp):
-        consumer = self.frontend_class.diagnostic_class(pp)
+        consumer = self.frontend_class.diagnostic_class()
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
             if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
@@ -246,7 +246,7 @@ class GCC(Skin):
         return frontend
 
     def diagnostic_consumer(self, pp):
-        consumer = self.frontend_class.diagnostic_class(pp)
+        consumer = self.frontend_class.diagnostic_class()
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.ftabstop
             if self.command_line.fdiagnostics_color and pp.host.terminal_supports_colours(

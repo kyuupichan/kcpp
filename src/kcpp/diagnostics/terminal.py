@@ -13,24 +13,24 @@ from ..core import Buffer, PresumedLocation
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )
-from .diagnostic import Diagnostic, DiagnosticEngine
+from .diagnostic import Diagnostic, DiagnosticConsumer
 
 
 __all__ = ['UnicodeTerminal']
 
 
-class UnicodeTerminal(DiagnosticEngine):
+class UnicodeTerminal(DiagnosticConsumer):
     '''Write formatted diagnostics to stderr, in a way that they should be suitable for
     display on a Unicode-enabled terminal.
     '''
 
-    def __init__(self, pp, *, translations=None):
+    def __init__(self):
         '''Diagnostics are written to file.  Colour formatting information, whether colours are
         enabled, and the tabstop are taken from env.  Source file tabs are space-expanded
         to the tabstop.  Diagnostics are adjusted for the terminal width, which we attempt
         to determine from file.
         '''
-        super().__init__(pp, translations=translations)
+        super().__init__()
         self.nested_indent = 4
         self.sgr_codes = {}
         self.tabstop = 8
@@ -56,7 +56,7 @@ class UnicodeTerminal(DiagnosticEngine):
     def emit(self, diagnostic: Diagnostic):
         '''Called when the preprocessor emits a diagnostic.'''
         # Elaborate it, and emit it recursively.
-        self.emit_recursive(self.elaborate(diagnostic), 0)
+        self.emit_recursive(self.manager.elaborate(diagnostic), 0)
 
     def emit_recursive(self, elaborated_diagnostic, indent):
         '''Emit the top-level diagnostic at the given indentation level.  Then emit nested
@@ -67,7 +67,7 @@ class UnicodeTerminal(DiagnosticEngine):
             if n == 1:
                 indent += self.nested_indent
             for line in self.diagnostic_lines(message_context):
-                print(f'{" " * indent}{line}', file=self.pp.stderr)
+                print(f'{" " * indent}{line}', file=self.manager.pp.stderr)
         for nested in elaborated_diagnostic.nested_diagnostics:
             self.emit_recursive(nested, orig_indent + self.nested_indent)
 

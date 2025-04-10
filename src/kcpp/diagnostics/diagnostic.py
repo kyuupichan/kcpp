@@ -5,17 +5,16 @@
 '''The diagnostic subsystem.'''
 
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ..core import BufferPosition, PresumedLocation
 
-from .definitions import (
-    DID, DiagnosticSeverity, diagnostic_definitions,
-)
+from .definitions import DID, DiagnosticSeverity, diagnostic_definitions
 
 
 __all__ = [
-    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticEngine', 'DiagnosticContext',
+    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticManager', 'DiagnosticContext',
     'DiagnosticListener', 'DiagnosticPrinter',
     'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords',
     'location_command_line', 'location_none',
@@ -176,14 +175,74 @@ class Diagnostic:
         return context, nested_diagnostics
 
 
-class DiagnosticConsumer:
+class DiagnosticConsumer(ABC):
     '''This interface is passed diagnostics emitted by the preprocessor.  It can do what it
     wants with them - simply capture them for later analysis or emission, or pretty-print
     them to stderr.
     '''
-    def __init__(self, pp):
+
+    def __init__(self):
+        self.manager = None
+
+    @abstractmethod
+    def emit(self, diagnostic):
+        pass
+
+    def set_manager(self, manager):
+        self.manager = manager
+
+
+class DiagnosticListener(DiagnosticConsumer):
+    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
+
+    def __init__(self):
+        self.diagnostics = []
+        self.manager = None
+
+    def emit(self, diagnostic):
+        self.manager.remap_diagnostic_severity(diagnostic)
+        self.diagnostics.append(diagnostic)
+
+
+class DiagnosticPrinter(DiagnosticConsumer):
+    '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.  Used
+    for debugging.'''
+
+    def emit(self, diagnostic):
+        self.manager.remap_diagnostic_severity(diagnostic)
+        # Don't emit compilation summary, etc.
+        if diagnostic.loc != location_none:
+            print(diagnostic.to_short_text())
+
+
+class DiagnosticManager:
+
+    formatting_code = re.compile('%(([a-z]+)({.[^}]*})?)?([0-9]?)')
+    severity_map = {
+        DiagnosticSeverity.remark: (DID.severity_remark, 'remark'),
+        DiagnosticSeverity.note: (DID.severity_note, 'note'),
+        DiagnosticSeverity.warning: (DID.severity_warning, 'warning'),
+        DiagnosticSeverity.error: (DID.severity_error, 'error'),
+        DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
+    }
+
+    def __init__(self, pp, translations=None):
+        from .terminal import UnicodeTerminal
+        self.pp = pp
         self.error_count = 0
         self.fatal_error_count = 0
+        self.worded_locations = True
+        self.show_columns = False
+        self.translations = translations or DiagnosticTranslations()
+        self.consumer = UnicodeTerminal()
+
+    def set_consumer(self, consumer):
+        if consumer:
+            self.consumer = consumer
+        self.consumer.set_manager(self)
+
+    def emit(self, diagnostic):
+        self.consumer.emit(diagnostic)
 
     def remap_diagnostic_severity(self, diagnostic):
         '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
@@ -199,48 +258,6 @@ class DiagnosticConsumer:
             else:
                 self.error_count += 1
         return severity
-
-
-class DiagnosticListener(DiagnosticConsumer):
-    '''A simple diagnostic consumer that simply collects the emitted diagnostics.'''
-
-    def __init__(self, pp):
-        super().__init__(pp)
-        self.diagnostics = []
-
-    def emit(self, diagnostic):
-        self.remap_diagnostic_severity(diagnostic)
-        self.diagnostics.append(diagnostic)
-
-
-class DiagnosticPrinter(DiagnosticConsumer):
-    '''A simple diagnostic consumer that prints a summary of the emitted diagnostics.'''
-
-    def emit(self, diagnostic):
-        self.remap_diagnostic_severity(diagnostic)
-        # Don't emit compilation summary, etc.
-        if diagnostic.loc != location_none:
-            print(diagnostic.to_short_text())
-
-
-class DiagnosticEngine(DiagnosticConsumer):
-
-    formatting_code = re.compile('%(([a-z]+)({.[^}]*})?)?([0-9]?)')
-    severity_map = {
-        DiagnosticSeverity.remark: (DID.severity_remark, 'remark'),
-        DiagnosticSeverity.note: (DID.severity_note, 'note'),
-        DiagnosticSeverity.warning: (DID.severity_warning, 'warning'),
-        DiagnosticSeverity.error: (DID.severity_error, 'error'),
-        DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
-    }
-
-    def __init__(self, pp, translations=None):
-        super().__init__(pp)
-        self.pp = pp
-        # A DiagnosticTranslations object
-        self.translations = translations or DiagnosticTranslations({})
-        self.worded_locations = True
-        self.show_columns = False
 
     def location_text(self, caret_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
@@ -394,8 +411,8 @@ class DiagnosticEngine(DiagnosticConsumer):
 class DiagnosticTranslations:
     '''Manages translating diagnostic strings.'''
 
-    def __init__(self, texts):
-        self.texts = texts
+    def __init__(self, texts=None):
+        self.texts = texts or {}
 
     def diagnostic_text(self, did):
         return self.texts.get(did, diagnostic_definitions[did].text)

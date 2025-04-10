@@ -14,7 +14,7 @@ from ..core import (
     Encoding, targets
 )
 from ..diagnostics import (
-    DID, Diagnostic, UnicodeTerminal, location_command_line, location_none,
+    DID, Diagnostic, DiagnosticManager, location_command_line, location_none,
 )
 from ..parsing import ParserState
 from ..unicode import Charset, CodepointOutputKind
@@ -150,6 +150,9 @@ class Preprocessor:
         self.language = None
         self.target = None
 
+        # Diagnostics
+        self.diag_manager = DiagnosticManager(self)
+
         # Output files
         self.stdout = sys.stdout
         self.stderr = sys.stderr
@@ -162,8 +165,6 @@ class Preprocessor:
         self.locator = Locator(self)
         # Caches header lookups and file contents
         self.file_manager = FileManager(self.host)
-        # Diagnostics are sent here
-        self.diagnostic_consumer = UnicodeTerminal(self)
         # Action listener
         self.actions = None
 
@@ -220,8 +221,7 @@ class Preprocessor:
         # Get error output redirected first
         if config.error_output:
             set_output(config.error_output, 'stderr')
-        if config.diagnostic_consumer:
-            self.diagnostic_consumer = config.diagnostic_consumer
+        self.diag_manager.set_consumer(config.diagnostic_consumer)
         if config.output:
             set_output(config.output, 'stdout')
 
@@ -406,11 +406,11 @@ class Preprocessor:
         if self.lexing_scratch and diagnostic.did in (
                 DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
                 DID.unterminated_literal):
-            return False
+            return
 
-        consumer = self.diagnostic_consumer
-        consumer.emit(diagnostic)
-        if consumer.fatal_error_count or consumer.error_count >= self.error_limit:
+        self.diag_manager.emit(diagnostic)
+        if (self.diag_manager.fatal_error_count or self.diag_manager.error_count
+                >= self.error_limit):
             self.halt_compilation()
 
     def get_identifier(self, spelling):
@@ -523,8 +523,8 @@ class Preprocessor:
         assert not self.sources
         assert not self.buffer_states
 
-        fatal_error_count = self.diagnostic_consumer.fatal_error_count
-        error_count = self.diagnostic_consumer.error_count
+        fatal_error_count = self.diag_manager.fatal_error_count
+        error_count = self.diag_manager.error_count
         # Returns None if no primary source file was pushed
         filename = self.locator.primary_source_file_name()
         if filename is None:

@@ -1,10 +1,21 @@
+Diagnostic Control
+------------------
+
+All diagnostics that are not errors belong to a group.  The severity of those diagnostics
+can be modified by ``--diag-suppress``, ``--diag-remark``, ``--diag-warning``,
+``--diag-error`` and ``--diag-once``.
+
+Warnings and remarks in general can be controlled by ``--remarks``, ``--no-remarks``,
+``--warnings`` and ``--no-warnings``.
+
+
 Strict modes
 ------------
 
-It has to be decided what ``--strict-warnings`` and ``--strict`` mean, including in the
-context of non-standard features being enabled with ``--feature``.  For example, if
-compiling in C89 mode but enabling line comments with ``--feature=line-comments``, it
-would be annoying to have line comments rejected or diagnosed.
+What should ``--strict-warnings`` and ``--strict`` mean, including in the context of
+non-standard features being enabled with ``--feature``.  For example, if compiling in C89
+mode but enabling line comments with ``--feature=line-comments``, it would be annoying to
+have line comments rejected or diagnosed.
 
 So this is the approach taken by ``kcpp``.  In either strict mode:
 
