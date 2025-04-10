@@ -258,7 +258,7 @@ class DiagnosticManager:
         DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
     }
 
-    def __init__(self, *, config=None):
+    def __init__(self, *, config=None, consumer=None):
         # The locator is only needed for diagnostics with a source file location
         self.locator = None
         self.error_count = 0
@@ -275,7 +275,7 @@ class DiagnosticManager:
             else:
                 self.stderr = result
         from .terminal import UnicodeTerminal
-        self.consumer = config.consumer or UnicodeTerminal()
+        self.consumer = consumer or UnicodeTerminal()
         self.consumer.set_manager(self)
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations

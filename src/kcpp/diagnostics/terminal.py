@@ -9,7 +9,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from itertools import accumulate
 
-from ..core import Buffer, PresumedLocation
+from ..core import Buffer, PresumedLocation, host
 from ..unicode import (
     utf8_cp, is_printable, terminal_charwidth, codepoint_to_hex,
 )
@@ -34,7 +34,15 @@ class UnicodeTerminal(DiagnosticConsumer):
         self.nested_indent = 4
         self.sgr_codes = {}
         self.tabstop = 8
-        self.terminal_width = 120
+        self.terminal_width = -1   # -1 means to take from the host terminal width
+
+    def set_manager(self, manager):
+        super().set_manager(manager)
+        if self.terminal_width == -1:
+            if host.is_a_tty(manager.stderr):
+                self.terminal_width = host.terminal_width(manager.stderr)
+            else:
+                self.terminal_width = 120
 
     def set_sgr_code_assignments(self, colour_string):
         '''Parse an SGR assignments string.'''
