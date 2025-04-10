@@ -14,7 +14,7 @@ from ..core import (
     Encoding, targets
 )
 from ..diagnostics import (
-    DID, Diagnostic, DiagnosticManager, location_command_line, location_none,
+    DID, Diagnostic, DiagnosticConfig, DiagnosticManager, location_command_line, location_none,
 )
 from ..parsing import ParserState
 from ..unicode import Charset, CodepointOutputKind
@@ -105,9 +105,8 @@ class Config:
     '''Configures the preprocessor.  Usually these are set from the command line or
     environment variables.
     '''
+    diag_config: DiagnosticConfig
     output: str
-    error_output: str
-    diagnostic_consumer: object
     language: Language
     target_name: str
     narrow_exec_charset: str
@@ -122,17 +121,17 @@ class Config:
     max_include_depth: int
 
     @classmethod
-    def default(cls):
+    def default(cls, diag_config=None):
         return cls(
-            '', '',                   # output, error_output
-            None,                     # diagnostic consumer
-            Language('C++', 2023),    # language
-            '',                       # target_name
-            '', '',                   # narrow and wide exec charsets
-            '',                       # source date epoch
-            [], [], [],               # defines, undefines, includes
-            [], [], [],               # quoted, angled, system dirs
-            -1,                       # include depth
+            diag_config or DiagnosticConfig.default(),
+            '',                          # output
+            Language('C++', 2023),       # language
+            '',                          # target_name
+            '', '',                      # narrow and wide exec charsets
+            '',                          # source date epoch
+            [], [], [],                  # defines, undefines, includes
+            [], [], [],                  # quoted, angled, system dirs
+            -1,                          # include depth
         )
 
 
@@ -155,7 +154,6 @@ class Preprocessor:
 
         # Output files
         self.stdout = sys.stdout
-        self.stderr = sys.stderr
 
         # Helper objects.
         self.identifiers = {}
@@ -186,7 +184,6 @@ class Preprocessor:
         # Internal state
         self.collecting_arguments = False
         self.directive_name_loc = None
-        self.error_limit = 20
         self.expand_macros = True
         self.halt = False
         self.ignore_diagnostics = 0
@@ -210,20 +207,15 @@ class Preprocessor:
 
     def _configure(self, config):
         '''Configure the preprocessor.'''
-        def set_output(self, filename, attrib):
+        config = config or Config.default()
+        self.diag_manager.configure(config.diag_config)
+
+        if config.output:
             result = self.host.open_file_for_writing(filename)
             if isinstance(result, str):
                 self.diag(DID.cannot_write_file, location_command_line, [filename, result])
             else:
-                setattr(self, attrib, result)
-
-        config = config or Config.default()
-        # Get error output redirected first
-        if config.error_output:
-            set_output(config.error_output, 'stderr')
-        self.diag_manager.set_consumer(config.diagnostic_consumer)
-        if config.output:
-            set_output(config.output, 'stdout')
+                self.stdout = result
 
         self.language = config.language
 
@@ -407,10 +399,7 @@ class Preprocessor:
                 DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
                 DID.unterminated_literal):
             return
-
-        self.diag_manager.emit(diagnostic)
-        if (self.diag_manager.fatal_error_count or self.diag_manager.error_count
-                >= self.error_limit):
+        if self.diag_manager.emit(diagnostic):
             self.halt_compilation()
 
     def get_identifier(self, spelling):
@@ -522,38 +511,14 @@ class Preprocessor:
         no longer call get_token().'''
         assert not self.sources
         assert not self.buffer_states
-
-        fatal_error_count = self.diag_manager.fatal_error_count
-        error_count = self.diag_manager.error_count
+        # Close the output file if not the standard stream
+        if self.stdout is not sys.stdout:
+            self.stdout.close()
         # Returns None if no primary source file was pushed
         filename = self.locator.primary_source_file_name()
         if filename is None:
             filename = self.filename_to_string_literal(primary_source_filename)
-
-        if fatal_error_count:
-            self.emit(Diagnostic(DID.compilation_halted, location_none))
-            if error_count:
-                self.emit(Diagnostic(DID.fatal_error_and_error_summary, location_none,
-                                     [fatal_error_count, error_count, filename]))
-            else:
-                self.emit(Diagnostic(DID.fatal_error_summary, location_none,
-                                     [fatal_error_count, filename]))
-            exit_code = 4
-        elif error_count:
-            if error_count >= self.error_limit:
-                self.emit(Diagnostic(DID.error_limit_reached, location_none))
-            self.emit(Diagnostic(DID.error_summary, location_none,
-                                 [error_count, filename]))
-            exit_code = 2
-        else:
-            exit_code = 0
-
-        # Close the output files if they are not standard streams
-        for file in (self.stdout, self.stderr):
-            if file not in (sys.stdout, sys.stderr):
-                file.close()
-
-        return exit_code
+        return self.diag_manager.emit_compilation_summary(filename)
 
     def push_buffer(self, file):
         '''Push a lexer token source for the raw bytes of filename (which can be a string or a

@@ -67,7 +67,7 @@ class UnicodeTerminal(DiagnosticConsumer):
             if n == 1:
                 indent += self.nested_indent
             for line in self.diagnostic_lines(message_context):
-                print(f'{" " * indent}{line}', file=self.manager.pp.stderr)
+                print(f'{" " * indent}{line}', file=self.manager.stderr)
         for nested in elaborated_diagnostic.nested_diagnostics:
             self.emit_recursive(nested, orig_indent + self.nested_indent)
 

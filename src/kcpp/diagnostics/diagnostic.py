@@ -5,6 +5,7 @@
 '''The diagnostic subsystem.'''
 
 import re
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -14,8 +15,8 @@ from .definitions import DID, DiagnosticSeverity, diagnostic_definitions
 
 
 __all__ = [
-    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticManager', 'DiagnosticContext',
-    'DiagnosticListener', 'DiagnosticPrinter',
+    'Diagnostic', 'DiagnosticConsumer', 'DiagnosticManager', 'DiagnosticConfig',
+    'DiagnosticContext', 'DiagnosticListener', 'DiagnosticPrinter',
     'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords',
     'location_command_line', 'location_none',
 ]
@@ -175,6 +176,25 @@ class Diagnostic:
         return context, nested_diagnostics
 
 
+@dataclass(slots=True)
+class DiagnosticConfig:
+    consumer: object
+    error_output: str
+    error_limit: int
+    worded_locations: bool           # "line 5", "at end of source", etc.
+    show_columns: bool               # if column numbers appear in diagnostics
+
+    @classmethod
+    def default(cls):
+        return cls(
+            None,                    # consumer
+            '',                      # error_output
+            100,                     # error_limit
+            True,                    # worded_locations
+            False,                   # show_columns
+        )
+
+
 class DiagnosticConsumer(ABC):
     '''This interface is passed diagnostics emitted by the preprocessor.  It can do what it
     wants with them - simply capture them for later analysis or emission, or pretty-print
@@ -227,22 +247,62 @@ class DiagnosticManager:
     }
 
     def __init__(self, pp, translations=None):
-        from .terminal import UnicodeTerminal
         self.pp = pp
         self.error_count = 0
         self.fatal_error_count = 0
+        self.translations = translations or DiagnosticTranslations()
+        # Settable by configure()
+        self.consumer = None
+        self.error_limit = 20
         self.worded_locations = True
         self.show_columns = False
-        self.translations = translations or DiagnosticTranslations()
-        self.consumer = UnicodeTerminal()
+        self.stderr = sys.stderr
 
-    def set_consumer(self, consumer):
-        if consumer:
-            self.consumer = consumer
+    def configure(self, config):
+        from .terminal import UnicodeTerminal
+        self.consumer = config.consumer or UnicodeTerminal()
         self.consumer.set_manager(self)
+        self.error_limit = config.error_limit
+        self.worded_locations = config.worded_locations
+        self.show_columns = config.show_columns
+        if config.error_output:
+            filename = config.error_output
+            result = self.pp.host.open_file_for_writing(filename)
+            if isinstance(file, str):
+                self.pp.diag(DID.cannot_write_file, location_command_line, [filename, result])
+            else:
+                self.stderr = result
 
     def emit(self, diagnostic):
+        '''Emit a diagnostic, return True if compilation should be halted because there
+        has been a fatal error, or the error limit has been reached.'''
         self.consumer.emit(diagnostic)
+        return self.fatal_error_count or self.error_count >= self.error_limit
+
+    def emit_compilation_summary(self, filename):
+        '''Emit a compilation summary.  filename is the name of the primary source file.'''
+        if self.fatal_error_count:
+            self.emit(Diagnostic(DID.compilation_halted, location_none))
+            if self.error_count:
+                self.emit(Diagnostic(DID.fatal_error_and_error_summary, location_none,
+                                     [self.fatal_error_count, self.error_count, filename]))
+            else:
+                self.emit(Diagnostic(DID.fatal_error_summary, location_none,
+                                     [self.fatal_error_count, filename]))
+            exit_code = 4
+        elif self.error_count:
+            if self.error_count >= self.error_limit:
+                self.emit(Diagnostic(DID.error_limit_reached, location_none))
+            self.emit(Diagnostic(DID.error_summary, location_none, [self.error_count, filename]))
+            exit_code = 2
+        else:
+            exit_code = 0
+
+        # Close the error output file if not the standard stream
+        if self.stderr is not sys.stderr:
+            self.stderr.close()
+
+        return exit_code
 
     def remap_diagnostic_severity(self, diagnostic):
         '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
