@@ -35,15 +35,9 @@ class UnicodeTerminal(DiagnosticConsumer):
         self.nested_indent = 4
         self.sgr_codes = {}
         self.tabstop = 8
-        self.terminal_width = -1   # -1 means to take from the host terminal width
-
-    def set_manager(self, manager):
-        super().set_manager(manager)
-        if self.terminal_width == -1:
-            if host.is_a_tty(manager.stderr):
-                self.terminal_width = host.terminal_width(manager.stderr)
-            else:
-                self.terminal_width = 120
+        # Take from stderr terminal (if it is a terminal)
+        self.terminal_width = 0
+        self.stderr = None
 
     def set_sgr_code_assignments(self, colour_string):
         '''Parse an SGR assignments string.'''
@@ -64,6 +58,12 @@ class UnicodeTerminal(DiagnosticConsumer):
 
     def emit(self, diagnostic: Diagnostic):
         '''Called when the preprocessor emits a diagnostic.'''
+        # Configure the terminal width if not already set
+        if self.terminal_width <= 0:
+            if host.is_a_tty(self.stderr):
+                self.terminal_width = host.terminal_width(self.stderr)
+            else:
+                self.terminal_width = 120
         self.emit_recursive(diagnostic, 0)
 
     def emit_recursive(self, diagnostic, indent):
@@ -75,7 +75,7 @@ class UnicodeTerminal(DiagnosticConsumer):
             if n == 1:
                 indent += self.nested_indent
             for line in self.diagnostic_lines(message_context):
-                print(f'{" " * indent}{line}', file=self.manager.stderr)
+                print(f'{" " * indent}{line}', file=self.stderr)
         for nested in diagnostic.nested_diagnostics:
             self.emit_recursive(nested, orig_indent + self.nested_indent)
 

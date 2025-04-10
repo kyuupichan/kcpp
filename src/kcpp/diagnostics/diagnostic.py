@@ -135,7 +135,8 @@ class Diagnostic:
         self.did = did
         self.loc = loc
         self.arguments = args or []
-        self.emit = None
+        # The severity will be set by the diagnostic manager before calling decompose()
+        self.severity = None
         assert all(isinstance(arg, (int, str, bytes, Diagnostic, BufferRange,
                                     SpellingRange, TokenRange))
                    for arg in self.arguments)
@@ -152,8 +153,10 @@ class Diagnostic:
     def to_short_text(self):
         return f'Diagnostic({self.did.name}, {self.loc}, {self.arguments!r})'
 
-    def decompose(self, severity):
+    def decompose(self):
         '''Decompose a diagnostic and return a pair (diagnostic_context, nested_diagnostics).'''
+        assert self.severity is not None
+
         substitutions = []
         source_ranges = []
         nested_diagnostics = []
@@ -172,7 +175,8 @@ class Diagnostic:
             else:
                 raise RuntimeError(f'unhandled argument: {arg}')
 
-        context = DiagnosticContext(self.did, severity, substitutions, caret_range, source_ranges)
+        context = DiagnosticContext(self.did, self.severity, substitutions,
+                                    caret_range, source_ranges)
         return context, nested_diagnostics
 
 
@@ -216,15 +220,9 @@ class DiagnosticConsumer(ABC):
     # Otherwise they are ElaboratedDiagnostic instances.
     elaborate = False
 
-    def __init__(self):
-        self.manager = None
-
     @abstractmethod
     def emit(self, diagnostic):
         pass
-
-    def set_manager(self, manager):
-        self.manager = manager
 
 
 class DiagnosticListener(DiagnosticConsumer):
@@ -232,10 +230,8 @@ class DiagnosticListener(DiagnosticConsumer):
 
     def __init__(self):
         self.diagnostics = []
-        self.manager = None
 
     def emit(self, diagnostic):
-        self.manager.remap_diagnostic_severity(diagnostic)
         self.diagnostics.append(diagnostic)
 
 
@@ -244,7 +240,6 @@ class DiagnosticPrinter(DiagnosticConsumer):
     for debugging.'''
 
     def emit(self, diagnostic):
-        self.manager.remap_diagnostic_severity(diagnostic)
         # Don't emit compilation summary, etc.
         if diagnostic.loc != location_none:
             print(diagnostic.to_short_text())
@@ -262,24 +257,24 @@ class DiagnosticManager:
     }
 
     def __init__(self, *, config=None, consumer=None):
+        from .terminal import UnicodeTerminal
         # The locator is only needed for diagnostics with a source file location
         self.locator = None
         self.error_count = 0
         self.fatal_error_count = 0
-        self.stderr = sys.stderr
 
-        # The remaining members are configurable
+        # Configuration, starting with the consumer and the error output file
         config = config or DiagnosticConfig.default()
+        self.consumer = consumer or UnicodeTerminal()
+        stderr = sys.stderr
         if filename := config.error_output:
             result = host.open_file_for_writing(filename)
             if isinstance(file, str):
                 self.emit(Diagnostic(DID.cannot_write_file, location_command_line,
                                      [filename, result]))
             else:
-                self.stderr = result
-        from .terminal import UnicodeTerminal
-        self.consumer = consumer or UnicodeTerminal()
-        self.consumer.set_manager(self)
+                stderr = result
+        self.consumer.stderr = stderr
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
@@ -288,6 +283,9 @@ class DiagnosticManager:
     def emit(self, diagnostic):
         '''Emit a diagnostic, return True if compilation should be halted because there
         has been a fatal error, or the error limit has been reached.'''
+        # Set the severities.  At present nested diagnostics are only notes.
+        self.set_severity(diagnostic)
+        # Elaborate the diagnostic if the consumer wants elaborated ones.
         if self.consumer.elaborate:
             diagnostic = self.elaborate(diagnostic)
         self.consumer.emit(diagnostic)
@@ -313,17 +311,17 @@ class DiagnosticManager:
             exit_code = 0
 
         # Close the error output file if not the standard stream
-        if self.stderr is not sys.stderr:
-            self.stderr.close()
+        if self.consumer.stderr is not sys.stderr:
+            self.consumer.stderr.close()
 
         return exit_code
 
-    def remap_diagnostic_severity(self, diagnostic):
+    def set_severity(self, diagnostic):
         '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
         severity = diagnostic_definitions[diagnostic.did].severity
-
         if diagnostic.loc == location_command_line and severity is DiagnosticSeverity.error:
             severity = DiagnosticSeverity.fatal
+        diagnostic.severity = severity
 
         # Update the error counts we maintain
         if severity >= DiagnosticSeverity.error:
@@ -331,7 +329,6 @@ class DiagnosticManager:
                 self.fatal_error_count += 1
             else:
                 self.error_count += 1
-        return severity
 
     def location_text(self, caret_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
@@ -369,8 +366,9 @@ class DiagnosticManager:
 
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
-        severity = self.remap_diagnostic_severity(diagnostic)
-        main_context, nested_diagnostics = diagnostic.decompose(severity)
+        main_context, nested_diagnostics = diagnostic.decompose()
+        for nested in nested_diagnostics:
+            self.set_severity(nested)
         message_contexts = [self.message_context(dc)
                             for dc in self.diagnostic_contexts(main_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]
