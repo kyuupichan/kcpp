@@ -7,7 +7,7 @@
 import argparse
 
 from kcpp.cpp import Preprocessor, Config, Language
-from kcpp.diagnostics import DiagnosticConfig, UnicodeTerminal
+from kcpp.diagnostics import DiagnosticConfig, DiagnosticManager, UnicodeTerminal
 
 from .frontends import PreprocessedOutput, FrontEnd
 
@@ -72,8 +72,8 @@ class Skin:
     def run(self, source, multiple):
         # Create and initialize a preprocessor; if that succeeds create the frontend and
         # process the source file.
-        pp = Preprocessor()
-        if pp.initialize(self.preprocessor_configuration(pp, source)):
+        pp = Preprocessor(self.diagnostic_manager())
+        if pp.initialize(self.preprocessor_configuration(source)):
             frontend = self.create_frontend(pp)
             frontend.process(source, multiple)
 
@@ -130,8 +130,8 @@ class KCPP(Skin):
         group.add_argument('--tabstop', metavar='WIDTH', nargs='?', default=8, type=int)
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True)
 
-    def preprocessor_configuration(self, pp, source):
-        config = Config.default(self.diagnostic_configuation(pp))
+    def preprocessor_configuration(self, source):
+        config = Config.default()
         config.output = self.command_line.output
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
             config.language = Language('C', 2023)
@@ -155,21 +155,21 @@ class KCPP(Skin):
             frontend.list_macros = self.command_line.list_macros
         return frontend
 
-    def diagnostic_configuation(self, pp):
+    def diagnostic_manager(self):
         config = DiagnosticConfig.default()
         config.consumer = self.frontend_class.diagnostic_class()
         config.error_output = self.command_line.error_output
         config.worded_locations = True
         config.show_columns = False
-        consumer = config.consumer
-        if isinstance(consumer, UnicodeTerminal):
-            consumer.tabstop = self.command_line.tabstop
-            if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
-                colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
-                consumer.set_sgr_code_assignments(colour_string)
-#            if pp.host.is_a_tty(pp.stderr):
-#                consumer.terminal_width = pp.host.terminal_width(pp.stderr)
-        return config
+        # consumer = config.consumer
+        # if isinstance(consumer, UnicodeTerminal):
+        #     consumer.tabstop = self.command_line.tabstop
+        #     if self.command_line.colours and pp.host.terminal_supports_colours(self.environ):
+        #         colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
+        #         consumer.set_sgr_code_assignments(colour_string)
+        # if pp.host.is_a_tty(pp.stderr):
+        #     consumer.terminal_width = pp.host.terminal_width(pp.stderr)
+        return DiagnosticManager(config)
 
 
 class GCC(Skin):
@@ -224,7 +224,7 @@ class GCC(Skin):
         group.add_argument('-fdiagnostics-color', action=argparse.BooleanOptionalAction,
                            default=True)
 
-    def preprocessor_configuration(self, pp, source):
+    def preprocessor_configuration(self, source):
         config = Config.default()
         config.diagnostic_consumer = self.diagnostic_consumer(pp)
         if any(source.endswith(suffix) for suffix in self.c_suffixes):
@@ -248,18 +248,18 @@ class GCC(Skin):
             frontend.list_macros = self.command_line.dD
         return frontend
 
-    def diagnostic_configuation(self, pp):
+    def diagnostic_manager(self):
         config = DiagnosticConfig.default()
         config.consumer = self.frontend_class.diagnostic_class()
         config.worded_locations = False
         config.show_columns = True
-        consumer = config.consumer
-        if isinstance(consumer, UnicodeTerminal):
-            consumer.tabstop = self.command_line.ftabstop
-            if self.command_line.fdiagnostics_color and pp.host.terminal_supports_colours(
-                    self.environ):
-                colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
-                consumer.set_sgr_code_assignments(colour_string)
-#            if pp.host.is_a_tty(pp.stderr):
-#                consumer.terminal_width = pp.host.terminal_width(pp.stderr)
-        return config
+        # consumer = config.consumer
+        # if isinstance(consumer, UnicodeTerminal):
+        #     consumer.tabstop = self.command_line.ftabstop
+        #     if self.command_line.fdiagnostics_color and pp.host.terminal_supports_colours(
+        #             self.environ):
+        #         colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
+        #         consumer.set_sgr_code_assignments(colour_string)
+        #     if pp.host.is_a_tty(pp.stderr):
+        #         consumer.terminal_width = pp.host.terminal_width(pp.stderr)
+        return DiagnosticManager(config)

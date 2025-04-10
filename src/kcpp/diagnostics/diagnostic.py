@@ -176,6 +176,16 @@ class Diagnostic:
         return context, nested_diagnostics
 
 
+class Translations:
+    '''Manages translating diagnostic strings.'''
+
+    def __init__(self, texts=None):
+        self.texts = texts or {}
+
+    def diagnostic_text(self, did):
+        return self.texts.get(did, diagnostic_definitions[did].text)
+
+
 @dataclass(slots=True)
 class DiagnosticConfig:
     consumer: object
@@ -183,6 +193,7 @@ class DiagnosticConfig:
     error_limit: int
     worded_locations: bool           # "line 5", "at end of source", etc.
     show_columns: bool               # if column numbers appear in diagnostics
+    translations: Translations
 
     @classmethod
     def default(cls):
@@ -192,6 +203,7 @@ class DiagnosticConfig:
             100,                     # error_limit
             True,                    # worded_locations
             False,                   # show_columns
+            Translations(),
         )
 
 
@@ -246,32 +258,29 @@ class DiagnosticManager:
         DiagnosticSeverity.fatal: (DID.severity_fatal, 'error'),
     }
 
-    def __init__(self, translations=None):
+    def __init__(self, config=None):
+        # The locator is only needed for diagnostics with a source file location
         self.locator = None
         self.error_count = 0
         self.fatal_error_count = 0
-        self.translations = translations or DiagnosticTranslations()
-        # Settable by configure()
-        self.consumer = None
-        self.error_limit = 20
-        self.worded_locations = True
-        self.show_columns = False
         self.stderr = sys.stderr
 
-    def configure(self, config):
+        # The remaining members are configurable
+        config = config or DiagnosticConfig.default()
+        if filename := config.error_output:
+            result = self.host.open_file_for_writing(filename)
+            if isinstance(file, str):
+                self.emit(Diagnostic(DID.cannot_write_file, location_command_line,
+                                     [filename, result]))
+            else:
+                self.stderr = result
         from .terminal import UnicodeTerminal
         self.consumer = config.consumer or UnicodeTerminal()
         self.consumer.set_manager(self)
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
-        if config.error_output:
-            filename = config.error_output
-            result = self.pp.host.open_file_for_writing(filename)
-            if isinstance(file, str):
-                self.pp.diag(DID.cannot_write_file, location_command_line, [filename, result])
-            else:
-                self.stderr = result
+        self.translations = config.translations
 
     def emit(self, diagnostic):
         '''Emit a diagnostic, return True if compilation should be halted because there
@@ -476,13 +485,3 @@ class DiagnosticManager:
             yield (format_text[cursor:], 'message')
 
         return list(parts(format_text))
-
-
-class DiagnosticTranslations:
-    '''Manages translating diagnostic strings.'''
-
-    def __init__(self, texts=None):
-        self.texts = texts or {}
-
-    def diagnostic_text(self, did):
-        return self.texts.get(did, diagnostic_definitions[did].text)

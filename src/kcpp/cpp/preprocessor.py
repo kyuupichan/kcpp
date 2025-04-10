@@ -14,7 +14,7 @@ from ..core import (
     Encoding, targets
 )
 from ..diagnostics import (
-    DID, Diagnostic, DiagnosticConfig, DiagnosticManager, location_command_line, location_none,
+    DID, Diagnostic, DiagnosticConfig, location_command_line, location_none,
 )
 from ..parsing import ParserState
 from ..unicode import Charset, CodepointOutputKind
@@ -105,7 +105,6 @@ class Config:
     '''Configures the preprocessor.  Usually these are set from the command line or
     environment variables.
     '''
-    diag_config: DiagnosticConfig
     output: str
     language: Language
     target_name: str
@@ -121,9 +120,8 @@ class Config:
     max_include_depth: int
 
     @classmethod
-    def default(cls, diag_config=None):
+    def default(cls):
         return cls(
-            diag_config or DiagnosticConfig.default(),
             '',                          # output
             Language('C++', 2023),       # language
             '',                          # target_name
@@ -141,7 +139,7 @@ class Preprocessor:
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
     read_stdin = sys.stdin.buffer.read
 
-    def __init__(self):
+    def __init__(self, diag_manager):
         '''Basic initialization.  Customization, and initialization based on that, comes
         with a call to push_main_source_file().
         '''
@@ -152,7 +150,7 @@ class Preprocessor:
         # Tracks locations
         self.locator = Locator(self)
         # Diagnostics
-        self.diag_manager = DiagnosticManager()
+        self.diag_manager = diag_manager
         self.diag_manager.locator = self.locator
 
         # Output files
@@ -209,7 +207,6 @@ class Preprocessor:
     def _configure(self, config):
         '''Configure the preprocessor.'''
         config = config or Config.default()
-        self.diag_manager.configure(config.diag_config)
 
         if config.output:
             result = self.host.open_file_for_writing(filename)
