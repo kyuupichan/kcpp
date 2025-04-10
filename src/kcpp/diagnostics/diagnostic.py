@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from ..core import BufferPosition, PresumedLocation, host
 
-from .definitions import DID, DiagnosticSeverity, diagnostic_definitions
+from .definitions import DID, DiagnosticGroup, DiagnosticSeverity, diagnostic_definitions
 
 
 __all__ = [
@@ -192,9 +192,14 @@ class Translations:
 
 @dataclass(slots=True)
 class DiagnosticConfig:
-    consumer: object
     error_output: str
     error_limit: int
+    # These take a comma-separated list of diagnostic groups
+    diag_suppress: str
+    diag_remark: str
+    diag_warning: str
+    diag_error: str
+    diag_once: str
     worded_locations: bool           # "line 5", "at end of source", etc.
     show_columns: bool               # if column numbers appear in diagnostics
     translations: Translations
@@ -202,13 +207,44 @@ class DiagnosticConfig:
     @classmethod
     def default(cls):
         return cls(
-            None,                    # consumer
             '',                      # error_output
             100,                     # error_limit
+            '', '', '', '',          # diag_suppress, diag_remark, diag_warning, diag_error,
+            '',                      # diag_once
             True,                    # worded_locations
             False,                   # show_columns
             Translations(),
         )
+
+    def parse_group_settings(self):
+        '''Handle user-requested severity overrides.'''
+        def parse_groups(groups):
+            '''A generator yielding group IDs.'''
+            groups = groups.split(',')
+            for group in groups:
+                if group:
+                    # Be strict - don't strip or canonicalize case
+                    try:
+                        yield DiagnosticGroup[group].value
+                    except KeyError:
+                        unknown_groups.add(group)
+
+        count = max(DiagnosticGroup) + 1
+        severity_by_group = bytearray(count)
+        unknown_groups = {}
+        for group_id in parse_groups(self.diag_suppress):
+            severity_by_group[group_id] = DiagnosticSeverity.ignored
+        for group_id in parse_groups(self.diag_remark):
+            once_by_group[group_id] = DiagnosticSeverity.remark
+        for group_id in parse_groups(self.diag_warning):
+            once_by_group[group_id] = DiagnosticSeverity.warning
+        for group_id in parse_groups(self.diag_error):
+            once_by_group[group_id] = DiagnosticSeverity.error
+
+        once_by_group = bytearray(count)
+        for group_id in parse_groups(self.diag_once):
+            self.once_by_group[group_id] = True
+        return severity_by_group, once_by_group, unknown_groups
 
 
 class DiagnosticConsumer(ABC):
@@ -279,6 +315,13 @@ class DiagnosticManager:
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
+
+        # Severity overrides and once-only settings.
+        self.severities, self.onces, unknown_groups = config.parse_group_settings()
+
+        for group in unknown_groups:
+            self.emit(Diagnostic(DID.unknown_diagnostic_group, location_command_line, [group]))
+
         if filename := config.error_output:
             result = host.open_file_for_writing(filename)
             if isinstance(result, str):
@@ -286,6 +329,29 @@ class DiagnosticManager:
                                      [filename, result]))
             else:
                 self.consumer.stderr = result
+
+    def severity(self, diagnostic):
+        '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
+        defn = diagnostic_definitions[diagnostic.did]
+        severity = defn.severity
+
+        # For diagnostics with a group, handle user severity override and once-only
+        # requests.
+        if defn.group:
+            group_severity = self.severities[defn.group]
+            if self.onces[defn.group]:
+                self.severities[defn.group] = DiagnosticSeverity.ignored
+            if group_severity:
+                severity = group_severity
+
+        # Update the error counts we maintain
+        if severity >= DiagnosticSeverity.error:
+            if severity == DiagnosticSeverity.fatal:
+                self.fatal_error_count += 1
+            else:
+                self.error_count += 1
+
+        return severity
 
     def should_halt_compilation(self):
         return self.fatal_error_count or self.error_count >= self.error_limit
@@ -298,8 +364,7 @@ class DiagnosticManager:
                 diagnostic.loc not in (location_none, location_command_line)):
             return True
 
-        # Set the severities.  At present nested diagnostics are only notes.
-        self.set_severity(diagnostic)
+        diagnostic.severity = self.severity(diagnostic)
         # Elaborate the diagnostic if the consumer wants elaborated ones.
         if self.consumer.elaborate:
             diagnostic = self.elaborate(diagnostic)
@@ -330,20 +395,6 @@ class DiagnosticManager:
             self.consumer.stderr.close()
 
         return exit_code
-
-    def set_severity(self, diagnostic):
-        '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
-        severity = diagnostic_definitions[diagnostic.did].severity
-        if diagnostic.loc == location_command_line and severity is DiagnosticSeverity.error:
-            severity = DiagnosticSeverity.fatal
-        diagnostic.severity = severity
-
-        # Update the error counts we maintain
-        if severity >= DiagnosticSeverity.error:
-            if severity == DiagnosticSeverity.fatal:
-                self.fatal_error_count += 1
-            else:
-                self.error_count += 1
 
     def location_text(self, caret_loc):
         '''Return the location text for the elaborated location.  This is empty for a diagnostic
@@ -383,7 +434,7 @@ class DiagnosticManager:
         '''Returns an ElaboratedDiagnostic instance.'''
         main_context, nested_diagnostics = diagnostic.decompose()
         for nested in nested_diagnostics:
-            self.set_severity(nested)
+            nested.severity = self.severity(nested)
         message_contexts = [self.message_context(dc)
                             for dc in self.diagnostic_contexts(main_context)]
         nested_diagnostics = [self.elaborate(diagnostic) for diagnostic in nested_diagnostics]

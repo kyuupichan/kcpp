@@ -327,7 +327,7 @@ class ExprParser:
         elif token.extra == self.true:
             value = 1
         elif is_evaluated:
-            self.diag(DID.identifier_in_pp_expr, token.loc, [self.pp.token_spelling(token)])
+            self.diag(DID.undefined_identifier, token.loc, [self.pp.token_spelling(token)])
         return ExprValue(value, False, is_erroneous, TokenRange(token.loc, token.loc))
 
     def evaluate_unary_op(self, rhs, op):

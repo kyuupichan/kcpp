@@ -90,6 +90,7 @@ line_number_must_be_digit_sequence:
 
 line_number_out_of_range:
   severity: warning
+  group: line_number
   text: the standard requires a line number between 1 and %0
 
 macro_definition_starts_with_concat:
@@ -119,6 +120,7 @@ nested_va_opt:
 predefined_macro_redefined:
   # Accept it with a warning
   severity: warning
+  group: predefined
   text: "%select{redefinition|undefinition}1 of predefined macro %q0"
 
 builtin_macro_redefined:
@@ -145,4 +147,5 @@ va_opt_ends_with_concat:
 
 warning_directive:
   severity: warning
+  group: warning_directive
   text: "%0"

@@ -19,6 +19,7 @@ character_not_single_code_unit:
 comma_in_pp_expression:
   severity: warning
   text: comma operator should not be used in a preprocessor expression
+  group: comma_expr
 
 division_by_zero:
   severity: error
@@ -45,10 +46,6 @@ hexadecimal_exponent_required:
   severity: error
   text: hexadecimal floating point numbers require an exponent
 
-identifier_in_pp_expr:
-  severity: remark
-  text: "%q0 is not defined; replacing with %q{0}"
-
 integer_overflow:
   severity: error
   text: integer overflow
@@ -71,10 +68,12 @@ invalid_numeric_suffix:
 
 left_shift_of_negative_value:
   severity: warning       # Undefined behaviour in C
+  group: shift_expr
   text: left shift of negative value
 
 left_shift_overflows:
   severity: warning
+  group: shift_expr
   text: left shift overflows
 
 missing_digit_sequence:
@@ -83,10 +82,12 @@ missing_digit_sequence:
 
 multicharacter_literal:
   severity: warning
+  group: multichar
   text: multicharacter literal
 
 multicharacter_literal_truncated:
   severity: warning
+  group: multichar
   text: value of multicharacter literal truncated to fit in type %q{int}
 
 multicharacter_literal_with_prefix:
@@ -95,14 +96,17 @@ multicharacter_literal_with_prefix:
 
 right_shift_of_negative_value:
   severity: warning       # Implementation-defined behaviour, so warning
+  group: shift_expr
   text: right shift of negative value
 
 shift_count_negative:
   severity: error
+  group: shift_count
   text: shift count is negative
 
 shift_count_too_large:
   severity: error
+  group: shift_count
   text: shift count must be less than the integer width
 
 string_concatenation_conflict:
@@ -116,6 +120,11 @@ string_concatenation_prior:
 string_invalid_in_pp_expression:
   severity: error
   text: a string cannot appear in a preprocessor expression
+
+undefined_identifier:
+  severity: remark
+  group: undefined
+  text: "%q0 is not defined; replacing with %q{0}"
 
 unrecognized_escape_sequence:
   severity: error
@@ -131,4 +140,5 @@ user_defined_suffix_in_pp_expr:
 
 value_changes_sign:
   severity: warning
+  group: sign_change
   text: integer promotion causes value to change sign from %0 to %1

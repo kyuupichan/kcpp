@@ -76,3 +76,7 @@ severity_fatal:
 starting_compilation:
   severity: none
   text: Starting compilation of %0.
+
+unknown_diagnostic_group:
+  severity: fatal
+  text: unknown diagnostic group %q0

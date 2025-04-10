@@ -48,6 +48,7 @@ identifier_not_NFC:
 
 incomplete_UCN_as_tokens:
   severity: warning
+  group: unicode
   text: incomplete universal character name; treating as separate tokens
 
 invalid_variadic_identifier_use:

@@ -13,21 +13,36 @@ __all__ = [
 
 
 class DiagnosticSeverity(IntEnum):
-    none = 0
-    remark = 1
-    note = 2
-    warning = 3
-    error = 4
-    fatal = 5
-    ice = 6
+    '''The severity of a diagnostic.'''
+    none = auto()        # Source file locations, compilation summaries, etc.
+    note = auto()        # Notes are emitted nested inside another diagnostic
+    ignored = auto()     # Indicates this diagnostic is suppressed and to be ignored
+    remark = auto()      # A diagnostic milder than a warning; suppressed by default
+    warning = auto()     # Does not increase the error count
+    error = auto()       # Increases the error count, halts compilation if limit reached
+    fatal = auto()       # A fatal error terminates compilation immediately
 
 
 class DiagnosticGroup(IntEnum):
-    none = 0
-    invalid_pp_token = 1
+    '''All diagnostics whose severity can be controlled by the user must belong to a group.
+    Therefore all ignored, warning and remark diagnostics have an associated group.  Errors
+    that belong to a group can have their severity downgraded.'''
+    none = auto()
+    comma_expr = auto()
+    invalid_pp_token = auto()
+    line_number = auto()
+    multichar = auto()
+    predefined = auto()
+    shift_count = auto()
+    shift_expr = auto()
+    sign_change = auto()
+    undefined = auto()
+    unicode = auto()
+    warning_directive = auto()
 
 
 class DID(IntEnum):
+    '''The diagnostic identifier.'''
     at_file_and_end_of_line = auto()
     at_file_and_line = auto()
     at_file_end = auto()
@@ -86,7 +101,6 @@ class DID(IntEnum):
     hash_requires_macro_parameter = auto()
     header_file_not_found = auto()
     hexadecimal_exponent_required = auto()
-    identifier_in_pp_expr = auto()
     identifier_not_NFC = auto()
     in_argument_stringizing = auto()
     in_expansion_of_builtin = auto()
@@ -139,7 +153,9 @@ class DID(IntEnum):
     too_few_macro_arguments = auto()
     too_many_macro_arguments = auto()
     unclosed_if_block = auto()
+    undefined_identifier = auto()
     unknown_charset = auto()
+    unknown_diagnostic_group = auto()
     unknown_target = auto()
     unrecognized_escape_sequence = auto()
     unrecognized_universal_character_name = auto()
@@ -162,6 +178,7 @@ class DID(IntEnum):
 
 @dataclass
 class DiagnosticDefinition:
+    '''Defines a diagnostic; sourced from a .yaml file.'''
     did: DID
     severity: DiagnosticSeverity
     group: DiagnosticGroup
@@ -195,7 +212,7 @@ diagnostic_definitions = {
     ),
     DID.bad_source_date_epoch: DiagnosticDefinition(
         DID.bad_source_date_epoch,
-        DiagnosticSeverity.error,
+        DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'source date epoch must be an integer between 0 and %0',
     ),
@@ -292,7 +309,7 @@ diagnostic_definitions = {
     DID.comma_in_pp_expression: DiagnosticDefinition(
         DID.comma_in_pp_expression,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.comma_expr,
         'comma operator should not be used in a preprocessor expression',
     ),
     DID.compilation_halted: DiagnosticDefinition(
@@ -518,12 +535,6 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'hexadecimal floating point numbers require an exponent',
     ),
-    DID.identifier_in_pp_expr: DiagnosticDefinition(
-        DID.identifier_in_pp_expr,
-        DiagnosticSeverity.remark,
-        DiagnosticGroup.none,
-        '%q0 is not defined; replacing with %q{0}',
-    ),
     DID.identifier_not_NFC: DiagnosticDefinition(
         DID.identifier_not_NFC,
         DiagnosticSeverity.error,
@@ -557,7 +568,7 @@ diagnostic_definitions = {
     DID.incomplete_UCN_as_tokens: DiagnosticDefinition(
         DID.incomplete_UCN_as_tokens,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.unicode,
         'incomplete universal character name; treating as separate tokens',
     ),
     DID.integer_overflow: DiagnosticDefinition(
@@ -617,13 +628,13 @@ diagnostic_definitions = {
     DID.left_shift_of_negative_value: DiagnosticDefinition(
         DID.left_shift_of_negative_value,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.shift_expr,
         'left shift of negative value',
     ),
     DID.left_shift_overflows: DiagnosticDefinition(
         DID.left_shift_overflows,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.shift_expr,
         'left shift overflows',
     ),
     DID.line_number_must_be_digit_sequence: DiagnosticDefinition(
@@ -635,7 +646,7 @@ diagnostic_definitions = {
     DID.line_number_out_of_range: DiagnosticDefinition(
         DID.line_number_out_of_range,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.line_number,
         'the standard requires a line number between 1 and %0',
     ),
     DID.macro_defined_here: DiagnosticDefinition(
@@ -695,13 +706,13 @@ diagnostic_definitions = {
     DID.multicharacter_literal: DiagnosticDefinition(
         DID.multicharacter_literal,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.multichar,
         'multicharacter literal',
     ),
     DID.multicharacter_literal_truncated: DiagnosticDefinition(
         DID.multicharacter_literal_truncated,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.multichar,
         'value of multicharacter literal truncated to fit in type %q{int}',
     ),
     DID.multicharacter_literal_with_prefix: DiagnosticDefinition(
@@ -719,7 +730,7 @@ diagnostic_definitions = {
     DID.predefined_macro_redefined: DiagnosticDefinition(
         DID.predefined_macro_redefined,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.predefined,
         '%select{redefinition|undefinition}1 of predefined macro %q0',
     ),
     DID.prior_macro_definition: DiagnosticDefinition(
@@ -737,7 +748,7 @@ diagnostic_definitions = {
     DID.right_shift_of_negative_value: DiagnosticDefinition(
         DID.right_shift_of_negative_value,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.shift_expr,
         'right shift of negative value',
     ),
     DID.severity_error: DiagnosticDefinition(
@@ -773,13 +784,13 @@ diagnostic_definitions = {
     DID.shift_count_negative: DiagnosticDefinition(
         DID.shift_count_negative,
         DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticGroup.shift_count,
         'shift count is negative',
     ),
     DID.shift_count_too_large: DiagnosticDefinition(
         DID.shift_count_too_large,
         DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticGroup.shift_count,
         'shift count must be less than the integer width',
     ),
     DID.starting_compilation: DiagnosticDefinition(
@@ -837,15 +848,27 @@ diagnostic_definitions = {
         DiagnosticGroup.none,
         'unclosed #%0 directive block',
     ),
+    DID.undefined_identifier: DiagnosticDefinition(
+        DID.undefined_identifier,
+        DiagnosticSeverity.remark,
+        DiagnosticGroup.undefined,
+        '%q0 is not defined; replacing with %q{0}',
+    ),
     DID.unknown_charset: DiagnosticDefinition(
         DID.unknown_charset,
-        DiagnosticSeverity.error,
+        DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'unknown character set %q0',
     ),
+    DID.unknown_diagnostic_group: DiagnosticDefinition(
+        DID.unknown_diagnostic_group,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'unknown diagnostic group %q0',
+    ),
     DID.unknown_target: DiagnosticDefinition(
         DID.unknown_target,
-        DiagnosticSeverity.error,
+        DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'unknown target %q0',
     ),
@@ -918,7 +941,7 @@ diagnostic_definitions = {
     DID.value_changes_sign: DiagnosticDefinition(
         DID.value_changes_sign,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.sign_change,
         'integer promotion causes value to change sign from %0 to %1',
     ),
     DID.vertical_whitespace_in_directive: DiagnosticDefinition(
@@ -930,7 +953,7 @@ diagnostic_definitions = {
     DID.warning_directive: DiagnosticDefinition(
         DID.warning_directive,
         DiagnosticSeverity.warning,
-        DiagnosticGroup.none,
+        DiagnosticGroup.warning_directive,
         '%0',
     ),
 }

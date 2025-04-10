@@ -9,7 +9,7 @@
 #
 
 bad_source_date_epoch:
-  severity: error
+  severity: fatal
   text: source date epoch must be an integer between 0 and %0
 
 builtin_macro_only_if_elif:
@@ -81,11 +81,11 @@ too_many_macro_arguments:
   text: too many arguments passed to macro %q0
 
 unknown_charset:
-  severity: error
+  severity: fatal
   text: unknown character set %q0
 
 unknown_target:
-  severity: error
+  severity: fatal
   text: unknown target %q0
 
 unterminated_argument_list:
