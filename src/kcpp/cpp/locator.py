@@ -366,11 +366,8 @@ class Locator:
             end = self.spelling_coords(source_range.end)
             assert start.buffer is end.buffer
         elif isinstance(source_range, TokenRange):
-            if source_range.start <= location_none:
-                start = end = None
-            else:
-                start = self.spelling_coords(source_range.start)
-                end = self.spelling_coords(source_range.end, True)
+            start = self.spelling_coords(source_range.start)
+            end = self.spelling_coords(source_range.end, True)
         elif source_range is None:
             start = end = None
         else:

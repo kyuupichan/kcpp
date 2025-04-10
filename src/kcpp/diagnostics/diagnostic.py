@@ -266,19 +266,18 @@ class DiagnosticManager:
         # Configuration, starting with the consumer and the error output file
         config = config or DiagnosticConfig.default()
         self.consumer = consumer or UnicodeTerminal()
-        stderr = sys.stderr
-        if filename := config.error_output:
-            result = host.open_file_for_writing(filename)
-            if isinstance(file, str):
-                self.emit(Diagnostic(DID.cannot_write_file, location_command_line,
-                                     [filename, result]))
-            else:
-                stderr = result
-        self.consumer.stderr = stderr
+        self.translations = config.translations
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
-        self.translations = config.translations
+        self.consumer.stderr = sys.stderr
+        if filename := config.error_output:
+            result = host.open_file_for_writing(filename)
+            if isinstance(result, str):
+                self.emit(Diagnostic(DID.cannot_write_file, location_command_line,
+                                     [filename, result]))
+            else:
+                self.consumer.stderr = result
 
     def emit(self, diagnostic):
         '''Emit a diagnostic, return True if compilation should be halted because there
@@ -380,16 +379,15 @@ class DiagnosticManager:
         just the main context.
         '''
         if main_context.caret_range.start <= location_none:
-            assert not main_context.source_ranges
             return [main_context]
         return self.locator.diagnostic_contexts(main_context)
 
-    def message_context(self, diagnostic_context):
+    def message_context(self, main_context):
         '''Convert a diagnostic into text (a MessageContext object). '''
         # Determine the message.  The location is determined by the main highlight,
         # which is the first one in the list.
-        text = self.translations.diagnostic_text(diagnostic_context.did)
-        caret_range = diagnostic_context.caret_range
+        text = self.translations.diagnostic_text(main_context.did)
+        caret_range = main_context.caret_range
         caret_loc = caret_range.caret_loc()
 
         text_parts = []
@@ -400,16 +398,21 @@ class DiagnosticManager:
                 location_text = self.location_text(caret_loc)
             text_parts.append((location_text + ': ', 'path'))
         # Add the severity text unless it is none
-        severity = diagnostic_context.severity
+        severity = main_context.severity
         if severity != DiagnosticSeverity.none:
             severity_did, hint = self.severity_map[severity]
             text_parts.append((self.translations.diagnostic_text(severity_did) + ': ', hint))
-        text_parts.extend(self.substitute_arguments(text, diagnostic_context.substitutions))
+        text_parts.extend(self.substitute_arguments(text, main_context.substitutions))
 
         # Now convert each range to RangeCoords
-        caret_range = self.locator.range_coords(caret_range)
-        source_ranges = [self.locator.range_coords(source_range)
-                         for source_range in diagnostic_context.source_ranges]
+        if caret_loc <= location_none:
+            assert not main_context.source_ranges
+            caret_range = RangeCoords(None, None)
+            source_ranges = []
+        else:
+            caret_range = self.locator.range_coords(caret_range)
+            source_ranges = [self.locator.range_coords(source_range)
+                             for source_range in main_context.source_ranges]
         return MessageContext(caret_range, source_ranges, text_parts)
 
     def substitute_arguments(self, format_text, arguments):
