@@ -114,6 +114,10 @@ class KCPP(Skin):
         group.add_argument('-U', '--undefine-macro', action='append', default=[], metavar='NAME',
                            help='''Remove the definition of a macro.
                            -U options are processed after all -D options.''')
+        group.add_argument('--include', action='append', default=[], metavar='FILENAME',
+                           help='''process FILENAME as if #include "FILENAME" as the first line
+                           of the primary source file.  This happens after -D and -U options
+                           are processed.''')
         group.add_argument('--quoted-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for ""
                            includes before the -I directories''')
@@ -123,10 +127,6 @@ class KCPP(Skin):
         group.add_argument('--system-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the standard directories but after -I directories''')
-        group.add_argument('--include', action='append', default=[], metavar='FILENAME',
-                           help='''process FILENAME as if #include "FILENAME" as the first line
-                           of the primary source file.  This happens after -D and -U options
-                           are processed.''')
 
     def add_diagnostic_commands(self, group):
         group.add_argument('--error-output', metavar='FILENAME', default='',

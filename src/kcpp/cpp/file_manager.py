@@ -97,7 +97,7 @@ class FileManager:
 
         for path in paths:
             stat_result = host.stat(path)
-            exists = host.stat_is_directory(stat_result)
+            exists = stat_result is not None and host.stat_is_directory(stat_result)
             dir_list.append(IncludeDirectory(path, kind, exists))
 
     def add_standard_search_paths(self, paths):
