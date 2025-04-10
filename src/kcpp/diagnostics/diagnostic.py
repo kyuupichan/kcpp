@@ -202,6 +202,7 @@ class DiagnosticConfig:
     diag_once: str
     worded_locations: bool           # "line 5", "at end of source", etc.
     show_columns: bool               # if column numbers appear in diagnostics
+    remarks: bool                    # whether to emit remarks
     translations: Translations
 
     @classmethod
@@ -213,6 +214,7 @@ class DiagnosticConfig:
             '',                      # diag_once
             True,                    # worded_locations
             False,                   # show_columns
+            False,                   # remarks
             Translations(),
         )
 
@@ -315,6 +317,7 @@ class DiagnosticManager:
         self.error_limit = config.error_limit
         self.worded_locations = config.worded_locations
         self.show_columns = config.show_columns
+        self.remarks = config.remarks
 
         # Severity overrides and once-only settings.
         self.severities, self.onces, unknown_groups = config.parse_group_settings()
@@ -343,6 +346,9 @@ class DiagnosticManager:
                 self.severities[defn.group] = DiagnosticSeverity.ignored
             if group_severity:
                 severity = group_severity
+
+        if severity is DiagnosticSeverity.remark and not self.remarks:
+            severity = DiagnosticSeverity.ignored
 
         # Update the error counts we maintain
         if severity >= DiagnosticSeverity.error:
