@@ -33,14 +33,14 @@ class Lexer:
 
     # The preprocessor is necessary to look up e.g. if an identifier is special, or
     # an alternative token, or language options.
-    def __init__(self, pp, buff, start_loc):
+    def __init__(self, pp, buff, start_loc, is_start_of_line):
         assert isinstance(buff, (bytes, bytearray, memoryview))
         assert buff and buff[-1] == 0
         self.pp = pp
         self.buff = buff
         self.start_loc = start_loc
         self.cursor = 3 if buff.startswith(UTF8_BOM) else 0
-        self.start_of_line = True
+        self.is_start_of_line = is_start_of_line
         self.clean = True
 
     def cursor_loc(self):
@@ -193,9 +193,7 @@ class Lexer:
             if kind != TokenKind.WS:
                 break
 
-        if self.start_of_line:
-            token.flags |= TokenFlags.BOL
-        self.start_of_line = False
+        self.is_start_of_line = False
         token.loc += self.start_loc
         token.kind = kind
         self.cursor = cursor
@@ -236,7 +234,7 @@ class Lexer:
             token.flags |= TokenFlags.WS
         else:
             token.flags &= ~TokenFlags.WS
-        self.start_of_line = True
+        self.is_start_of_line = True
         return TokenKind.WS, cursor
 
     def on_nul(self, token, cursor):
@@ -294,7 +292,7 @@ class Lexer:
         c, ncursor = self.read_logical_byte(cursor)
         if c == 35:  # '#'
             return TokenKind.CONCAT, ncursor
-        if self.start_of_line:
+        if self.is_start_of_line:
             return TokenKind.DIRECTIVE_HASH, cursor
         else:
             return TokenKind.HASH, cursor
@@ -444,7 +442,7 @@ class Lexer:
             c, cursor = self.read_logical_byte(cursor)
             if c == 58:  # ':'
                 return TokenKind.CONCAT, cursor
-        if self.start_of_line:
+        if self.is_start_of_line:
             return TokenKind.DIRECTIVE_HASH, ncursor
         else:
             return TokenKind.HASH, ncursor

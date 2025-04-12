@@ -407,8 +407,9 @@ class Preprocessor:
         return ident
 
     def lex_spelling_quietly(self, spelling):
-        '''Lex a token from the spelling.  Return the token and the number of bytes consumed.'''
-        lexer = Lexer(self, spelling + b'\0', 1)
+        '''Lex a token from the spelling.  Return the token and the number of bytes consumed.
+        Its location is meaningless.'''
+        lexer = Lexer(self, spelling + b'\0', 1, False)
         token = lexer.get_token_quietly()
         return token, lexer.cursor
 
@@ -425,7 +426,7 @@ class Preprocessor:
     def lexer_at_loc(self, loc):
         '''Return a new lexer ready to lex the spelling of the token at loc.'''
         text, offset = self.locator.buffer_text_and_offset(loc)
-        lexer = Lexer(self, text + b'\0', loc - offset)
+        lexer = Lexer(self, text + b'\0', loc - offset, False)
         lexer.cursor = offset
         return lexer
 
@@ -523,7 +524,7 @@ class Preprocessor:
         filename_literal = self.filename_to_string_literal(file.path)
         buffer = Buffer(file.nul_terminated_contents())
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
-        lexer = Lexer(self, buffer.text, first_loc)
+        lexer = Lexer(self, buffer.text, first_loc, True)
         self.push_source(lexer)
         # Maintain buffer states
         self.buffer_states.append(BufferState([]))
@@ -801,13 +802,11 @@ class Preprocessor:
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token
         scratch_loc = self.locator.new_scratch_token(spelling, parent_loc, kind)
-        lexer = Lexer(self, spelling + b'\0', scratch_loc)
+        lexer = Lexer(self, spelling + b'\0', scratch_loc, False)
         token = Token.create()
         self.lexing_scratch = True
         lexer.get_token(token)
         self.lexing_scratch = False
-        # Remove the fake BOL flag
-        token.flags &= ~TokenFlags.BOL
         return token, lexer.cursor >= len(spelling)
 
     def on_define(self, token):
@@ -1113,7 +1112,7 @@ class Preprocessor:
     def process_Pragma_string(self, string):
         raw = destringize(string)
         scratch_loc = self.locator.new_scratch_token(raw, string.loc, ScratchEntryKind.pragma)
-        lexer = Lexer(self, raw + b'\0', scratch_loc)
+        lexer = Lexer(self, raw + b'\0', scratch_loc, False)
         self.push_source(lexer)
         self.in_directive = True
         self.on_pragma(string)

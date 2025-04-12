@@ -505,8 +505,7 @@ TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.HEADER_NAME, TokenKind.CH
 class TokenFlags(IntEnum):
     NONE = 0x00
     WS = 0x01
-    BOL = 0x02              # Beginning of line
-    NO_EXPANSION = 0x04     # Macro expansion disabled
+    NO_EXPANSION = 0x02     # Macro expansion disabled
 
     # The high 8 bits hold the encoding of the character or string literal
     @staticmethod
