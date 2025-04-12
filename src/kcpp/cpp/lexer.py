@@ -193,7 +193,7 @@ class Lexer:
             if kind != TokenKind.WS:
                 break
 
-        self.is_start_of_line = False
+        self.is_start_of_line = kind == TokenKind.kw_export_keyword
         token.loc += self.start_loc
         token.kind = kind
         self.cursor = cursor
