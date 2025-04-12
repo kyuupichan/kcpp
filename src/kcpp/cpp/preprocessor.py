@@ -226,7 +226,7 @@ class Preprocessor:
         # Set up the basic character set
         for c in (
             b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz'
-            b'!"#$%&\'*+,-./:;<=>?@[]^`{|}~'
+            b'!"#%&\'*+,-./:;<=>?[]^{|}~'
         ):
             self.byte_chars[c] = ByteCharFlag.is_basic_charset | ByteCharFlag.raw_delimiter_ok
         # These characters are in the basic character set but are not valid in a raw
