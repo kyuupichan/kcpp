@@ -19,7 +19,7 @@ from ..unicode import Charset, CodepointOutputKind
 
 from .expressions import ExprParser
 from .file_manager import FileManager, DirectoryKind
-from .lexer import Lexer
+from .lexer import Lexer, ByteCharFlag
 from .literals import LiteralInterpreter, destringize
 from .locator import Locator, ScratchEntryKind
 from .macros import (
@@ -175,6 +175,8 @@ class Preprocessor:
         self.buffer_states = []
         # Map from pragma namespace identifier strings (in binary) to callbacks.
         self.pragma_namespaces = {}
+        # Flags for e.g. basic character set
+        self.byte_chars = bytearray(256)
 
         # Internal state
         self.collecting_arguments = False
@@ -193,10 +195,9 @@ class Preprocessor:
         self._Pragma_strings = []
 
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
-        self.time_str = None
         self.date_str = None
-        # For reproducible timestamps
-        self.source_date_epoch = None
+        self.time_str = None
+        self.source_date_epoch = None          # For reproducible timestamps
         self.command_line_buffer = None
 
     def _configure(self, config):
@@ -221,6 +222,17 @@ class Preprocessor:
         if not target:
             target = targets['aarch64-apple-darwin']
         self.target = copy(target)
+
+        # Set up the basic character set
+        for c in (
+            b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz'
+            b'!"#$%&\'*+,-./:;<=>?@[]^`{|}~'
+        ):
+            self.byte_chars[c] = ByteCharFlag.is_basic_charset | ByteCharFlag.raw_delimiter_ok
+        # These characters are in the basic character set but are not valid in a raw
+        # string delimiter
+        for c in b' ()\\\t\v\f\r\n':
+            self.byte_chars[c] = ByteCharFlag.is_basic_charset
 
         # Set the narrow and wide charsets
         def set_charset(attrib, charset_name, integer_kind):

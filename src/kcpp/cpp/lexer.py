@@ -3,6 +3,8 @@
 # All rights reserved.
 #
 
+from enum import IntFlag, auto
+
 from ..core import Token, TokenKind, TokenFlags, IdentifierInfo, SpecialKind
 from ..diagnostics import BufferRange, DID
 from ..unicode import (
@@ -13,20 +15,22 @@ from ..unicode import (
 
 from .literals import printable_form, HEX_DIGIT_VALUES
 
-__all__ = ['Lexer']
+__all__ = ['ByteCharFlag', 'Lexer']
 
 
-ASCII_DIGITS = {ord(c) for c in '0123456789'}
-ASCII_IDENT_START = set(ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz')
+class ByteCharFlag(IntFlag):
+    '''Byte character flags.'''
+    is_basic_charset = auto()          # If in the basic character set
+    raw_delimiter_ok = auto()          # If valid in a raw string delimiter
+
+
+ASCII_DIGITS = set(b'0123456789')
+ASCII_IDENT_START = set(b'ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz')
 ASCII_IDENT_CONTINUE = set.union(ASCII_IDENT_START, ASCII_DIGITS)
-SIGNS = {ord(c) for c in '+-'}
-EPep = {ord(c) for c in 'EPep'}
-NL_WS = {ord('\r'), ord('\n')}
-NON_NL_WS = {ord(c) for c in ' \t\v\f'}
-
-BASIC_CHARSET = set.union(ASCII_IDENT_CONTINUE,
-                          (ord(c) for c in '\t\v\f \n\r!"#$%&\'()*+,-./:;<=>?@[\\]^`{|}~'))
-DCHARS = set.difference(BASIC_CHARSET, (ord(c) for c in ' ()\\\t\v\f\r\n'))
+SIGNS = set(b'+-')
+EPep = set(b'EPep')
+NL_WS = set(b'\r\n')
+NON_NL_WS = set(b' \t\v\f')
 
 
 class Lexer:
@@ -757,11 +761,11 @@ class Lexer:
         '''The encoding prefix, if any, and the opening quote are already lexed.  The token began
         at token_loc.
         '''
-        def lex_delimeter(buff, cursor):
+        def lex_delimeter(buff, cursor, byte_chars):
             '''Return the byte terminating the delimeter, and the cursor position beyond it.'''
             while True:
                 c = buff[cursor]
-                if c not in DCHARS:
+                if not (byte_chars[c] & ByteCharFlag.raw_delimiter_ok):
                     return c, cursor
                 cursor += 1
 
@@ -770,7 +774,7 @@ class Lexer:
         buff = self.buff
         diagnose = not self.pp.skipping
         delim_start = cursor
-        c, cursor = lex_delimeter(buff, cursor)
+        c, cursor = lex_delimeter(buff, cursor, self.pp.byte_chars)
         delimeter = buff[delim_start: cursor]
         # This seems arbitrary and pointless requirement...
         if len(delimeter) > 16 and diagnose:
@@ -1048,7 +1052,7 @@ class Lexer:
 
     def validate_codepoint(self, cp, is_ident_start, start, end, quiet):
         assert cp != -1
-        did = did_for_codepoint(cp, is_ident_start)
+        did = did_for_codepoint(cp, is_ident_start, self.pp.byte_chars)
         if did:
             if not quiet and not self.pp.skipping:
                 self.diag_range(did, start, end, [codepoint_to_hex(cp)])
@@ -1064,7 +1068,7 @@ class Lexer:
 #    character or in the basic character set, the program is ill-formed.
 # 4) Identifier characters must have XID_Start and XID_Continue properties
 # 5) Identifier needs to conform to Normalization Form C.
-def did_for_codepoint(cp, is_ident_start):
+def did_for_codepoint(cp, is_ident_start, byte_chars):
     '''Diagnose bad UCN values.  Return True if valid.'''
     assert cp >= 0
 
@@ -1081,7 +1085,7 @@ def did_for_codepoint(cp, is_ident_start):
     if is_control_character(cp):
         return DID.codepoint_control_character
 
-    if cp in BASIC_CHARSET:
+    if cp < 0xff and byte_chars[cp] & ByteCharFlag.is_basic_charset:
         return DID.codepoint_basic_character_set
 
     if is_ident_start:
