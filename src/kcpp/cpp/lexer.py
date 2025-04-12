@@ -777,35 +777,36 @@ class Lexer:
         if len(delimeter) > 16 and diagnose:
             self.diag_range(DID.delimeter_too_long, delim_start, cursor)
 
-        if c == 40:  # '(':
-            # Lex the raw part
-            delimeter += bytes([34])  # '"'
-            cursor += 1
-            while True:
-                c, cursor = self.read_char(cursor)
-                if c == 0 and cursor == len(self.buff):
-                    if diagnose:
-                        self.diag(DID.unterminated_literal, token.loc, [2])
-                    # Unterminated literals become the error token
-                    return TokenKind.ERROR, cursor - 1
-                # ')'
-                if c == 41 and buff[cursor: cursor + len(delimeter)] == delimeter:
-                    cursor += len(delimeter)
-                    break
-        elif diagnose:
+        if c != 40:  # '(':
             is_eof = c == 0 and cursor + 1 == len(self.buff)
             bad_loc = cursor
             if is_eof:
                 c = 10
             else:
                 c, cursor = self.read_char(cursor)
-            self.diag_range(DID.delimeter_invalid_character, bad_loc, bad_loc,
-                            [printable_form(c)])
+            if diagnose:
+                self.diag_range(DID.delimeter_invalid_character, bad_loc, bad_loc,
+                                [printable_form(c)])
             # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed UTF-8.
             while c != 10 and c != 13 and cursor != len(self.buff):
                 c, cursor = self.read_char(cursor)
             # Unterminated literals become the error token
             return TokenKind.ERROR, cursor
+
+        # Lex the raw part
+        delimeter += bytes([34])  # '"'
+        cursor += 1
+        while True:
+            c, cursor = self.read_char(cursor)
+            if c == 0 and cursor == len(self.buff):
+                if diagnose:
+                    self.diag(DID.unterminated_literal, token.loc, [2])
+                # Unterminated literals become the error token
+                return TokenKind.ERROR, cursor - 1
+            # ')'
+            if c == 41 and buff[cursor: cursor + len(delimeter)] == delimeter:
+                cursor += len(delimeter)
+                break
 
         ud_suffix, cursor = self.maybe_user_defined_suffix(token, cursor)
         # No point calling fast_utf8_spelling
