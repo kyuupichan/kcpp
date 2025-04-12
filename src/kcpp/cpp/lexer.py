@@ -711,8 +711,7 @@ class Lexer:
             if not in_header and not self.pp.skipping:
                 selector = 0 if kind == TokenKind.CHARACTER_LITERAL else 1
                 self.diag(DID.unterminated_literal, token.loc, [selector])
-            # Unterminated literals become the error token
-            return TokenKind.ERROR, cursor
+            return TokenKind.UNTERMINATED, cursor
 
         # Header names have no ud_suffix
         if in_header:
@@ -790,8 +789,7 @@ class Lexer:
             # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed UTF-8.
             while c != 10 and c != 13 and cursor != len(self.buff):
                 c, cursor = self.read_char(cursor)
-            # Unterminated literals become the error token
-            return TokenKind.ERROR, cursor
+            return TokenKind.UNTERMINATED, cursor
 
         # Lex the raw part
         delimeter += bytes([34])  # '"'
@@ -801,8 +799,7 @@ class Lexer:
             if c == 0 and cursor == len(self.buff):
                 if diagnose:
                     self.diag(DID.unterminated_literal, token.loc, [2])
-                # Unterminated literals become the error token
-                return TokenKind.ERROR, cursor - 1
+                return TokenKind.UNTERMINATED, cursor - 1
             # ')'
             if c == 41 and buff[cursor: cursor + len(delimeter)] == delimeter:
                 cursor += len(delimeter)

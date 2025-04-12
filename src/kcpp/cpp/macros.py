@@ -488,7 +488,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                                                        ScratchEntryKind.stringize)
         assert all_consumed
 
-        if token.kind == TokenKind.ERROR:
+        if token.kind == TokenKind.UNTERMINATED:
             self.pp.diag(DID.stringize_failed, stringize_loc)
             # Replace with an empty string literal.  FIXME: imitate GCC and Clang?
             token = Token(TokenKind.STRING_LITERAL, 0, stringize_loc, (b'""', None))

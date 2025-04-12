@@ -1,3 +1,16 @@
+Basic Character Set
+-------------------
+
+C23 and C++26 add @, ` and $ to the basic character set.
+
+A UCN cannot name a character in the basic character set outside string or character
+literals.  A C++ program is ill-formed if a non-whitespace character that is not part of
+another token forms a preprocessing token on its own.  A conditionally-supported escape
+sequence can only be formed from a single member of the basic character set.  A raw string
+delimeter is formed from members of the basic character set.  Classes containing a numeric
+literal operator template can only pass it members of the basic character set.
+
+
 Diagnostic Control
 ------------------
 

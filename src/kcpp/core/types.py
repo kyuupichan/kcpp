@@ -336,12 +336,12 @@ class TokenKind(IntEnum):
     OTHER = auto()               # a character that is not another token, e.g. @
     HASH = auto()                # # %:
     CONCAT = auto()              # ## %:%:
-    ERROR = auto()               # Something erroneous that should not give rise to further errors
+    UNTERMINATED = auto()        # An unterminated character or string literal
 
     IDENTIFIER = auto()          # abc
     NUMBER = auto()              # 1.2f
-    CHARACTER_LITERAL = auto()   # 'c'
-    STRING_LITERAL = auto()      # "str"
+    CHARACTER_LITERAL = auto()   # 'c' with optional encoding prefix and ud_suffix
+    STRING_LITERAL = auto()      # "str" with optional encoding prefix and ud_suffix
 
     BRACE_OPEN = auto()          # { <%
     BRACE_CLOSE = auto()         # } %>
