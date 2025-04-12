@@ -15,13 +15,7 @@ from ..unicode import (
 
 from .literals import printable_form, HEX_DIGIT_VALUES
 
-__all__ = ['ByteCharFlag', 'Lexer']
-
-
-class ByteCharFlag(IntFlag):
-    '''Byte character flags.'''
-    is_basic_charset = auto()          # If in the basic character set
-    raw_delimiter_ok = auto()          # If valid in a raw string delimiter
+__all__ = ['Lexer']
 
 
 ASCII_DIGITS = set(b'0123456789')
@@ -31,6 +25,7 @@ SIGNS = set(b'+-')
 EPep = set(b'EPep')
 NL_WS = set(b'\r\n')
 NON_NL_WS = set(b' \t\v\f')
+DELIMITER_INVALID = set(b' ()\\\t\v\f\r\n')
 
 
 class Lexer:
@@ -761,11 +756,11 @@ class Lexer:
         '''The encoding prefix, if any, and the opening quote are already lexed.  The token began
         at token_loc.
         '''
-        def lex_delimeter(buff, cursor, byte_chars):
+        def lex_delimeter(buff, cursor, basic_charset):
             '''Return the byte terminating the delimeter, and the cursor position beyond it.'''
             while True:
                 c = buff[cursor]
-                if not (byte_chars[c] & ByteCharFlag.raw_delimiter_ok):
+                if c not in basic_charset or c in DELIMITER_INVALID:
                     return c, cursor
                 cursor += 1
 
@@ -774,7 +769,7 @@ class Lexer:
         buff = self.buff
         diagnose = not self.pp.skipping
         delim_start = cursor
-        c, cursor = lex_delimeter(buff, cursor, self.pp.byte_chars)
+        c, cursor = lex_delimeter(buff, cursor, self.pp.basic_charset)
         delimeter = buff[delim_start: cursor]
         # This seems arbitrary and pointless requirement...
         if len(delimeter) > 16 and diagnose:
@@ -1052,7 +1047,7 @@ class Lexer:
 
     def validate_codepoint(self, cp, is_ident_start, start, end, quiet):
         assert cp != -1
-        did = did_for_codepoint(cp, is_ident_start, self.pp.byte_chars)
+        did = did_for_codepoint(cp, is_ident_start, self.pp.basic_charset)
         if did:
             if not quiet and not self.pp.skipping:
                 self.diag_range(did, start, end, [codepoint_to_hex(cp)])
@@ -1068,7 +1063,7 @@ class Lexer:
 #    character or in the basic character set, the program is ill-formed.
 # 4) Identifier characters must have XID_Start and XID_Continue properties
 # 5) Identifier needs to conform to Normalization Form C.
-def did_for_codepoint(cp, is_ident_start, byte_chars):
+def did_for_codepoint(cp, is_ident_start, basic_charset):
     '''Diagnose bad UCN values.  Return True if valid.'''
     assert cp >= 0
 
@@ -1085,7 +1080,7 @@ def did_for_codepoint(cp, is_ident_start, byte_chars):
     if is_control_character(cp):
         return DID.codepoint_control_character
 
-    if cp < 0xff and byte_chars[cp] & ByteCharFlag.is_basic_charset:
+    if cp in basic_charset:
         return DID.codepoint_basic_character_set
 
     if is_ident_start:
