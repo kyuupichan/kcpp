@@ -778,13 +778,12 @@ class Lexer:
 
         if c != 40:  # '(':
             is_eof = c == 0 and cursor + 1 == len(self.buff)
-            bad_loc = cursor
             if is_eof:
                 c = 10
             else:
-                c, cursor = self.read_char(cursor)
+                c, _ = self.read_char(cursor)
             if diagnose:
-                self.diag_range(DID.delimeter_invalid_character, bad_loc, bad_loc,
+                self.diag_range(DID.delimeter_invalid_character, cursor, cursor,
                                 [printable_form(c)])
             # Recover by skipping to end-of-line or EOF.  Note this will find ill-formed UTF-8.
             while c != 10 and c != 13 and cursor != len(self.buff):
