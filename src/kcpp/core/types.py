@@ -294,6 +294,9 @@ class Token:
     def is_disabled(self):
         return bool(self.flags & TokenFlags.NO_EXPANSION)
 
+    def carries_spelling(self):
+        return self.kind in TokenKind.spelling_kinds
+
     def is_literal(self):
         return self.kind in TokenKind.literal_kinds
 
@@ -510,7 +513,9 @@ class TokenKind(IntEnum):
     # kw__Noreturn = auto()
 
 
-TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.HEADER_NAME, TokenKind.CHARACTER_LITERAL,
+TokenKind.spelling_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL, TokenKind.HEADER_NAME,
+                           TokenKind.STRING_LITERAL}
+TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL,
                            TokenKind.STRING_LITERAL}
 
 

@@ -446,7 +446,7 @@ class Preprocessor:
         assert isinstance(token, Token)
         if token.kind == TokenKind.IDENTIFIER:
             return token.extra.spelling
-        if token.is_literal():
+        if token.carries_spelling():
             spelling, _ = token.extra
             return spelling
         if token.kind == TokenKind.PLACEMARKER:
