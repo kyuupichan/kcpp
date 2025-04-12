@@ -515,7 +515,7 @@ class TokenKind(IntEnum):
 
 
 TokenKind.spelling_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL, TokenKind.HEADER_NAME,
-                           TokenKind.STRING_LITERAL}
+                            TokenKind.STRING_LITERAL}
 TokenKind.literal_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL,
                            TokenKind.STRING_LITERAL}
 

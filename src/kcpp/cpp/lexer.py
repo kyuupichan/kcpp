@@ -3,8 +3,6 @@
 # All rights reserved.
 #
 
-from enum import IntFlag, auto
-
 from ..core import Token, TokenKind, TokenFlags, IdentifierInfo, SpecialKind
 from ..diagnostics import BufferRange, DID
 from ..unicode import (
@@ -26,7 +24,7 @@ EPep = set(b'EPep')
 NL_WS = set(b'\r\n')
 NON_NL_WS = set(b' \t\v\f')
 DELIMITER_INVALID = set(b' ()\\\t\v\f\r\n')
-UTF8_BOM =b'\xef\xbb\xbf'
+UTF8_BOM = b'\xef\xbb\xbf'
 
 
 class Lexer:

@@ -135,6 +135,7 @@ not be noticed in normal circumstances, that I will fix soon.
 - all directives
 - _Pragma
 - __has_include, __has_cpp_attribute
+- import-keyword, export-keyword, module-keyword
 - the diagnostic framework.  Colourized output to a Unicode terminal is supported,
   as are translations (none provided!).  The framework could be hooked up to an IDE.
 - display of the macro expansion stack in diagnostics with precise caret locations and
@@ -153,8 +154,6 @@ The multiple-include optimization is not yet implemented.
 
 The following are serious projects:
 
-- C++ modules - I've not fully figured out how these work in C++ or how they interact with
-  the preprocessor.  So unlikely to be tackled until some kind of real frontend exists.
 - precompiled headers - possibly an idea and I suspect largely overlaps with modules.
   Again, Python is a good place to experiment before attempting an implementation in C++.
 
