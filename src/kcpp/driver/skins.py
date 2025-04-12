@@ -8,7 +8,9 @@ import argparse
 
 from kcpp.core import host
 from kcpp.cpp import Preprocessor, Config, Language
-from kcpp.diagnostics import DiagnosticConfig, DiagnosticManager, UnicodeTerminal
+from kcpp.diagnostics import (
+    DiagnosticConfig, DiagnosticManager, UnicodeTerminal,
+)
 
 from .frontends import PreprocessedOutput, FrontEnd
 
@@ -93,8 +95,8 @@ class KCPP(Skin):
                            help='compilation output is written to FILENAME instaed of stdout')
         if issubclass(frontend_class, PreprocessedOutput):
             group.add_argument('-P', help='suppress generation of linemarkers',
-                               action='store_true', default=False)
-            group.add_argument('--list-macros', action='store_true', default=False,
+                               action='store_true')
+            group.add_argument('--list-macros', action='store_true',
                                help='output macro definitions with preprocessed source')
 
     def add_preprocessor_commands(self, group):
@@ -139,6 +141,10 @@ class KCPP(Skin):
                            help='emit warnings')
         group.add_argument('--errors', action=argparse.BooleanOptionalAction, default=False,
                            help='emit warnings as errors')
+        group.add_argument('--strict', help='strict standards mode with errors',
+                           action='store_true')
+        group.add_argument('--strict-warnings', help='strict standards mode with warnings',
+                           action='store_true')
         group.add_argument('--diag-suppress', metavar='GROUPS', type=str, default='',
                            help='''suppress the listed diagnostics''')
         group.add_argument('--diag-remark', metavar='GROUPS', type=str, default='',
@@ -183,9 +189,6 @@ class KCPP(Skin):
         config = DiagnosticConfig.default()
         config.error_output = self.command_line.error_output
         config.error_limit = self.command_line.error_limit
-        config.remarks = self.command_line.remarks
-        config.warnings = self.command_line.warnings
-        config.errors = self.command_line.errors
         config.diag_suppress = self.command_line.diag_suppress
         config.diag_remark = self.command_line.diag_remark
         config.diag_warning = self.command_line.diag_warning
@@ -193,6 +196,13 @@ class KCPP(Skin):
         config.diag_once = self.command_line.diag_once
         config.worded_locations = True
         config.show_columns = False
+        config.remarks = self.command_line.remarks
+        config.warnings = self.command_line.warnings
+        config.errors = self.command_line.errors
+        if self.command_line.strict:
+            config.strict = 'e'
+        elif self.command_line.strict_warnings:
+            config.strict = 'w'
 
         consumer = self.frontend_class.diagnostic_class()
         if isinstance(consumer, UnicodeTerminal):
@@ -254,6 +264,10 @@ class GCC(Skin):
         group.add_argument('-ftabstop', metavar='WIDTH', default=8, type=int)
         group.add_argument('-fdiagnostics-color', action=argparse.BooleanOptionalAction,
                            default=True)
+        group.add_argument('-pedantic-errors', help='strict standards mode with errors',
+                           action='store_true')
+        group.add_argument('-pedantic', help='strict standards mode with warnings',
+                           action='store_true')
 
     def preprocessor_configuration(self, source):
         config = Config.default()
@@ -282,6 +296,10 @@ class GCC(Skin):
         config = DiagnosticConfig.default()
         config.worded_locations = False
         config.show_columns = True
+        if self.command_line.pedantic_errors:
+            config.strict = 'e'
+        elif self.command_line.pedantic:
+            config.strict = 'w'
 
         consumer = self.frontend_class.diagnostic_class()
         if isinstance(consumer, UnicodeTerminal):

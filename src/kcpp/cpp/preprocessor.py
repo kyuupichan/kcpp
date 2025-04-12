@@ -127,7 +127,7 @@ class Config:
             '',                          # source date epoch
             [], [], [],                  # defines, undefines, includes
             [], [], [],                  # quoted, angled, system dirs
-            -1,                          # include depth
+            -1,                          # max include depth
         )
 
 
@@ -186,8 +186,8 @@ class Preprocessor:
         self.in_header_name = False
         self.in_variadic_macro_definition = False
         self.lexing_scratch = False
-        self.skipping = False
         self.predefining_macros = False
+        self.skipping = False
         # Collected whilst in a macro-expanding directive.  Handled when leaving the
         # directive.
         self._Pragma_strings = []

@@ -47,6 +47,8 @@ class DiagnosticGroup(IntEnum):
     undefined = auto()
     unicode = auto()
     warning_directive = auto()
+    strict_start = comma_expr
+    strict_end = comma_expr
 
 
 class DID(IntEnum):
