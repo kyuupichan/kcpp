@@ -326,6 +326,7 @@ class TokenKind(IntEnum):
     # These are for internal use of the preprocessor and are never returned by pp.get_token()
     PEEK_AGAIN = auto()          # Only for use in peek_token_kind()
     WS = auto()                  # whitespace - internal to lexer
+    DIRECTIVE_HASH = auto()      # The hash that starts a directive
     MACRO_PARAM = auto()         # only appears in macro replacement lists
     STRINGIZE = auto()           # only appears in macro replacement lists
     PLACEMARKER = auto()         # used in function-like macro expansion

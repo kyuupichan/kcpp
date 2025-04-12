@@ -603,7 +603,7 @@ class Preprocessor:
             source.get_token(token)
 
             # Handle preprocessing directives.  This must happen before macro expansion.
-            if token.kind == TokenKind.HASH and token.flags & TokenFlags.BOL:
+            if token.kind == TokenKind.DIRECTIVE_HASH:
                 self.handle_directive(source, token)
                 continue
 

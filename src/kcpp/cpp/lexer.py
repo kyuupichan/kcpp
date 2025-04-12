@@ -26,6 +26,7 @@ EPep = set(b'EPep')
 NL_WS = set(b'\r\n')
 NON_NL_WS = set(b' \t\v\f')
 DELIMITER_INVALID = set(b' ()\\\t\v\f\r\n')
+UTF8_BOM =b'\xef\xbb\xbf'
 
 
 class Lexer:
@@ -38,15 +39,12 @@ class Lexer:
         self.pp = pp
         self.buff = buff
         self.start_loc = start_loc
-        self.cursor = 0
+        self.cursor = 3 if buff.startswith(UTF8_BOM) else 0
+        self.start_of_line = True
         self.clean = True
 
     def cursor_loc(self):
         return self.cursor + self.start_loc
-
-    def skip_bom(self):
-        bom = '\ufeff'.encode()  # b'\xef\xbb\xbf'
-        return len(bom) if self.buff.startswith(bom) else 0
 
     @staticmethod
     def initialize():
@@ -179,14 +177,10 @@ class Lexer:
         return c, cursor
 
     def get_token(self, token):
-        cursor = self.cursor
-        if cursor == 0:
-            token.flags = TokenFlags.BOL
-            cursor = self.skip_bom()
-        else:
-            token.flags = 0
+        token.flags = 0
         token.extra = None
         buff = self.buff
+        cursor = self.cursor
 
         while True:
             # Internally to the Lexer, all locations are ofsets in the buffer.  They are
@@ -199,6 +193,9 @@ class Lexer:
             if kind != TokenKind.WS:
                 break
 
+        if self.start_of_line:
+            token.flags |= TokenFlags.BOL
+        self.start_of_line = False
         token.loc += self.start_loc
         token.kind = kind
         self.cursor = cursor
@@ -239,7 +236,7 @@ class Lexer:
             token.flags |= TokenFlags.WS
         else:
             token.flags &= ~TokenFlags.WS
-        token.flags |= TokenFlags.BOL
+        self.start_of_line = True
         return TokenKind.WS, cursor
 
     def on_nul(self, token, cursor):
@@ -297,7 +294,10 @@ class Lexer:
         c, ncursor = self.read_logical_byte(cursor)
         if c == 35:  # '#'
             return TokenKind.CONCAT, ncursor
-        return TokenKind.HASH, cursor
+        if self.start_of_line:
+            return TokenKind.DIRECTIVE_HASH, cursor
+        else:
+            return TokenKind.HASH, cursor
 
     def on_not(self, token, cursor):
         # Handle "! !="
@@ -438,12 +438,16 @@ class Lexer:
             return TokenKind.BRACE_CLOSE, ncursor
         if c != 58:  # ':'
             return TokenKind.MODULUS, cursor
+        # %: or %:%:
         c, cursor = self.read_logical_byte(ncursor)
         if c == 37:  # '%'
             c, cursor = self.read_logical_byte(cursor)
             if c == 58:  # ':'
                 return TokenKind.CONCAT, cursor
-        return TokenKind.HASH, ncursor
+        if self.start_of_line:
+            return TokenKind.DIRECTIVE_HASH, ncursor
+        else:
+            return TokenKind.HASH, ncursor
 
     def on_line_comment(self, token, cursor):
         # A line comment.  Delegate handling of EOF and newlines.
