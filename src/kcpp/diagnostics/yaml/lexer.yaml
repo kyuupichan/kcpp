@@ -76,6 +76,6 @@ utf8_surrogate:
   text: surrogate in UTF-8 encoding
 
 vertical_whitespace_in_directive:
-  severity: warning
+  severity: ignored
   group: directive_ws_strict
   text: "%select{vertical tab|form feed}0 in preprocessing directive"

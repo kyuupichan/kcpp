@@ -951,7 +951,7 @@ diagnostic_definitions = {
     ),
     DID.vertical_whitespace_in_directive: DiagnosticDefinition(
         DID.vertical_whitespace_in_directive,
-        DiagnosticSeverity.warning,
+        DiagnosticSeverity.ignored,
         DiagnosticGroup.directive_ws,
         '%select{vertical tab|form feed}0 in preprocessing directive',
     ),
