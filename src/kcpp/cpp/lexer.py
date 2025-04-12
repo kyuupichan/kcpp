@@ -656,17 +656,42 @@ class Lexer:
 
         # Handle __VA_ARGS__, alternative tokens, etc.
         ident = self.pp.get_identifier(spelling)
-        if ident.special & SpecialKind.VA_IDENTIFIER:
+        special = ident.special
+        if special & SpecialKind.VA_IDENTIFIER:
             if not self.pp.in_variadic_macro_definition:
                 self.diag(DID.invalid_variadic_identifier_use, start, [spelling])
-        elif ident.special & SpecialKind.ALT_TOKEN:
+        elif special & SpecialKind.ALT_TOKEN:
             kind = ident.alt_token_kind()
+        elif self.is_start_of_line and special & SpecialKind.MODULE_KEYWORD:
+            # Directives are not formed if the identifier is an object-like macro
+            if not ident.macro or ident.macro.is_function_like():
+                self.cursor = cursor
+                kind = self.maybe_module_keyword(ident)
 
         return kind, ident, cursor
 
-    # Character and (non-raw) string literals
+    def maybe_module_keyword(self, ident):
+        '''Called by the lexer on lexing what is perhaps a module keyword.'''
+        mk_kind = ident.module_keyword_kind()
+        if mk_kind == TokenKind.kw_module_keyword:
+            choices = (TokenKind.IDENTIFIER, TokenKind.COLON, TokenKind.SEMICOLON)
+        elif mk_kind == TokenKind.kw_export_keyword:
+            choices = (TokenKind.kw_module_keyword, TokenKind.kw_import_keyword)
+        else:
+            assert mk_kind == TokenKind.kw_import_keyword
+            choices = (TokenKind.HEADER_NAME, TokenKind.LT, TokenKind.IDENTIFIER,
+                       TokenKind.STRING_LITERAL, TokenKind.COLON)
+
+        was_in_directive = self.pp.in_directive
+        self.pp.in_directive = True               # To obtain EOF at end-of-line
+        peeked_kind = self.peek_token_kind()
+        self.pp.in_directive = was_in_directive
+
+        return mk_kind if peeked_kind in choices else TokenKind.IDENTIFIER
+
     def on_delimited_literal(self, token, cursor):
-        '''The encoding prefix, if any, and the opening quote are already lexed.'''
+        '''Character literals, non-raw string literals, and header names.'''
+        # The encoding prefix, if any, and the opening quote are already lexed
         buff = self.buff
         delimeter = buff[cursor - 1]
         in_header = self.pp.in_header_name

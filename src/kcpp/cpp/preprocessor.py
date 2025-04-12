@@ -353,6 +353,11 @@ class Preprocessor:
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
         self.get_identifier(b'_Pragma').macro = BuiltinKind.Pragma
 
+        # Module keywords.  "export" is overloaded as a standard keyword too....
+        self.get_identifier(b'export').set_module_keyword(TokenKind.kw_export_keyword)
+        self.get_identifier(b'import').set_module_keyword(TokenKind.kw_import_keyword)
+        self.get_identifier(b'module').set_module_keyword(TokenKind.kw_module_keyword)
+
         # Built-in has-feature pseudo-macros
         self.get_identifier(b'__has_cpp_attribute').macro = BuiltinKind.has_cpp_attribute
         self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
@@ -797,7 +802,6 @@ class Preprocessor:
         return None
 
     def lex_from_scratch(self, spelling, parent_loc, kind):
-
         '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token

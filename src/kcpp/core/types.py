@@ -215,6 +215,8 @@ class SpecialKind(IntEnum):
     ALT_TOKEN = 0x08
     # e.g. 'L', 'uR'.  High bits encode the Encoding enum.
     ENCODING_PREFIX = 0x10
+    # 'module', 'import' or 'export'.  Can start a module or import directive.
+    MODULE_KEYWORD = 0x20
 
 
 @dataclass(slots=True)
@@ -237,6 +239,10 @@ class IdentifierInfo:
         assert self.special & SpecialKind.ALT_TOKEN
         return TokenKind(self.special >> 6)
 
+    def module_keyword_kind(self):
+        assert self.special & SpecialKind.MODULE_KEYWORD
+        return TokenKind(self.special >> 6)
+
     def encoding(self):
         assert self.special & SpecialKind.ENCODING_PREFIX
         return Encoding(self.special >> 6)
@@ -252,6 +258,9 @@ class IdentifierInfo:
 
     def set_keyword(self, token_kind):
         self.special |= (token_kind << 6) + SpecialKind.KEYWORD
+
+    def set_module_keyword(self, token_kind):
+        self.special |= (token_kind << 6) + SpecialKind.MODULE_KEYWORD
 
     def set_va_identifier(self):
         self.special |= SpecialKind.VA_IDENTIFIER
@@ -436,6 +445,7 @@ class TokenKind(IntEnum):
     kw_enum = auto()
     kw_explicit = auto()
     kw_export = auto()
+    kw_export_keyword = auto()
     kw_extern = auto()
     kw_false = auto()
     kw_float = auto()
@@ -443,9 +453,11 @@ class TokenKind(IntEnum):
     kw_friend = auto()
     kw_goto = auto()
     kw_if = auto()
+    kw_import_keyword = auto()
     kw_inline = auto()
     kw_int = auto()
     kw_long = auto()
+    kw_module_keyword = auto()
     kw_mutable = auto()
     kw_namespace = auto()
     kw_new = auto()

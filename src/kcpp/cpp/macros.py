@@ -105,7 +105,7 @@ class Macro:
         return bool(self.flags & MacroFlags.IS_VARIADIC)
 
     def is_function_like(self):
-        '''Return true if the macro is variadic.'''
+        '''Return true if the macro is function-like.'''
         return bool(self.flags & MacroFlags.IS_FUNCTION_LIKE)
 
     def param_count(self):
