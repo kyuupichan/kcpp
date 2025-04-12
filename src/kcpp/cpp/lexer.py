@@ -682,9 +682,13 @@ class Lexer:
             choices = (TokenKind.HEADER_NAME, TokenKind.LT, TokenKind.IDENTIFIER,
                        TokenKind.STRING_LITERAL, TokenKind.COLON)
 
-        was_in_directive = self.pp.in_directive
+        assert not self.pp.in_header_name
+        was_in_directive = self.pp.in_header_name
         self.pp.in_directive = True               # To obtain EOF at end-of-line
+        self.pp.in_header_name = mk_kind == TokenKind.kw_import_keyword
         peeked_kind = self.peek_token_kind()
+        # Ensure a subsequent lex gets the header name
+        self.pp.in_header_name = peeked_kind == TokenKind.HEADER_NAME
         self.pp.in_directive = was_in_directive
 
         return mk_kind if peeked_kind in choices else TokenKind.IDENTIFIER
@@ -695,6 +699,8 @@ class Lexer:
         buff = self.buff
         delimeter = buff[cursor - 1]
         in_header = self.pp.in_header_name
+        # Clear the flag which was potentially retained by maybe_module_keyword()
+        self.pp.in_header_name = False
 
         if delimeter == 34:     # '"'
             kind = TokenKind.HEADER_NAME if in_header else TokenKind.STRING_LITERAL

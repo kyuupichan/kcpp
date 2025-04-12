@@ -328,7 +328,8 @@ class Token:
     def to_short_text(self):
         if self.kind == TokenKind.IDENTIFIER:
             return f'Token({self.kind.name}, {self.extra.spelling.decode()})'
-        if self.kind == TokenKind.CHARACTER_LITERAL or self.kind == TokenKind.STRING_LITERAL:
+        if (self.kind == TokenKind.CHARACTER_LITERAL or self.kind == TokenKind.STRING_LITERAL
+                or self.kind == TokenKind.HEADER_NAME):
             spelling, _ = self.extra
             return f'Token({self.kind.name}, {spelling.decode()})'
         return f'Token({self.kind.name})'
