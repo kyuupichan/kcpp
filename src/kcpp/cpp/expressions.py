@@ -181,6 +181,8 @@ class ExprParser:
 
         if kind == TokenKind.STRING_LITERAL:
             self.diag(DID.string_invalid_in_pp_expression, token.loc)
+        elif kind == TokenKind.UNTERMINATED:
+            pass  # Already diagnosed
         else:
             self.diag(DID.expected_expression, token.loc)
             state.recover(token)
