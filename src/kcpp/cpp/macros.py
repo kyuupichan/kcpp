@@ -487,13 +487,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         token, all_consumed = self.pp.lex_from_scratch(spelling, stringize_loc,
                                                        ScratchEntryKind.stringize)
         assert all_consumed
-
-        if token.kind == TokenKind.UNTERMINATED:
-            self.pp.diag(DID.stringize_failed, stringize_loc)
-            # Replace with an empty string literal.  FIXME: imitate GCC and Clang?
-            token = Token(TokenKind.STRING_LITERAL, 0, stringize_loc, (b'""', None))
-
-        assert token.kind == TokenKind.STRING_LITERAL
+        assert token.kind == TokenKind.STRING_LITERAL or token.kind == TokenKind.UNTERMINATED
         return token
 
 

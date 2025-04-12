@@ -384,10 +384,9 @@ class Preprocessor:
 
     def emit(self, diagnostic):
         if not self.ignore_diagnostics:
-            # Emit these instead as invalid token concatentation or stringizing
+            # Emit these instead as invalid token concatentation
             if self.lexing_scratch and diagnostic.did in (
-                    DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens,
-                    DID.unterminated_literal):
+                    DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens):
                 return
             if self.diag_manager.emit(diagnostic):
                 self.halt_compilation()
