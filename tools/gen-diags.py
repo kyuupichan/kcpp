@@ -87,11 +87,35 @@ def did_lines(defns):
 
 
 def group_lines(defns):
-    groups = set(defn.get('group') for defn in defns.values())
-    groups.discard(None)
+    def lines(groups, strict_groups):
+        groups = sorted(groups)
+        strict_groups = sorted(strict_groups)
 
-    return '\n'.join(f'    {group} = auto()'
-                     for group in sorted(groups))
+        yield '    # Strict groups:'
+        for group in strict_groups:
+            yield f'    {group} = auto()'
+        yield f'    strict_start = {strict_groups[0]}'
+        yield f'    strict_end = {strict_groups[-1]}'
+        yield '    # Not strict groups:'
+        for group in groups:
+            yield f'    {group} = auto()'
+
+    groups = set()
+    strict_groups = set()
+    assert not groups.intersection(strict_groups)
+    for defn in defns.values():
+        group = defn.get('group')
+        if group is None:
+            continue
+        if group.endswith('_strict'):
+            group = group[:-7]
+            defn['group'] = group
+            strict_groups.add(group)
+        else:
+            groups.add(group)
+
+    assert not groups.intersection(strict_groups)
+    return '\n'.join(lines(groups, strict_groups))
 
 
 def chunks(items, size):

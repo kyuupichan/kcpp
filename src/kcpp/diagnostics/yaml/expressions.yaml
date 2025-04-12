@@ -18,8 +18,8 @@ character_not_single_code_unit:
 
 comma_in_pp_expression:
   severity: warning
+  group: comma_expr_strict
   text: comma operator should not be used in a preprocessor expression
-  group: comma_expr
 
 division_by_zero:
   severity: error
@@ -27,8 +27,8 @@ division_by_zero:
 
 empty_character_literal:
   severity: error
+  group: invalid_pp_token_strict
   text: empty character literal
-  group: invalid_pp_token
 
 escape_sequence_value_too_large:
   severity: error
@@ -49,7 +49,7 @@ hexadecimal_exponent_required:
 integer_overflow:
   # A warning.  The correct value is simply truncated.
   severity: warning
-  group: overflow
+  group: overflow_strict
   text: integer overflow
 
 integer_too_large:
@@ -71,7 +71,7 @@ invalid_numeric_suffix:
 
 left_shift_overflows:
   severity: warning
-  group: overflow
+  group: overflow_strict
   text: left shift overflows
 
 missing_digit_sequence:
@@ -105,7 +105,7 @@ shift_count_negative:
 
 shift_count_too_large:
   severity: error
-  group: shift_count
+  group: shift_count_strict
   text: shift count must be less than the integer width
 
 string_concatenation_conflict:
@@ -127,7 +127,7 @@ undefined_identifier:
 
 unrecognized_escape_sequence:
   severity: warning
-  group: escape_sequence
+  group: escape_sequence_strict
   text: invalid escape sequence %q0
 
 unrecognized_universal_character_name:

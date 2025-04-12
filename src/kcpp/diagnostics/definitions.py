@@ -28,6 +28,7 @@ class DiagnosticGroup(IntEnum):
     Therefore all ignored, warning and remark diagnostics have an associated group.  Errors
     that belong to a group can have their severity downgraded.'''
     none = auto()
+    # Strict groups:
     comma_expr = auto()
     defined = auto()
     directive_ws = auto()
@@ -37,18 +38,19 @@ class DiagnosticGroup(IntEnum):
     line_number = auto()
     macro_redefined = auto()
     macro_ws = auto()
-    multichar = auto()
     overflow = auto()
     predefined = auto()
     raw_delimiter = auto()
     shift_count = auto()
+    strict_start = comma_expr
+    strict_end = shift_count
+    # Not strict groups:
+    multichar = auto()
     shift_of_negative = auto()
     sign_change = auto()
     undefined = auto()
     unicode = auto()
     warning_directive = auto()
-    strict_start = comma_expr
-    strict_end = comma_expr
 
 
 class DID(IntEnum):
