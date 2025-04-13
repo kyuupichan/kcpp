@@ -133,6 +133,7 @@ class UnicodeTerminal(DiagnosticConsumer):
                     if c == ' ' or char_width == 2 or prev_char_width == 2:
                         accepted_text += maybe_text
                         accepted_width += maybe_width
+                        accepted_parts = True
                         maybe_text = ''
                         maybe_width = 0
                     prev_char_width = char_width
@@ -140,7 +141,7 @@ class UnicodeTerminal(DiagnosticConsumer):
                     maybe_text += c
                     maybe_width += char_width
                     # If it fits or we've not yet found a break, continue
-                    if accepted_width + maybe_width <= room or not accepted_text:
+                    if accepted_width + maybe_width <= room or not accepted_parts:
                         continue
                     # It doesn't fit and we have some text for the line.  Flush the line
                     # and begin the next line with the indent.
@@ -149,6 +150,7 @@ class UnicodeTerminal(DiagnosticConsumer):
                     line = [(' ' * indent, 'message')]
                     accepted_text = ''
                     accepted_width = indent
+                    accepted_parts = False
                     # Strip leading space from what will begin the next line
                     count = 0
                     while count < len(maybe_text) and maybe_text[count] == ' ':
@@ -158,6 +160,7 @@ class UnicodeTerminal(DiagnosticConsumer):
                 accepted_text += maybe_text
                 accepted_width += maybe_width
                 if accepted_text:
+                    accepted_parts = True
                     line.append((accepted_text, 'message'))
             if line:
                 result.append(line)
