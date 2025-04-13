@@ -335,8 +335,8 @@ class SourceLine:
             # Drop highlights that don't appear on this line
             if start == -1:
                 continue
-            start -= removed_chars
-            end -= removed_chars
+            start = max(0, min(start - removed_chars, room))
+            end = max(0, min(end - removed_chars, room))
             # Special handling of caret range - the first character (including if wide) gets
             # the caret, the rest of the range gets the twiddles
             if n == 0:
