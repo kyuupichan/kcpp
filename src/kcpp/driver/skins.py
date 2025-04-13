@@ -157,6 +157,9 @@ class KCPP(Skin):
                            help='''emit the listed diagnostics only once''')
         group.add_argument('--tabstop', metavar='WIDTH', default=8, type=int,
                            help='assume a tabstop of WIDTH for caret diagnostics')
+        group.add_argument('--terminal-width', metavar='WIDTH', type=int, action='store',
+                           default=0, help='''set the terminal width (0=auto-detect).  This
+                           affects message word wrapping and source line windowing''')
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True,
                            help='colourize diagnostic output')
         group.add_argument('--columns', action=argparse.BooleanOptionalAction, default=False,
@@ -209,6 +212,7 @@ class KCPP(Skin):
         consumer = self.frontend_class.diagnostic_class()
         if isinstance(consumer, UnicodeTerminal):
             consumer.tabstop = self.command_line.tabstop
+            consumer.terminal_width = self.command_line.terminal_width
             if self.command_line.colours and host.terminal_supports_colours(self.environ):
                 colour_string = self.environ.get(self.COLOURS_ENVVAR, self.DEFAULT_COLOURS)
                 consumer.set_sgr_code_assignments(colour_string)

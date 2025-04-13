@@ -91,6 +91,17 @@ class UnicodeTerminal(DiagnosticConsumer):
             yield from self.show_highlighted_source(context, room)
 
     def word_wrapped_lines(self, parts, room):
+        def accept_text(accepted_text, new_text, new_width, mid_line):
+            if not mid_line:
+                # Strip leading space from what will begin the next line
+                count = 0
+                while count < len(new_text) and new_text[count] == ' ':
+                    count += 1
+                new_width -= count
+                new_text = new_text[count:]
+            accepted_text += new_text
+            return accepted_text, new_width
+
         def lines(parts, room, indent):
             # Return a sequence of parts to go on a line.  Subsequent lines are indented
             # by indent, and the first part of those lines consists of the spaces.
@@ -131,36 +142,34 @@ class UnicodeTerminal(DiagnosticConsumer):
                     # If this is a break position (before a CJK character or space, or
                     # after a CJK character), add maybe_text to accepted_text
                     if c == ' ' or char_width == 2 or prev_char_width == 2:
-                        accepted_text += maybe_text
+                        accepted_text, maybe_width = accept_text(accepted_text, maybe_text,
+                                                                 maybe_width, accepted_parts)
                         accepted_width += maybe_width
-                        accepted_parts = True
+                        accepted_parts = accepted_parts or maybe_width
                         maybe_text = ''
                         maybe_width = 0
                     prev_char_width = char_width
                     # Add this character to the text whose line we're not yet sure of
                     maybe_text += c
                     maybe_width += char_width
-                    # If it fits or we've not yet found a break, continue
+                    # If it fits or we've not yet accepted something, continue
                     if accepted_width + maybe_width <= room or not accepted_parts:
                         continue
-                    # It doesn't fit and we have some text for the line.  Flush the line
-                    # and begin the next line with the indent.
-                    line.append((accepted_text, 'message'))
+                    # It doesn't fit and we have a non-empty line.  Flush the line and
+                    # begin the next line with the indent.  accepted_text can be empty
+                    # because of accepted parts before trying to split this 'message'
+                    if accepted_text:
+                        line.append((accepted_text, 'message'))
                     result.append(line)
                     line = [(' ' * indent, 'message')]
                     accepted_text = ''
                     accepted_width = indent
                     accepted_parts = False
-                    # Strip leading space from what will begin the next line
-                    count = 0
-                    while count < len(maybe_text) and maybe_text[count] == ' ':
-                        count += 1
-                    maybe_width -= count
-                    maybe_text = maybe_text[count:]
-                accepted_text += maybe_text
+                accepted_text, maybe_width = accept_text(accepted_text, maybe_text,
+                                                         maybe_width, accepted_parts)
                 accepted_width += maybe_width
+                accepted_parts = accepted_parts or maybe_width
                 if accepted_text:
-                    accepted_parts = True
                     line.append((accepted_text, 'message'))
             if line:
                 result.append(line)
