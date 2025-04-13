@@ -335,6 +335,8 @@ class SourceLine:
             # Drop highlights that don't appear on this line
             if start == -1:
                 continue
+            start -= removed_chars
+            end -= removed_chars
             # Special handling of caret range - the first character (including if wide) gets
             # the caret, the rest of the range gets the twiddles
             if n == 0:
@@ -368,12 +370,12 @@ class SourceLine:
 
         def source_line_parts(line):
             cursor = 0
-            for r in self.replacements:
-                ncursor = sum(self.out_widths[:r])
-                yield self.text[cursor: ncursor]
-                cursor = ncursor + self.out_widths[r]
-                replacement = self.text[ncursor:cursor]
+            for r in line.replacements:
+                ncursor = sum(line.out_widths[:r])
+                yield line.text[cursor: ncursor]
+                cursor = ncursor + line.out_widths[r]
+                replacement = line.text[ncursor:cursor]
                 yield enhance_text(replacement, 'unprintable')
-            yield self.text[cursor:]
+            yield line.text[cursor:]
 
         return ''.join(source_line_parts(line)), ''.join(highlight_parts(char_ranges))
