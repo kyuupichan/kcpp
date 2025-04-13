@@ -84,11 +84,100 @@ class UnicodeTerminal(DiagnosticConsumer):
         perhaps several source lines and highlights.
         '''
         # The main diagnostic message, perhaps prefixed with file and line number, and
-        # diagnostic severity, that let's the user know what the complaint is.
-        yield ''.join(self.enhance_text(*part) for part in context.message_parts)
+        # diagnostic severity, that informs the user know what the complaint is.
+        yield from self.word_wrapped_lines(context.message_parts, room)
 
         if context.caret_highlight.start is not None:
             yield from self.show_highlighted_source(context, room)
+
+    def word_wrapped_lines(self, parts, room):
+        def lines(parts, room, indent):
+            # Return a sequence of parts to go on a line.  Subsequent lines are indented
+            # by indent, and the first part of those lines consists of the spaces.
+            room = max(room, indent + 2)
+            result = []
+            line = []
+            accepted_parts = False
+            accepted_width = 0
+            for text, hint in parts:
+                # Strip the text at the start of a line
+                if not accepted_parts:
+                    text = text.lstrip()
+                if not text:
+                    # Substitutions can also leave empty parts
+                    continue
+                char_widths = bytes(terminal_charwidth(ord(c)) for c in text)
+                maybe_width = sum(char_widths)
+                if accepted_width + maybe_width <= room:
+                    line.append((text, hint))
+                    accepted_width += maybe_width
+                    accepted_parts = True
+                    continue
+                # If it can't be broken up, flush the current line if we have something and
+                # start the next line with this part
+                if hint != 'message' and accepted_parts:
+                    result.append(line)
+                    line = [(' ' * indent, 'message'), (text, hint)]
+                    accepted_width = indent + maybe_width
+                    continue
+                # Break the message up at spaces (or at CJK characters) over as many lines
+                # as needed.  Last break point is the first text character which can be
+                # pushed to the next line if a break is needed
+                accepted_text = ''
+                maybe_text = ''
+                maybe_width = 0
+                for n, (c, char_width) in enumerate(zip(text, char_widths)):
+                    # If this is a break position, add maybe_text to accepted_text
+                    if c == ' ' or char_width == 2:
+                        accepted_text += maybe_text
+                        accepted_width += maybe_width
+                        maybe_text = ''
+                        maybe_width = 0
+                    # Add this character to the text whose line we're not yet sure of
+                    maybe_text += c
+                    maybe_width += char_width
+                    # If it fits or we've not yet found a break, continue
+                    if accepted_width + maybe_width <= room or not accepted_text:
+                        continue
+                    # It doesn't fit and we have some text for the line.  Flush the line
+                    # and begin the next line with the indent.
+                    line.append((accepted_text, 'message'))
+                    result.append(line)
+                    line = [(' ' * indent, 'message')]
+                    accepted_text = ''
+                    accepted_width = indent
+                    # Strip leading space from what will begin the next line
+                    count = 0
+                    while count < len(maybe_text) and maybe_text[count] == ' ':
+                        count += 1
+                    maybe_width -= count
+                    maybe_text = maybe_text[count:]
+                accepted_text += maybe_text
+                accepted_width += maybe_width
+                if accepted_text:
+                    line.append((accepted_text, 'message'))
+            if line:
+                result.append(line)
+            return result
+
+        def enhance_line(parts):
+            '''Combine hints to enhance text in groups.'''
+            hint = None
+            combined_text = ''
+            line = ''
+            for text, text_hint in parts:
+                if hint is None or text_hint == hint:
+                    combined_text += text
+                    hint = text_hint
+                else:
+                    line += self.enhance_text(combined_text, hint)
+                    combined_text = text
+                    hint = text_hint
+            line += self.enhance_text(combined_text, hint)
+            return line
+
+        for line in lines(parts, room, 10):
+            yield enhance_line(line)
 
     def show_highlighted_source(self, context, room):
         '''The first highlight lies in a single buffer and is the "centre" of the diagnostic where
