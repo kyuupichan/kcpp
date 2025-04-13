@@ -270,6 +270,8 @@ class GCC(Skin):
                            action='store_true')
         group.add_argument('-pedantic', help='strict standards mode with warnings',
                            action='store_true')
+        group.add_argument('--columns', action=argparse.BooleanOptionalAction, default=True,
+                           help='show column numbers in diagnostics')
 
     def preprocessor_configuration(self, source):
         config = Config.default()
@@ -297,7 +299,7 @@ class GCC(Skin):
     def diagnostic_manager(self):
         config = DiagnosticConfig.default()
         config.worded_locations = False
-        config.show_columns = True
+        config.show_columns = self.command_line.columns
         if self.command_line.pedantic_errors:
             config.strict = 'e'
         elif self.command_line.pedantic:
