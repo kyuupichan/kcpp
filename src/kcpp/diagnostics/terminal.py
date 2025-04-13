@@ -126,13 +126,16 @@ class UnicodeTerminal(DiagnosticConsumer):
                 accepted_text = ''
                 maybe_text = ''
                 maybe_width = 0
+                prev_char_width = 0
                 for n, (c, char_width) in enumerate(zip(text, char_widths)):
-                    # If this is a break position, add maybe_text to accepted_text
-                    if c == ' ' or char_width == 2:
+                    # If this is a break position (before a CJK character or space, or
+                    # after a CJK character), add maybe_text to accepted_text
+                    if c == ' ' or char_width == 2 or prev_char_width == 2:
                         accepted_text += maybe_text
                         accepted_width += maybe_width
                         maybe_text = ''
                         maybe_width = 0
+                    prev_char_width = char_width
                     # Add this character to the text whose line we're not yet sure of
                     maybe_text += c
                     maybe_width += char_width
