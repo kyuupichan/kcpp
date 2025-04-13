@@ -39,6 +39,7 @@ class Lexer:
         self.start_loc = start_loc
         self.cursor = 3 if buff.startswith(UTF8_BOM) else 0
         self.is_start_of_line = is_start_of_line
+        self.in_header_name = False
         self.clean = True
 
     def cursor_loc(self):
@@ -338,7 +339,7 @@ class Lexer:
             return c == 58 or c == 62  # ':' or '>'
 
         # An angled header?
-        if self.pp.in_header_name:
+        if self.pp.in_header_name or self.in_header_name:
             kind, ncursor = self.on_delimited_literal(token, cursor)
             if kind == TokenKind.HEADER_NAME:
                 return kind, ncursor
@@ -680,13 +681,13 @@ class Lexer:
             choices = (TokenKind.HEADER_NAME, TokenKind.LT, TokenKind.IDENTIFIER,
                        TokenKind.STRING_LITERAL, TokenKind.COLON)
 
-        assert not self.pp.in_header_name
-        was_in_directive = self.pp.in_header_name
+        assert not self.in_header_name
+        was_in_directive = self.pp.in_directive
         self.pp.in_directive = True               # To obtain EOF at end-of-line
-        self.pp.in_header_name = mk_kind == TokenKind.kw_import_keyword
+        self.in_header_name = mk_kind == TokenKind.kw_import_keyword
         peeked_kind = self.peek_token_kind()
         # Ensure a subsequent lex gets the header name
-        self.pp.in_header_name = peeked_kind == TokenKind.HEADER_NAME
+        self.in_header_name = peeked_kind == TokenKind.HEADER_NAME
         self.pp.in_directive = was_in_directive
 
         return mk_kind if peeked_kind in choices else TokenKind.IDENTIFIER
@@ -696,9 +697,8 @@ class Lexer:
         # The encoding prefix, if any, and the opening quote are already lexed
         buff = self.buff
         delimeter = buff[cursor - 1]
-        in_header = self.pp.in_header_name
-        # Clear the flag which was potentially retained by maybe_module_keyword()
-        self.pp.in_header_name = False
+        in_header = self.pp.in_header_name or self.in_header_name
+        self.in_header_name = False
 
         if delimeter == 34:     # '"'
             kind = TokenKind.HEADER_NAME if in_header else TokenKind.STRING_LITERAL
