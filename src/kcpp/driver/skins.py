@@ -159,6 +159,8 @@ class KCPP(Skin):
                            help='assume a tabstop of WIDTH for caret diagnostics')
         group.add_argument('--colours', action=argparse.BooleanOptionalAction, default=True,
                            help='colourize diagnostic output')
+        group.add_argument('--columns', action=argparse.BooleanOptionalAction, default=False,
+                           help='show column numbers in diagnostics')
 
     def preprocessor_configuration(self, source):
         config = Config.default()
@@ -195,7 +197,7 @@ class KCPP(Skin):
         config.diag_error = self.command_line.diag_error
         config.diag_once = self.command_line.diag_once
         config.worded_locations = True
-        config.show_columns = False
+        config.show_columns = self.command_line.columns
         config.remarks = self.command_line.remarks
         config.warnings = self.command_line.warnings
         config.errors = self.command_line.errors
