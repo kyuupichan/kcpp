@@ -54,6 +54,10 @@ invalid_variadic_identifier_use:
   severity: error
   text: use of %q0 is invalid here
 
+macro_in_module_directive:
+  severity: error
+  text: "module keyword %q0 cannot be an object-like macro"
+
 unterminated_block_comment:
   severity: error
   text: unterminated block comment

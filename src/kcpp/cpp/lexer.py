@@ -4,7 +4,7 @@
 #
 
 from ..core import Token, TokenKind, TokenFlags, IdentifierInfo, SpecialKind
-from ..diagnostics import BufferRange, DID
+from ..diagnostics import BufferRange, Diagnostic, DID
 from ..unicode import (
     name_to_cp, utf8_cp, REPLACEMENT_CHAR, is_NFC, is_valid_codepoint,
     is_control_character, codepoint_to_hex, is_XID_Start, is_XID_Continue,
@@ -662,14 +662,16 @@ class Lexer:
         elif special & SpecialKind.ALT_TOKEN:
             kind = ident.alt_token_kind()
         elif self.is_start_of_line and special & SpecialKind.MODULE_KEYWORD:
-            # Directives are not formed if the identifier is an object-like macro
-            if not ident.macro or ident.macro.is_function_like():
-                self.cursor = cursor
-                kind = self.maybe_module_keyword(ident)
+            # The special keyword shall not be an object-like macro
+            if ident.macro and not ident.macro.is_function_like():
+                note = Diagnostic(DID.macro_defined_here, ident.macro.name_loc, [spelling])
+                self.diag(DID.macro_in_module_directive, start, [spelling, note])
+            else:
+                kind = self.maybe_module_keyword(ident, cursor)
 
         return kind, ident, cursor
 
-    def maybe_module_keyword(self, ident):
+    def maybe_module_keyword(self, ident, cursor):
         '''Called by the lexer on lexing what is perhaps a module keyword.'''
         mk_kind = ident.module_keyword_kind()
         if mk_kind == TokenKind.kw_module_keyword:
@@ -685,6 +687,7 @@ class Lexer:
         was_in_directive = self.pp.in_directive
         self.pp.in_directive = True               # To obtain EOF at end-of-line
         self.in_header_name = mk_kind == TokenKind.kw_import_keyword
+        self.cursor = cursor
         peeked_kind = self.peek_token_kind()
         # Ensure a subsequent lex gets the header name
         self.in_header_name = peeked_kind == TokenKind.HEADER_NAME

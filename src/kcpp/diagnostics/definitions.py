@@ -134,6 +134,7 @@ class DID(IntEnum):
     macro_defined_here = auto()
     macro_definition_ends_with_concat = auto()
     macro_definition_starts_with_concat = auto()
+    macro_in_module_directive = auto()
     macro_name_not_identifier = auto()
     macro_name_whitespace = auto()
     macro_produced_defined = auto()
@@ -671,6 +672,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'macro definition cannot begin with %q{##}',
+    ),
+    DID.macro_in_module_directive: DiagnosticDefinition(
+        DID.macro_in_module_directive,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.none,
+        'module keyword %q0 cannot be an object-like macro',
     ),
     DID.macro_name_not_identifier: DiagnosticDefinition(
         DID.macro_name_not_identifier,
