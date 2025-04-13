@@ -73,12 +73,13 @@ class UnicodeTerminal(DiagnosticConsumer):
         for n, message_context in enumerate(diagnostic.message_contexts):
             if n == 1:
                 indent += self.nested_indent
-            for line in self.diagnostic_lines(message_context):
+            room = self.terminal_width - 1 - indent
+            for line in self.diagnostic_lines(message_context, room):
                 print(f'{" " * indent}{line}', file=self.stderr)
         for nested in diagnostic.nested_diagnostics:
             self.emit_recursive(nested, orig_indent + self.nested_indent)
 
-    def diagnostic_lines(self, context):
+    def diagnostic_lines(self, context, room):
         '''Generate all the lines to display for the diagnostic conext - one for the message, and
         perhaps several source lines and highlights.
         '''
@@ -87,9 +88,9 @@ class UnicodeTerminal(DiagnosticConsumer):
         yield ''.join(self.enhance_text(*part) for part in context.message_parts)
 
         if context.caret_highlight.start is not None:
-            yield from self.show_highlighted_source(context)
+            yield from self.show_highlighted_source(context, room)
 
-    def show_highlighted_source(self, context):
+    def show_highlighted_source(self, context, room):
         '''The first highlight lies in a single buffer and is the "centre" of the diagnostic where
         the caret is shown.  This function generates a sequence of text lines:
 
@@ -103,21 +104,21 @@ class UnicodeTerminal(DiagnosticConsumer):
         Other highlights appear only to the extent the intersect the first highlight's
         source lines.
         '''
-        def line_margins(line_number, number_width):
-            '''Return the text margin to show at the beginning of the line.'''
-            margin = f'{line_number:{number_width}d}'
-            return margin + ' | ', ' ' * len(margin) + ' | '
-
         start, end = context.caret_highlight.start, context.caret_highlight.end
         lines = self.source_lines(start, end)
+
+        # Margin book-keeping details
         max_line_number = start.presumed_line_number + len(lines) - 1
-        number_width = max(5, len(str(max_line_number)))
+        line_number_width = max(5, len(str(max_line_number)))
+        margin_suffix = ' | '
+        margin_width = len(margin_suffix) + line_number_width
+        room -= margin_width
+
         for line_number, line in enumerate(lines, start=start.presumed_line_number):
-            margins = line_margins(line_number, number_width)
-            room = self.terminal_width - 1 - len(margins[0])
+            margins = f'{line_number:{line_number_width}d}', ' ' * line_number_width
             texts = line.source_and_highlight_lines(context, room, self.enhance_text)
             for margin, text in zip(margins, texts):
-                yield margin + text
+                yield margin + margin_suffix + text
 
     def source_lines(self, start: PresumedLocation, end: PresumedLocation):
         '''Return a list of SourceLine objects, one for each line between start and end inclusive.
