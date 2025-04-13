@@ -126,10 +126,15 @@ class UnicodeTerminal(DiagnosticConsumer):
                     continue
                 # If it can't be broken up, flush the current line if we have something and
                 # start the next line with this part
-                if hint != 'message' and accepted_parts:
-                    result.append(line)
-                    line = [(' ' * indent, 'message'), (text, hint)]
-                    accepted_width = indent + maybe_width
+                if hint != 'message':
+                    if accepted_parts:
+                        result.append(line)
+                        line = [(' ' * indent, 'message'), (text, hint)]
+                        accepted_width = indent + maybe_width
+                    else:
+                        line.append((text, hint))
+                        accepted_width += maybe_width
+                        accepted_parts = True
                     continue
                 # Break the message up at spaces (or at CJK characters) over as many lines
                 # as needed.  Last break point is the first text character which can be
