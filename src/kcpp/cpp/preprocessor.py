@@ -1145,14 +1145,18 @@ class Preprocessor:
             token.loc           # opening_loc
         )
         self.buffer_states[-1].if_sections.append(section)
-        if not self.skipping:
-            section.true_condition_seen = condition(token)
+        if self.skipping:
+            # True / False here doesn't matter as we're skipping
+            self.skip_to_eod(token, False)
+        else:
+            section.true_condition_seen = condition(token)   # Skips to EOD
             self.skipping = not section.true_condition_seen
 
     def else_section(self, token, condition):
         buffer_state = self.buffer_states[-1]
         if not buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
+            self.skip_to_eod(token, False)
             return
 
         section = buffer_state.if_sections[-1]
@@ -1171,10 +1175,11 @@ class Preprocessor:
         if condition:  # conditional else
             if section.true_condition_seen:
                 self.skipping = True
+                # True / False here doesn't matter as we're skipping
                 self.skip_to_eod(token, False)
             else:
                 self.skipping = False
-                section.true_condition_seen = condition(token)
+                section.true_condition_seen = condition(token)   # Skips to EOD
                 self.skipping = not section.true_condition_seen
         else:  # unconditional else
             section.else_loc = token.loc
