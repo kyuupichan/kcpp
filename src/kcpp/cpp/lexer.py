@@ -24,7 +24,6 @@ EPep = set(b'EPep')
 NL_WS = set(b'\r\n')
 NON_NL_WS = set(b' \t\v\f')
 DELIMITER_INVALID = set(b' ()\\\t\v\f\r\n')
-UTF8_BOM = b'\xef\xbb\xbf'
 
 
 class Lexer:
@@ -37,7 +36,7 @@ class Lexer:
         self.pp = pp
         self.buff = buff
         self.start_loc = start_loc
-        self.cursor = 3 if buff.startswith(UTF8_BOM) else 0
+        self.cursor = 0
         self.is_start_of_line = is_start_of_line
         self.in_header_name = False
         self.clean = True

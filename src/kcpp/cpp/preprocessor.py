@@ -530,6 +530,7 @@ class Preprocessor:
         buffer = Buffer(file.nul_terminated_contents())
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
         lexer = Lexer(self, buffer.text, first_loc, True)
+        lexer.cursor = buffer.bom_length
         self.push_source(lexer)
         # Maintain buffer states
         self.buffer_states.append(BufferState([]))

@@ -14,6 +14,8 @@ __all__ = [
     'IdentifierInfo', 'Token', 'TokenKind', 'TokenFlags', 'Encoding', 'SpecialKind',
 ]
 
+UTF8_BOM = b'\xef\xbb\xbf'
+
 
 def line_offsets_gen(raw):
     for n, c in enumerate(raw):
@@ -24,11 +26,11 @@ def line_offsets_gen(raw):
                 yield n + 1
 
 
-def sparse_line_offsets(raw, min_step):
+def sparse_line_offsets(raw, bom_length, min_step):
     '''Return a sparse sorted list of (line_offset, line_number) pairs.  The list always
-    starts with (0,1).
+    starts with (0,1) or (3, 1) for a text file with a UTF-8 BOM.
     '''
-    result = [(0, 1)]
+    result = [(bom_length, 1)]
 
     beyond = min_step
     line_number = 1
@@ -45,6 +47,7 @@ class Buffer:
 
     def __init__(self, text, *, sparsity=1_000):
         self.text = text
+        self.bom_length = 3 if text.startswith(UTF8_BOM) else 0
         # A sparse list of (offset, line_number) pairs to save memory
         self._sparse_line_offsets = None
         self.sparsity = sparsity
@@ -52,7 +55,8 @@ class Buffer:
     def sparse_line_offsets(self):
         '''Calculate the sparse line offsets on demand, and cache them.'''
         if self._sparse_line_offsets is None:
-            self._sparse_line_offsets = sparse_line_offsets(self.text, self.sparsity)
+            self._sparse_line_offsets = sparse_line_offsets(self.text, self.bom_length,
+                                                            self.sparsity)
         return self._sparse_line_offsets
 
     def offset_to_line_info(self, offset):
@@ -63,6 +67,8 @@ class Buffer:
         '''
         if not 0 <= offset <= len(self.text):
             raise ValueError(f'offset {offset} out of range; max is {len(self.text)}')
+
+        offset = max(offset, self.bom_length)
 
         # Fix for wanting the position of '\n' in an '\r\n' sequence, as the '\r' would be
         # seen as ending and give a line number 1 too large.
