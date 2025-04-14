@@ -1228,7 +1228,8 @@ class Preprocessor:
             self.skipping = if_section.was_skipping
         except IndexError:
             self.diag(DID.endif_without_if, token.loc)
-        self.skip_to_eod(token, True)
+            if_section = None
+        self.skip_to_eod(token, bool(if_section))
 
     def skip_to_eod(self, token, diagnose):
         if diagnose is True:
