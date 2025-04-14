@@ -36,7 +36,8 @@ class IfSection:
     '''Represents a conditional preprocessing group.'''
     # True if the preprocessor was skipping on entry to the #if
     was_skipping: bool
-    # True if one of the if / elif conditions in this group was true
+    # True if one of the if / elif conditions in this group so far is true.  Used to
+    # determine whether a following #else is skipped, or a following #elif is processed.
     true_condition_seen: bool
     # If #else has been seen, its location, otherwise -1
     else_loc: int
@@ -1176,8 +1177,18 @@ class Preprocessor:
                 self.skipping = not section.true_condition_seen
         else:  # unconditional else
             section.else_loc = token.loc
+            # Note - skipping is deliberately set before checking for extra tokens.  This
+            # is required by at least C23 and C++23 but was a defect in earlier standards.
+            #
+            # Consider:
+            # #if 1          vs         #if 1
+            # #else foo                 #elif
+            # #endif                    #endif
+            #
+            # The excess token in #else and the lack of an expression in #elif should
+            # either both be diagnosable or neither (recent standards say neither).
+            # Clang, GCC and EDG don't get this right.
             self.skipping = section.true_condition_seen
-            section.true_condition_seen = True
             self.skip_to_eod(token, True)
 
     def on_if(self, token):

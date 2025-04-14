@@ -18,7 +18,7 @@ else_after_else:
 
 else_location:
   severity: note
-  text: "#else was here"
+  text: "earlier #else was here"
 
 endif_without_if:
   severity: error
