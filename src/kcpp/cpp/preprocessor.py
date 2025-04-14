@@ -1157,6 +1157,7 @@ class Preprocessor:
 
         section = buffer_state.if_sections[-1]
         if section.was_skipping:
+            # True / False here doesn't matter as we're skipping
             self.skip_to_eod(token, False)
             return
         if section.else_loc != -1:
@@ -1178,7 +1179,7 @@ class Preprocessor:
         else:  # unconditional else
             section.else_loc = token.loc
             # Note - skipping is deliberately set before checking for extra tokens.  This
-            # is required C++17 and C17 and a defect in earlier standards.
+            # is required in C++17 and C17 and a defect in earlier standards.
             #
             # Consider:
             # #if 1          vs         #if 1
