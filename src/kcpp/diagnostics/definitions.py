@@ -364,7 +364,7 @@ diagnostic_definitions = {
         DID.else_location,
         DiagnosticSeverity.note,
         DiagnosticGroup.none,
-        '#else was here',
+        'earlier #else was here',
     ),
     DID.else_without_if: DiagnosticDefinition(
         DID.else_without_if,

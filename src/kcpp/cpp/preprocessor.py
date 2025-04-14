@@ -1178,7 +1178,7 @@ class Preprocessor:
         else:  # unconditional else
             section.else_loc = token.loc
             # Note - skipping is deliberately set before checking for extra tokens.  This
-            # is required by at least C23 and C++23 but was a defect in earlier standards.
+            # is required C++17 and C17 and a defect in earlier standards.
             #
             # Consider:
             # #if 1          vs         #if 1
