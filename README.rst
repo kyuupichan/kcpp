@@ -12,7 +12,7 @@ A preprocessor for C++23 writen in Python, implemented as a library.
 Getting started
 ===============
 
-Put this in `/tmp/foo.cpp`::
+Put this in ``/tmp/foo.cpp``::
 
   #define div 1 / 0
   #define g(x) 2 + x
@@ -70,7 +70,7 @@ better than could be achieved from scratch in a similar timeframe in those langu
 
 I was a co-maintainer of GCC's preprocessor from 1999 to 2003.  During this time we
 converted it from a standalone executable that would output to a pipe, to an integrated
-(kind-of) libary `libcpp` in the compiler proper.  Compilers are addictive, and between
+(kind-of) libary ``libcpp`` in the compiler proper.  Compilers are addictive, and between
 2005 and 2007 I wrote a C99 front-end in C (which is not public).  LLVM was lacking an
 implementation of compile-time host- and target-independent IEEE-conforming floating point
 arithmetic, so I contributed the one from my front-end (after translating it from C to
@@ -106,42 +106,42 @@ There are several publicly available preprocessors typically written in C or C++
 they claim to be standards conforming but are usually far from it.  It is significant work
 to be 90% conforming, but the last 10% is really quite hard.  There are endless corner
 cases, and more recent preprocessor features like extended identifiers, raw strings,
-variable-argument macros (particularly the addition of `__VA_OPT__`), and handling UCNs
+variable-argument macros (particularly the addition of ``__VA_OPT__``), and handling UCNs
 are each significant work.  None of the preprocessors I'm aware of (other than those of
 the much larger projects GCC and Clang) make an effort at high-quality diagnostics or
 serious standards compliance.
 
 To my surprise two or three Python preprocessors exist as well, but have similar defects
-and/or have other goals such as visualization (`cpip` is a cool example of this).  None
+and/or have other goals such as visualization (``cpip`` is a cool example of this).  None
 appear to be actively maintained.
 
-It is worthwhile comparing the code of other preprocessors with that of `kcpp` and testing
-them with tricky preprocessing cases.
+It is worthwhile comparing the code of other preprocessors with that of ``kcpp`` and
+testing them with tricky preprocessing cases.
 
 
 Features
 ========
 
-As a **genuinely** conforming C++23 preprocessor `kcpp` is essentially complete.  I am
+As a **genuinely** conforming C++23 preprocessor ``kcpp`` is essentially complete.  I am
 aware of only a handful of minor conformance issues, which no one should notice in normal
 circumstances, and they will be fixed soon.
 
 Specifically the following are implemented:
 
 - lexing (including UCNs, extended identifiers, and raw string literals)
-- conversion of Unicode character names (those in `\N{}` escapes) to codepoints.  I
+- conversion of Unicode character names (those in ``\N{}`` escapes) to codepoints.  I
   implemented it based on the ideas described by **cor3ntin** at
   https://cor3ntin.github.io/posts/cp_to_name/.  I added some ideas and improvements of my
   own to achieve another 20% compaction - see
   https://github.com/kyuupichan/kcpp/blob/master/src/kcpp/unicode/cp_name_db.py.
-- macro expansion, including variable arguments, `__VA_OPT__`, and whitespace-correctness
+- macro expansion, including variable arguments, ``__VA_OPT__``, and whitespace-correctness
 - all standard directives
-- `_Pragma` operator
+- ``_Pragma`` operator
 - predefined and built-in macros, presently limited to those defined in the standard
 - interpretation of character, string and numeric literals
 - expression parsing with proper error recovery
 - expression evaluation
-- `__has_include`, `__has_cpp_attribute` preprocessor conditional operators
+- ``__has_include``, ``__has_cpp_attribute`` preprocessor conditional operators
 - preprocessed output
 - a full diagnostic framework.  This includes changing diagnostic severities from the
   command line, Colourized output to a Unicode terminal, and translations (none
@@ -157,7 +157,7 @@ Future
 
 - the multiple-include optimization is not yet implemented
 - some GCC and Clang extensions should be supported
-- a few changes to support C23 preprocessing (particularly `#embed`) should be added
+- a few changes to support C23 preprocessing (particularly ``#embed``) should be added
 - features like ``Makefile`` output are worth considering going forwards.
 - pprecompiled headers are possibly an idea.  I suspect an implementation would largely
 overlap with modules.  Again, Python is a good place to experiment before attempting an
