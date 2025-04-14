@@ -528,9 +528,9 @@ def expand_builtin_macro(pp, token):
         if pp.time_str is None:
             epoch = pp.source_date_epoch
             if epoch is None:
-                epoch = datetime.today()
+                epoch = datetime.now(tz=pp.tz)
             else:
-                epoch = datetime.fromtimestamp(epoch)
+                epoch = datetime.fromtimestamp(epoch, tz=pp.tz)
             months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
             pp.time_str = f'"{epoch.hour:02d}:{epoch.minute:02d}:{epoch.second:02d}"'
             pp.date_str = f'"{months[epoch.month - 1]} {epoch.day:2d} {epoch.year:4d}"'

@@ -136,6 +136,7 @@ class Preprocessor:
 
     condition_directives = set(b'if ifdef ifndef elif elifdef elifndef else endif'.split())
     read_stdin = sys.stdin.buffer.read
+    tz = None    # for __DATE__ and __TIME__; None means local timezone
 
     def __init__(self, diag_manager):
         '''Basic initialization.  Customization, and initialization based on that, comes
