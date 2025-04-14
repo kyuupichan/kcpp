@@ -1192,7 +1192,9 @@ class Preprocessor:
         self.enter_if_section(token, partial(self.test_defined, True))
 
     def on_elif(self, token):
+        self.in_if_elif_directive = True
         self.else_section(token, self.evaluate_pp_expression)
+        self.in_if_elif_directive = False
 
     def on_elifdef(self, token):
         self.else_section(token, partial(self.test_defined, False))
