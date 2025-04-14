@@ -1145,9 +1145,7 @@ class Preprocessor:
         )
         self.buffer_states[-1].if_sections.append(section)
         if not self.skipping:
-            self.in_if_elif_directive = True
             section.true_condition_seen = condition(token)
-            self.in_if_elif_directive = False
             self.skipping = not section.true_condition_seen
 
     def else_section(self, token, condition):
@@ -1183,7 +1181,9 @@ class Preprocessor:
             self.skip_to_eod(token, True)
 
     def on_if(self, token):
+        self.in_if_elif_directive = True
         self.enter_if_section(token, self.evaluate_pp_expression)
+        self.in_if_elif_directive = False
 
     def on_ifdef(self, token):
         self.enter_if_section(token, partial(self.test_defined, False))
