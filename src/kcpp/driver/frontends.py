@@ -187,18 +187,20 @@ class FrontEnd(FrontEndBase):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present
         this is used for debugging purposes.'''
         super().process(source, multiple)
-        pp = self.pp
-        write = pp.stdout.write
-        consume = True
-        while True:
-            if consume:
-                token = pp.get_token()
-            if token.kind == TokenKind.EOF:
-                return
-            consume = token.kind != TokenKind.STRING_LITERAL
+        get_token = self.pp.get_token
+        interpreter = self.pp.literal_interpreter
+        write = self.pp.stdout.write
+        token = get_token()
+        while token.kind != TokenKind.EOF:
             write(token.to_short_text())
             write('\n')
-            if token.is_literal():
-                result, token = pp.interpret_literal(token)
-                write(result.to_short_text())
+            if token.kind == TokenKind.STRING_LITERAL:
+                literal, token = interpreter.concatenate_strings(token)
+                write(literal.to_short_text())
                 write('\n')
+            else:
+                if token.kind == TokenKind.CHARACTER_LITERAL or token.kind == TokenKind.NUMBER:
+                    literal = interpreter.interpret(token)
+                    write(literal.to_short_text())
+                    write('\n')
+                token = get_token()

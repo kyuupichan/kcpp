@@ -219,13 +219,6 @@ class LiteralInterpreter:
 
     def interpret(self, token):
         '''Return a literal.'''
-        if token.kind == TokenKind.STRING_LITERAL:
-            # Reject string literals in preprocessor expressions
-            if self.pp_arithmetic:
-                self.pp.diag(DID.string_invalid_in_pp_expression, token.loc)
-                return IntegerLiteral(IntegerKind.error, 0, None)
-            return self.concatenate_string_literals(token)
-
         if token.kind == TokenKind.NUMBER:
             result = self.interpret_number(token)
         else:
@@ -241,7 +234,7 @@ class LiteralInterpreter:
                 self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
                 result.kind = IntegerKind.error
 
-        return result, None
+        return result
 
     #
     # Numeric literals
@@ -686,8 +679,12 @@ class LiteralInterpreter:
         else:
             return SpellingRange(token.loc, limit + 1, len(spelling))
 
-    def concatenate_string_literals(self, token):
-        '''Concatenate and interpret string literals beginning with token.'''
+    def concatenate_strings(self, token):
+        '''Concatenate and interpret consecutive string literals beginning with token.
+
+        Return a pair (literal, next_token).  literal is an instance of StringLiteral, and
+        next_token is the first token consumed that was not a string literal.
+        '''
         def diagnose_conflict(token, bad_tokens, selector):
             args = [selector]
             args.extend([Diagnostic(DID.string_concatenation_prior,
@@ -697,6 +694,7 @@ class LiteralInterpreter:
             self.pp.diag(DID.string_concatenation_conflict, diag_loc, args)
 
         assert token.kind == TokenKind.STRING_LITERAL
+        assert not self.pp_arithmetic
 
         # Read adjacent string literal tokens.  This leaves the next non-string-literal
         # token in token.

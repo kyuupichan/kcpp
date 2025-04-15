@@ -306,7 +306,7 @@ class ExprParser:
     def evaluate_literal(self, token):
         '''Evaluate a character constant or number.  This needs to be done even in unevaluated
         contexts because the signedness of the result matters.'''
-        literal, _ = self.literal_interpreter.interpret(token)
+        literal = self.literal_interpreter.interpret(token)
         if literal.kind == IntegerKind.error:
             value, is_unsigned, is_erroneous = 0, False, True
         else:
