@@ -301,22 +301,22 @@ class FunctionLikeExpansion(SimpleTokenList):
         tokens = macro.replacement_list
         base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
-                                             parent_token.flags)
+                                             parent_token.flags, True)
         macro.disable()
 
-    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, parent_flags):
+    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, parent_flags,
+                          remove_placemarkers):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
             if param.extra < 0:
                 assert self.macro.is_variadic()
-                # Pre-expand the variable argument to see if it's empty.
+                # Fully expand the variable argument only to see if it's empty
                 va_tokens = self.expand_argument(arguments[-1])
-                # FIXME: remove placemarkers
                 if va_tokens:
                     token_count = -param.extra   # Includes the parentheses
                     va_opt_tokens = self.replace_arguments(
                         tokens, arguments, base_loc, cursor + 2, cursor + token_count,
-                        param.flags)
+                        param.flags, False)
                     return va_opt_tokens, token_count
                 else:
                     return [self.placemarker_token()], -param.extra
@@ -385,11 +385,13 @@ class FunctionLikeExpansion(SimpleTokenList):
             result.append(token)
             cursor += 1
 
-        result, result_ws = self.perform_concatenations(result)
+        result, result_ws = self.perform_concatenations(result, remove_placemarkers)
         self.trailing_ws = ws or result_ws
         return result
 
-    def perform_concatenations(self, tokens):
+    def perform_concatenations(self, tokens, remove_placemarkers):
+        '''Perform concatenations before the rescan (get_token) step.  On leaving this
+        function, no placemarker tokens should remain.'''
         result = []
         cursor = 0
         limit = len(tokens)
@@ -398,16 +400,24 @@ class FunctionLikeExpansion(SimpleTokenList):
             token = tokens[cursor]
             if token.kind == TokenKind.CONCAT:
                 assert cursor + 1 < len(tokens)
+                # Result[-1] is replaced, possibly with a placemarker
                 if self.concatenate_tokens(result[-1], token.loc, tokens[cursor + 1]):
                     cursor += 2
                 else:
                     cursor += 1
             else:
+                if remove_placemarkers and result and result[-1].kind == TokenKind.PLACEMARKER:
+                    ws = ws or bool(result[-1].flags & TokenFlags.WS)
+                    result.pop()
                 result.append(token)
                 cursor += 1
             if ws:
                 result[-1].flags |= TokenFlags.WS
                 ws = False
+
+        if remove_placemarkers and result and result[-1].kind == TokenKind.PLACEMARKER:
+            ws = ws or bool(result[-1].flags & TokenFlags.WS)
+            result.pop()
 
         return result, ws
 
@@ -424,13 +434,6 @@ class FunctionLikeExpansion(SimpleTokenList):
 
         token.set_to(tokens[cursor], tokens[cursor].loc)
         self.cursor = cursor + 1
-
-        # Don't let placemarker tokens leak out
-        if token.kind == TokenKind.PLACEMARKER:
-            ws = bool(token.flags & TokenFlags.WS)
-            self.get_token(token)
-            if ws:
-                token.flags |= TokenFlags.WS
 
     def expand_argument(self, argument_tokens):
         def collect_expanded_tokens(get_token):
