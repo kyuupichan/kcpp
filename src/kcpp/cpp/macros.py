@@ -206,11 +206,9 @@ class Macro:
 class SimpleTokenList:
     '''Common functionaliy for various token lists.'''
 
-    peek_end_kind = TokenKind.PEEK_AGAIN
-
     def peek_token_kind(self):
         if self.cursor == len(self.tokens):
-            return self.peek_end_kind
+            return TokenKind.PEEK_AGAIN
         return self.tokens[self.cursor].kind
 
     def concatenate_tokens(self, lhs, concat_loc, rhs):
