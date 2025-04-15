@@ -253,7 +253,7 @@ class SimpleTokenList:
         else:  # Concatenation of two placemarkers - result is the left placemarker
             assert tokens[-1].kind == rhs.kind == TokenKind.PLACEMARKER
 
-    def objlike_replacement_tokens(self, tokens, base_loc):
+    def objlike_replacement_tokens(self, tokens, base_loc, ws):
         '''Copy the replacement list tokens, giving them their new locations.  Whilst doing so,
         perform any concatenations present.  Return a token list ready for stepping
         through with get_token().
@@ -271,6 +271,14 @@ class SimpleTokenList:
             else:
                 result.append(token)
                 cursor += 1
+
+        # The first token acquires the WS flag of the invocation token.  If there is no
+        # token, record any trailing whitepsace.
+        if result:
+            result[0].flags &= ~TokenFlags.WS
+            result[0].flags |= ws
+            ws = 0
+        self.trailing_ws = ws
         return result
 
 
@@ -285,16 +293,8 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.macro = macro
         self.cursor = 0
         base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
-        tokens = self.objlike_replacement_tokens(macro.replacement_list, base_loc)
-        # The first token acquires the WS flag of the invocation token.  If there is no
-        # token, record any trailing whitepsace.
-        ws = invocation_token.flags & TokenFlags.WS
-        if tokens:
-            tokens[0].flags &= ~TokenFlags.WS
-            tokens[0].flags |= ws
-            ws = 0
-        self.tokens = tokens
-        self.trailing_ws = ws
+        self.tokens = self.objlike_replacement_tokens(macro.replacement_list, base_loc,
+                                                      invocation_token.flags & TokenFlags.WS)
         macro.disable()
 
 
