@@ -349,16 +349,6 @@ class FunctionLikeExpansion(SimpleTokenList):
             if cursor != first:
                 ws |= token.flags & TokenFlags.WS
 
-            if token.kind == TokenKind.STRINGIZE:
-                cursor += 1
-                argument_tokens, va_opt_count = check_argument(tokens[cursor])
-                string = self.stringize_argument(argument_tokens, new_token_loc)
-                string.flags |= ws
-                ws = 0
-                result.append(string)
-                cursor += 1 + va_opt_count
-                continue
-
             if token.kind == TokenKind.MACRO_PARAM:
                 argument_tokens, token_count = check_argument(token)
                 cursor += token_count + 1
@@ -381,18 +371,24 @@ class FunctionLikeExpansion(SimpleTokenList):
                 first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
                 for loc, token in enumerate(argument_tokens, start=first_loc):
                     token.loc = loc
-
                 result.extend(argument_tokens)
-                continue
-
-            token = copy(token)
-            if cursor == first:
-                token.flags &= ~TokenFlags.WS
-            token.flags |= ws
-            ws = 0
-            token.loc = new_token_loc
-            result.append(token)
-            cursor += 1
+            else:
+                if token.kind == TokenKind.STRINGIZE:
+                    cursor += 1  # check_argument uses cursor... ugh
+                    argument_tokens, va_opt_count = check_argument(tokens[cursor])
+                    token = self.stringize_argument(argument_tokens, new_token_loc)
+                    assert not (token.flags & TokenFlags.WS)
+                    cursor += 1 + va_opt_count
+                else:
+                    token = copy(token)
+                    token.loc = new_token_loc
+                    # Apply whitepace appropriately
+                    if cursor == first:
+                        token.flags &= ~TokenFlags.WS
+                    cursor += 1
+                token.flags |= ws
+                ws = 0
+                result.append(token)
 
         result, result_ws = self.perform_concatenations(result, first == 0)
         if first == 0:
@@ -483,9 +479,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         spelling.append(34)    # '"'
         token, all_consumed = self.pp.lex_from_scratch(spelling, stringize_loc,
                                                        ScratchEntryKind.stringize)
-        assert all_consumed
-        assert token.kind == TokenKind.STRING_LITERAL or token.kind == TokenKind.UNTERMINATED
-        return token
+        return token   # kind is either STRING_LITERAL or UNTERMINATED
 
 
 class UnexpandedArgument:
