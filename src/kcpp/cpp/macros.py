@@ -345,16 +345,15 @@ class FunctionLikeExpansion(SimpleTokenList):
             loop_count += 1
             token = tokens[cursor]
             new_token_loc = base_loc + cursor
-            if loop_count and token.flags & TokenFlags.WS:
-                ws = True
+            if loop_count:
+                ws |= token.flags & TokenFlags.WS
 
             if token.kind == TokenKind.STRINGIZE:
                 cursor += 1
                 argument_tokens, va_opt_count = check_argument(tokens[cursor])
                 string = self.stringize_argument(argument_tokens, new_token_loc)
-                if ws:
-                    string.flags |= TokenFlags.WS
-                    ws = False
+                string.flags |= ws
+                ws = 0
                 result.append(string)
                 cursor += 1 + va_opt_count
                 continue
@@ -376,8 +375,8 @@ class FunctionLikeExpansion(SimpleTokenList):
                 # Set WS flag on the first token (if there is one)
                 if argument_tokens:
                     if ws:
-                        argument_tokens[0].flags |= TokenFlags.WS
-                        ws = False
+                        argument_tokens[0].flags |= ws
+                        ws = 0
                     elif loop_count == 0:
                         argument_tokens[0].flags &= ~TokenFlags.WS
                 # Give the tokens their macro-expansion locations
@@ -391,8 +390,8 @@ class FunctionLikeExpansion(SimpleTokenList):
 
             token = copy(token)
             if ws:
-                token.flags |= TokenFlags.WS
-                ws = False
+                token.flags |= ws
+                ws = 0
             elif loop_count == 0:
                 token.flags &= ~TokenFlags.WS
             token.loc = new_token_loc
@@ -400,7 +399,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             cursor += 1
 
         result, result_ws = self.perform_concatenations(result, remove_placemarkers)
-        self.trailing_ws = TokenFlags.WS if (ws or result_ws) else 0
+        self.trailing_ws = ws | result_ws
         return result
 
     def perform_concatenations(self, tokens, remove_placemarkers):
@@ -409,7 +408,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         result = []
         cursor = 0
         limit = len(tokens)
-        ws = False
+        ws = 0
         while cursor < limit:
             token = tokens[cursor]
             if token.kind == TokenKind.CONCAT:
@@ -421,16 +420,15 @@ class FunctionLikeExpansion(SimpleTokenList):
                     cursor += 1
             else:
                 if remove_placemarkers and result and result[-1].kind == TokenKind.PLACEMARKER:
-                    ws = ws or bool(result[-1].flags & TokenFlags.WS)
+                    ws |= result[-1].flags & TokenFlags.WS
                     result.pop()
                 result.append(token)
                 cursor += 1
-            if ws:
-                result[-1].flags |= TokenFlags.WS
-                ws = False
+            result[-1].flags |= ws
+            ws = 0
 
         if remove_placemarkers and result and result[-1].kind == TokenKind.PLACEMARKER:
-            ws = ws or bool(result[-1].flags & TokenFlags.WS)
+            ws |= result[-1].flags & TokenFlags.WS
             result.pop()
 
         return result, ws
@@ -478,15 +476,15 @@ class FunctionLikeExpansion(SimpleTokenList):
 
         # Build up the spelling of the stringized argument tokens.
         spelling.append(34)    # '"'
-        ws = False
+        ws = 0
         for n, token in enumerate(argument_tokens):
-            if n and token.flags & TokenFlags.WS:
-                ws = True
+            if n:
+                ws |= token.flags & TokenFlags.WS
             if token.kind == TokenKind.PLACEMARKER:
                 continue   # Placemarkers can only contribute to whitespace and not accumulate it
             if ws:
                 spelling.append(32)
-                ws = False
+                ws = 0
             token_spelling = self.pp.token_spelling(token)
             if token.kind == TokenKind.STRING_LITERAL or token.kind == TokenKind.CHARACTER_LITERAL:
                 for c in token_spelling:
@@ -570,8 +568,7 @@ def lex_token_from_builtin_spelling(pp, token, spelling):
                                               ScratchEntryKind.builtin)
     assert all_consumed
     assert not (token.flags & TokenFlags.WS)
-    if ws:
-        token.flags |= TokenFlags.WS
+    token.flags |= ws
     return token
 
 
