@@ -326,21 +326,6 @@ class FunctionLikeExpansion(SimpleTokenList):
         macro.disable()
 
     def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws):
-        def check_argument(param):
-            # Our caller handles whitespace on the first token
-            if param.extra >= 0:
-                return arguments[param.extra], 0
-            assert self.macro.is_variadic()
-            # Fully expand the variable argument only to see if it's empty
-            va_opt_count = -param.extra   # Includes the parentheses
-            va_tokens = self.expand_argument(arguments[-1])
-            if va_tokens:
-                va_opt_tokens = self.replace_arguments(
-                    tokens, arguments, base_loc, cursor + 2, cursor + va_opt_count, 0)
-            else:
-                va_opt_tokens = [self.placemarker_token()]
-            return va_opt_tokens, va_opt_count
-
         result = []
         first = cursor
         while cursor < limit:
@@ -350,7 +335,20 @@ class FunctionLikeExpansion(SimpleTokenList):
                 ws |= token.flags & TokenFlags.WS
 
             if token.kind == TokenKind.MACRO_PARAM:
-                argument_tokens, va_opt_count = check_argument(token)
+                # Our caller handles whitespace on the first token
+                if token.extra >= 0:
+                    argument_tokens = arguments[token.extra]
+                    va_opt_count = 0
+                else:  # __VA_OPT__
+                    assert self.macro.is_variadic()
+                    # Fully expand the variable argument only to see if it's empty
+                    va_opt_count = -token.extra   # Includes the parentheses
+                    va_tokens = self.expand_argument(arguments[-1])
+                    if va_tokens:
+                        argument_tokens = self.replace_arguments(
+                            tokens, arguments, base_loc, cursor + 2, cursor + va_opt_count, 0)
+                    else:
+                        argument_tokens = [self.placemarker_token()]
                 cursor += 1 + va_opt_count
                 if result and result[-1].kind == TokenKind.STRINGIZE:
                     token = self.stringize_argument(argument_tokens, result[-1].loc)
