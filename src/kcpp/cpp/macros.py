@@ -247,11 +247,21 @@ class ObjectLikeExpansion(SimpleTokenList):
     '''
 
     def __init__(self, pp, macro, invocation_token):
+        assert invocation_token.kind == TokenKind.IDENTIFIER
         self.pp = pp
         self.macro = macro
-        self.trailing_ws = 0     # Flags
         self.cursor = 0
-        self.tokens = self.perform_concatenations(pp, macro, invocation_token)
+        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
+        tokens = self.objlike_replacement_tokens(macro.replacement_list, base_loc)
+        # The first token acquires the WS flag of the invocation token.  If there is no
+        # token, record any trailing whitepsace.
+        ws = invocation_token.flags & TokenFlags.WS
+        if tokens:
+            tokens[0].flags &= ~TokenFlags.WS
+            tokens[0].flags |= ws
+            ws = 0
+        self.tokens = tokens
+        self.trailing_ws = ws
         macro.disable()
 
     def get_token(self):
@@ -267,17 +277,12 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.cursor = cursor + 1
         return tokens[cursor]
 
-    def perform_concatenations(self, pp, macro, invocation_token):
+    def objlike_replacement_tokens(self, tokens, base_loc):
         '''Copy the replacement list tokens, giving them their new locations.  Whilst doing so,
         perform any concatenations present.  Return a token list ready for stepping
         through with get_token().
         '''
-        assert invocation_token.kind == TokenKind.IDENTIFIER
-
         # Copy the replacement list tokens giving them their new in-expansion locations.
-        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
-        tokens = macro.replacement_list
-
         result = []
         cursor, limit = 0, len(tokens)
         while cursor < limit:
@@ -292,15 +297,6 @@ class ObjectLikeExpansion(SimpleTokenList):
             else:
                 result.append(token)
                 cursor += 1
-
-        # The first token acquires the WS flag of the invocation token.  If there is no
-        # token, record if we have lost whitespace.
-        invocation_ws = invocation_token.flags & TokenFlags.WS
-        if result:
-            result[0].flags &= ~TokenFlags.WS
-            result[0].flags |= invocation_ws
-        else:
-            self.trailing_ws = invocation_ws
         return result
 
 
