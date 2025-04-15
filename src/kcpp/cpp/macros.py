@@ -315,7 +315,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         self.pp = pp
         self.macro = macro
         self.cursor = 0
-        self.trailing_ws = False
+        self.trailing_ws = 0     # Flags
         tokens = macro.replacement_list
         base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
@@ -404,7 +404,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             cursor += 1
 
         result, result_ws = self.perform_concatenations(result, remove_placemarkers)
-        self.trailing_ws = ws or result_ws
+        self.trailing_ws = TokenFlags.WS if (ws or result_ws) else 0
         return result
 
     def perform_concatenations(self, tokens, remove_placemarkers):
@@ -446,8 +446,7 @@ class FunctionLikeExpansion(SimpleTokenList):
         if cursor == len(tokens):
             self.macro.enable()
             token = self.pp.pop_source_and_get_token()
-            if self.trailing_ws:
-                token.flags |= TokenFlags.WS
+            token.flags |= self.trailing_ws
             return token
 
         token = copy(tokens[cursor])
