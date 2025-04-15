@@ -246,42 +246,62 @@ class ObjectLikeExpansion(SimpleTokenList):
     Token concatenation via the ## operator is handled by get_token().
     '''
 
-    def __init__(self, pp, macro, parent_token):
-        assert parent_token.kind == TokenKind.IDENTIFIER
+    def __init__(self, pp, macro, invocation_token):
         self.pp = pp
         self.macro = macro
-        self.parent_flags = parent_token.flags
-        self.tokens = macro.replacement_list
+        self.trailing_ws = 0     # Flags
         self.cursor = 0
-        self.base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
+        self.tokens = self.perform_concatenations(pp, macro, invocation_token)
         macro.disable()
 
     def get_token(self):
-        '''Get the next replacement list token and handle token concatenation.'''
+        '''Return the next replacement list token.'''
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
             self.macro.enable()
-            return self.pp.pop_source_and_get_token()
+            token = self.pp.pop_source_and_get_token()
+            token.flags |= self.trailing_ws
+            return token
 
-        token = copy(tokens[cursor])
-        token.loc = self.base_loc + cursor
-        if cursor == 0:
-            # Take whitespace from the invocation token
-            if self.parent_flags & TokenFlags.WS:
-                token.flags |= TokenFlags.WS
-            else:
-                token.flags &= ~TokenFlags.WS
-        cursor += 1
+        self.cursor = cursor + 1
+        return tokens[cursor]
 
-        while cursor != len(tokens) and tokens[cursor].kind == TokenKind.CONCAT:
-            assert cursor + 1 < len(tokens)
-            if self.concatenate_tokens(token, self.base_loc + cursor, tokens[cursor + 1]):
-                cursor += 2
+    def perform_concatenations(self, pp, macro, invocation_token):
+        '''Copy the replacement list tokens, giving them their new locations.  Whilst doing so,
+        perform any concatenations present.  Return a token list ready for stepping
+        through with get_token().
+        '''
+        assert invocation_token.kind == TokenKind.IDENTIFIER
+
+        # Copy the replacement list tokens giving them their new in-expansion locations.
+        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
+        tokens = macro.replacement_list
+
+        result = []
+        cursor, limit = 0, len(tokens)
+        while cursor < limit:
+            token = copy(tokens[cursor])
+            token.loc = base_loc + cursor
+            if token.kind == TokenKind.CONCAT:
+                assert cursor + 1 < limit
+                if self.concatenate_tokens(result[-1], token.loc, tokens[cursor + 1]):
+                    cursor += 2
+                else:
+                    cursor += 1
             else:
+                result.append(token)
                 cursor += 1
-        self.cursor = cursor
-        return token
+
+        # The first token acquires the WS flag of the invocation token.  If there is no
+        # token, record if we have lost whitespace.
+        invocation_ws = invocation_token.flags & TokenFlags.WS
+        if result:
+            result[0].flags &= ~TokenFlags.WS
+            result[0].flags |= invocation_ws
+        else:
+            self.trailing_ws = invocation_ws
+        return result
 
 
 class FunctionLikeExpansion(SimpleTokenList):
