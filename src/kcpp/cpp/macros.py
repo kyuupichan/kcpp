@@ -15,8 +15,8 @@ from ..diagnostics import DID, Diagnostic
 
 from .locator import ScratchEntryKind
 
-__all__ = ['Macro', 'MacroFlags', 'ObjectLikeExpansion', 'FunctionLikeExpansion',
-           'expand_builtin_macro', 'predefines']
+__all__ = ['Macro', 'MacroFlags', 'MacroExpansion', 'BuiltinKind', 'expand_builtin_macro',
+           'predefines']
 
 
 class MacroFlags(IntEnum):
@@ -206,8 +206,24 @@ class Macro:
         return arguments
 
 
-class SimpleTokenList:
-    '''Common functionaliy for various token lists.'''
+class MacroExpansion:
+    '''A token source that returns the expansion of a macro.'''
+
+    def __init__(self, pp, macro, invocation_token, arguments):
+        assert invocation_token.kind == TokenKind.IDENTIFIER
+        self.pp = pp
+        self.macro = macro
+        self.cursor = 0
+        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
+        tokens = macro.replacement_list
+        if macro.is_function_like():
+            self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
+                                                 invocation_token.flags & TokenFlags.WS)
+        else:
+            assert arguments is None
+            self.tokens = self.objlike_replacement_tokens(tokens, base_loc,
+                                                          invocation_token.flags & TokenFlags.WS)
+        macro.disable()
 
     def get_token(self):
         '''Handle argument replacement, stringizing and token concatenation.'''
@@ -281,43 +297,6 @@ class SimpleTokenList:
         self.trailing_ws = ws
         return result
 
-
-class ObjectLikeExpansion(SimpleTokenList):
-    '''A token source that returns tokens from the replacement list of an object-like macro.
-    Token concatenation via the ## operator is handled by get_token().
-    '''
-
-    def __init__(self, pp, macro, invocation_token):
-        assert invocation_token.kind == TokenKind.IDENTIFIER
-        self.pp = pp
-        self.macro = macro
-        self.cursor = 0
-        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
-        self.tokens = self.objlike_replacement_tokens(macro.replacement_list, base_loc,
-                                                      invocation_token.flags & TokenFlags.WS)
-        macro.disable()
-
-
-class FunctionLikeExpansion(SimpleTokenList):
-    '''A token source that returns tokens from the replacement list of an function-like macro.
-    Token concatenation via the ## operator, and stringizing via the # operator, are
-    handled by get_token().
-    '''
-
-    def __init__(self, pp, macro, invocation_token, arguments):
-        assert invocation_token.kind == TokenKind.IDENTIFIER
-        self.pp = pp
-        self.macro = macro
-        self.cursor = 0
-        self.trailing_ws = 0     # Flags
-        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
-        tokens = macro.replacement_list
-        # The first token acquires the WS flag of the invocation token.  If there is no
-        # token, record any trailing whitepsace.
-        self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
-                                             invocation_token.flags & TokenFlags.WS)
-        macro.disable()
-
     def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws):
         result = []
         first = cursor
@@ -390,8 +369,9 @@ class FunctionLikeExpansion(SimpleTokenList):
         return result
 
     def perform_concatenations(self, tokens, remove_placemarkers):
-        '''Perform concatenations before the rescan (get_token) step.  On leaving this
-        function, no placemarker tokens should remain.'''
+        '''Perform concatenations for a function-like macro expansion before the rescan
+        (get_token) step.  On leaving this function no placemarker tokens should remain.
+        '''
         result = []
         cursor = 0
         limit = len(tokens)

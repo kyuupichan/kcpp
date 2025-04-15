@@ -23,8 +23,7 @@ from .lexer import Lexer
 from .literals import LiteralInterpreter, destringize
 from .locator import Locator, ScratchEntryKind
 from .macros import (
-    Macro, MacroFlags, ObjectLikeExpansion, FunctionLikeExpansion, BuiltinKind,
-    expand_builtin_macro, predefines,
+    Macro, MacroFlags, MacroExpansion, BuiltinKind, expand_builtin_macro, predefines,
 )
 
 
@@ -664,9 +663,9 @@ class Preprocessor:
                 self.expand_macros = True
                 self.collecting_arguments = False
                 if arguments is not None:
-                    self.push_source(FunctionLikeExpansion(self, macro, token, arguments))
+                    self.push_source(MacroExpansion(self, macro, token, arguments))
             else:
-                self.push_source(ObjectLikeExpansion(self, macro, token))
+                self.push_source(MacroExpansion(self, macro, token, None))
 
         # We get the first token (or the next token if collect_arguments() failed, or for
         # has_feature pseudo-macros, or after _Pragma.
