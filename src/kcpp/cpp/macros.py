@@ -209,6 +209,20 @@ class Macro:
 class SimpleTokenList:
     '''Common functionaliy for various token lists.'''
 
+    def get_token(self):
+        '''Handle argument replacement, stringizing and token concatenation.'''
+        cursor = self.cursor
+        tokens = self.tokens
+        if cursor == len(tokens):
+            self.macro.enable()
+            token = self.pp.pop_source_and_get_token()
+            token.flags |= self.trailing_ws
+            return token
+
+        token = copy(tokens[cursor])
+        self.cursor = cursor + 1
+        return token
+
     def peek_token_kind(self):
         if self.cursor == len(self.tokens):
             return TokenKind.PEEK_AGAIN
@@ -266,19 +280,6 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.tokens = tokens
         self.trailing_ws = ws
         macro.disable()
-
-    def get_token(self):
-        '''Return the next replacement list token.'''
-        cursor = self.cursor
-        tokens = self.tokens
-        if cursor == len(tokens):
-            self.macro.enable()
-            token = self.pp.pop_source_and_get_token()
-            token.flags |= self.trailing_ws
-            return token
-
-        self.cursor = cursor + 1
-        return tokens[cursor]
 
     def objlike_replacement_tokens(self, tokens, base_loc):
         '''Copy the replacement list tokens, giving them their new locations.  Whilst doing so,
@@ -398,7 +399,8 @@ class FunctionLikeExpansion(SimpleTokenList):
             cursor += 1
 
         result, result_ws = self.perform_concatenations(result, first == 0)
-        self.trailing_ws = ws | result_ws
+        if first == 0:
+            self.trailing_ws = ws | result_ws
         return result
 
     def perform_concatenations(self, tokens, remove_placemarkers):
@@ -431,20 +433,6 @@ class FunctionLikeExpansion(SimpleTokenList):
             result.pop()
 
         return result, ws
-
-    def get_token(self):
-        '''Handle argument replacement, stringizing and token concatenation.'''
-        cursor = self.cursor
-        tokens = self.tokens
-        if cursor == len(tokens):
-            self.macro.enable()
-            token = self.pp.pop_source_and_get_token()
-            token.flags |= self.trailing_ws
-            return token
-
-        token = copy(tokens[cursor])
-        self.cursor = cursor + 1
-        return token
 
     def expand_argument(self, argument_tokens):
         def collect_expanded_tokens(get_token):
