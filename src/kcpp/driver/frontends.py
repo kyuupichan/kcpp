@@ -6,7 +6,7 @@
 
 from abc import ABC
 
-from kcpp.core import Token, TokenKind, TokenFlags
+from kcpp.core import TokenKind, TokenFlags
 from kcpp.cpp import PreprocessorActions
 from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
 
@@ -109,7 +109,7 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
                 if not_first and token.flags & TokenFlags.WS:
                     yield ' '
                 yield pp.token_spelling(token).decode()
-                pp.get_token(token)
+                token = pp.get_token()
                 not_first = True
             yield '\n'
 
@@ -121,12 +121,11 @@ class PreprocessedOutput(FrontEndBase, PreprocessorActions):
         write = self.write = self.pp.stdout.write
         super().process(source, multiple)
         pp = self.pp
-        token = Token.create()
         loc = None
         spelling = None
 
         while True:
-            pp.get_token(token)
+            token = pp.get_token()
             if token.kind == TokenKind.EOF:
                 break
 
@@ -189,22 +188,17 @@ class FrontEnd(FrontEndBase):
         this is used for debugging purposes.'''
         super().process(source, multiple)
         pp = self.pp
-        token = Token.create()
         write = pp.stdout.write
         consume = True
         while True:
-            # The literal interpreter concatenates string literals, and to do so, it reads
-            # the first token after the last string literal so we don't need to fetch
-            # another token
             if consume:
-                pp.get_token(token)
-            consume = token.kind != TokenKind.STRING_LITERAL
-
+                token = pp.get_token()
             if token.kind == TokenKind.EOF:
                 return
+            consume = token.kind != TokenKind.STRING_LITERAL
             write(token.to_short_text())
             write('\n')
             if token.is_literal():
-                result = pp.interpret_literal(token)
+                result, token = pp.interpret_literal(token)
                 write(result.to_short_text())
                 write('\n')

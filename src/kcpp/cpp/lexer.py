@@ -174,18 +174,17 @@ class Lexer:
             c, cursor = self.read_char(cursor - 1)
         return c, cursor
 
-    def get_token(self, token):
-        token.flags = 0
-        token.extra = None
+    def get_token(self):
+        # Internally to the lexer, all locations are ofsets in the buffer.  They are
+        # adjusted by self.start_loc when interfacing externally - when exiting this
+        # function and by Lexer.diag().
+        token = Token(-1, 0, 0, None)
         buff = self.buff
         cursor = self.cursor
 
         while True:
-            # Internally to the Lexer, all locations are ofsets in the buffer.  They are
-            # adjusted by self.start_loc when interfacing externally - when exiting
-            # get_token() and by Lexer.diag.
             self.clean = True
-            token.loc = cursor
+            token.loc = cursor  # token.loc is used by some on_char handlers
             c = buff[cursor]
             kind, cursor = self.on_char[c](self, token, cursor + 1)
             if kind != TokenKind.WS:
@@ -195,12 +194,12 @@ class Lexer:
         token.loc += self.start_loc
         token.kind = kind
         self.cursor = cursor
+        return token
 
     def get_token_quietly(self):
         '''Lex a token, without issuing diagnostics, and return it.'''
         self.pp.ignore_diagnostics += 1
-        token = Token.create()
-        self.get_token(token)
+        token = self.get_token()
         self.pp.ignore_diagnostics -= 1
         return token
 

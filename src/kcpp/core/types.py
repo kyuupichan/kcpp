@@ -283,10 +283,6 @@ class Token:
     loc: int
     extra: any
 
-    @classmethod
-    def create(cls):
-        return cls(-1, -1, -1, any)
-
     def set_to(self, src, loc):
         '''Copy a token to this one, but use the locaiton passed.'''
         self.kind = src.kind

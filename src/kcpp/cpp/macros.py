@@ -139,17 +139,16 @@ class Macro:
     def collect_arguments(self, pp, name_token):
         paren_depth = 0
         get_token = pp.get_token
-        token = Token.create()
         arguments = []
         tokens = []
         param_count = self.param_count()
 
         # Eat the opening parenthesis that was already peeked
-        get_token(token)
+        token = get_token()
         assert token.kind == TokenKind.PAREN_OPEN
 
         while True:
-            get_token(token)
+            token = get_token()
 
             if token.kind == TokenKind.EOF:
                 macro_name = self.macro_name(pp)
@@ -185,7 +184,7 @@ class Macro:
                 token.kind = TokenKind.OTHER
 
             # Save the token and continue looking for the ')'.
-            tokens.append(copy(token))
+            tokens.append(token)
 
         if arguments is not None:
             # The ')' completed an argument unless there are no parameters at all.
@@ -259,16 +258,16 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
         macro.disable()
 
-    def get_token(self, token):
+    def get_token(self):
         '''Get the next replacement list token and handle token concatenation.'''
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
             self.macro.enable()
-            self.pp.pop_source_and_get_token(token)
-            return
+            return self.pp.pop_source_and_get_token()
 
-        token.set_to(tokens[cursor], self.base_loc + cursor)
+        token = copy(tokens[cursor])
+        token.loc = self.base_loc + cursor
         if cursor == 0:
             # Take whitespace from the invocation token
             if self.parent_flags & TokenFlags.WS:
@@ -284,6 +283,7 @@ class ObjectLikeExpansion(SimpleTokenList):
             else:
                 cursor += 1
         self.cursor = cursor
+        return token
 
 
 class FunctionLikeExpansion(SimpleTokenList):
@@ -421,26 +421,26 @@ class FunctionLikeExpansion(SimpleTokenList):
 
         return result, ws
 
-    def get_token(self, token):
+    def get_token(self):
         '''Handle argument replacement, stringizing and token concatenation.'''
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
             self.macro.enable()
-            self.pp.pop_source_and_get_token(token)
+            token = self.pp.pop_source_and_get_token()
             if self.trailing_ws:
                 token.flags |= TokenFlags.WS
-            return
+            return token
 
-        token.set_to(tokens[cursor], tokens[cursor].loc)
+        token = copy(tokens[cursor])
         self.cursor = cursor + 1
+        return token
 
     def expand_argument(self, argument_tokens):
         def collect_expanded_tokens(get_token):
             result = []
             while True:
-                token = Token.create()
-                get_token(token)
+                token = get_token()
                 if token.kind == TokenKind.EOF:
                     return result
                 result.append(token)
@@ -502,17 +502,18 @@ class UnexpandedArgument(SimpleTokenList):
         self.tokens = tokens
         self.cursor = 0
 
-    def get_token(self, token):
+    def get_token(self):
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
             # Terminate the collect_expanded_tokens() loop.
-            token.kind = TokenKind.EOF
+            token = Token(TokenKind.EOF, 0, 0, None)
         else:
             # Don't care about the whitespace of the first token - it is set by
             # FunctionLikeExpansion.get_token().
-            token.set_to(tokens[cursor], tokens[cursor].loc)
+            token = tokens[cursor]
             self.cursor = cursor + 1
+        return token
 
 
 def expand_builtin_macro(pp, token):
@@ -545,18 +546,18 @@ def expand_builtin_macro(pp, token):
     else:
         assert False
 
-    lex_token_from_builtin_spelling(pp, token, spelling)
+    return lex_token_from_builtin_spelling(pp, token, spelling)
 
 
 def lex_token_from_builtin_spelling(pp, token, spelling):
     ws = token.flags & TokenFlags.WS
-    btoken, all_consumed = pp.lex_from_scratch(spelling.encode(), token.loc,
-                                               ScratchEntryKind.builtin)
+    token, all_consumed = pp.lex_from_scratch(spelling.encode(), token.loc,
+                                              ScratchEntryKind.builtin)
     assert all_consumed
-    assert not (btoken.flags & TokenFlags.WS)
+    assert not (token.flags & TokenFlags.WS)
     if ws:
-        btoken.flags |= TokenFlags.WS
-    token.set_to(btoken, btoken.loc)
+        token.flags |= TokenFlags.WS
+    return token
 
 
 def predefines(pp):

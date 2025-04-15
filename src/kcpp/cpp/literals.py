@@ -4,7 +4,6 @@
 #
 '''Interpretation of character, string and numeric literals.'''
 
-from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum
 from struct import Struct
@@ -242,7 +241,7 @@ class LiteralInterpreter:
                 self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
                 result.kind = IntegerKind.error
 
-        return result
+        return result, None
 
     #
     # Numeric literals
@@ -704,8 +703,9 @@ class LiteralInterpreter:
         is_erroneous = False
         tokens = []
         while token.kind == TokenKind.STRING_LITERAL:
-            tokens.append(copy(token))
-            self.pp.get_token(token)
+            tokens.append(token)
+            token = self.pp.get_token()
+        next_token = token
 
         # Determine a common encoding prefix and user-defined suffix.  All concatenated
         # tokens with an encoding prefix must have the same one, and similarly all with a
@@ -752,7 +752,7 @@ class LiteralInterpreter:
         encoded.extend(encoder('', final=True) + encoder('\0'))
 
         char_kind = IntegerKind.error if is_erroneous else elab_encoding.char_kind
-        return StringLiteral(encoded, char_kind, common_ud_suffix)
+        return StringLiteral(encoded, char_kind, common_ud_suffix), next_token
 
     def encode_string(self, token, encoded, encoding, char_width):
         '''Encode the string literal 'token' into 'encoded', a bytearray.  'encoding' contains

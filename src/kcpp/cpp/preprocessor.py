@@ -546,9 +546,9 @@ class Preprocessor:
     def push_source(self, source):
         self.sources.append(source)
 
-    def pop_source_and_get_token(self, token):
+    def pop_source_and_get_token(self):
         self.pop_source()
-        self.get_token(token)
+        return self.get_token()
 
     def pop_source(self):
         source = self.sources.pop()
@@ -605,11 +605,11 @@ class Preprocessor:
         # Terminate macro argument pre-expansion
         return True
 
-    def get_token(self, token):
+    def get_token(self):
         while True:
             # Take tokens from the currently active source.
             source = self.sources[-1]
-            source.get_token(token)
+            token = source.get_token()
 
             # Handle preprocessing directives.  This must happen before macro expansion.
             if token.kind == TokenKind.DIRECTIVE_HASH:
@@ -625,17 +625,17 @@ class Preprocessor:
             elif self.skipping:
                 continue
             elif token.kind == TokenKind.IDENTIFIER:
-                self.maybe_enter_macro(token)
+                token = self.maybe_enter_macro(token)
 
-            return
+            return token
 
     def maybe_enter_macro(self, token):
         '''token is an identifier.  If it is an enabled macro, enter its expansion.'''
         if not self.expand_macros or token.is_disabled():
-            return
+            return token
         macro = token.extra.macro
         if macro is None:
-            return
+            return token
         if isinstance(macro, BuiltinKind):
             if token.extra.macro == BuiltinKind.Pragma:
                 self.on_Pragma(token)
@@ -645,18 +645,17 @@ class Preprocessor:
                 if not self.in_if_elif_directive:
                     self.diag(DID.builtin_macro_only_if_elif, token.loc,
                               [self.token_spelling(token)])
-                return
+                return token
             else:
-                expand_builtin_macro(self, token)
-                return
+                return expand_builtin_macro(self, token)
         else:
             if macro.is_disabled():
                 # Disable this token forever from later expansion
                 token.disable()
-                return
+                return token
             if macro.flags & MacroFlags.IS_FUNCTION_LIKE:
                 if self.peek_token_kind() != TokenKind.PAREN_OPEN:
-                    return
+                    return token
                 # Collect the arguments.  Macro expansion is disabled whilst doing this.
                 assert not self.collecting_arguments
                 self.collecting_arguments = True
@@ -671,7 +670,7 @@ class Preprocessor:
 
         # We get the first token (or the next token if collect_arguments() failed, or for
         # has_feature pseudo-macros, or after _Pragma.
-        self.get_token(token)
+        return self.get_token()
 
     def peek_token_kind(self):
         '''Peek the next token without expanding macros, and return its kind.'''
@@ -705,7 +704,7 @@ class Preprocessor:
         # information is attached, and vertical whitespace is caught.
         was_skipping = self.skipping
         self.skipping = False
-        lexer.get_token(token)
+        token = lexer.get_token()
         self.skipping = was_skipping
         handler = get_handler(lexer, token)
         handler(token)
@@ -744,7 +743,7 @@ class Preprocessor:
     def on_include(self, token):
         self.expand_macros = True
         header_token = self.create_header_name(in__has_include=False)
-        self.skip_to_eod(token, header_token is not None)
+        self.skip_to_eod(None, header_token is not None)
         if header_token:
             file = self.read_header_file(header_token, diagnose_if_not_found=True)
             if file is not None:
@@ -771,9 +770,8 @@ class Preprocessor:
         __has_include() requires the first token to be a '<' pp-token ('<=' for example
         won't do), and continues until a '>' pp-token.
         '''
-        token = Token.create()
         self.in_header_name = True
-        self.get_token(token)
+        token = self.get_token()
         self.in_header_name = False
         if token.kind == TokenKind.HEADER_NAME:
             return token
@@ -794,7 +792,7 @@ class Preprocessor:
                 if in__has_include and (token.kind == TokenKind.GT
                                         or token.kind == TokenKind.STRING_LITERAL):
                     break
-                self.get_token(token)
+                token = self.get_token()
 
             self.in_header_name = True
             token, entirely = self.lex_from_scratch(spelling, first_loc, ScratchEntryKind.header)
@@ -810,16 +808,15 @@ class Preprocessor:
         # Get a scratch buffer location for the new token
         scratch_loc = self.locator.new_scratch_token(spelling, parent_loc, kind)
         lexer = Lexer(self, spelling + b'\0', scratch_loc, False)
-        token = Token.create()
         self.lexing_scratch = True
-        lexer.get_token(token)
+        token = lexer.get_token()
         self.lexing_scratch = False
         return token, lexer.cursor >= len(spelling)
 
     def on_define(self, token):
         '''#define directive processing.'''
         lexer = self.sources[-1]
-        lexer.get_token(token)
+        token = lexer.get_token()
         is_good = self.is_macro_name(token, 1)
         if is_good:
             macro_ident = token.extra
@@ -830,14 +827,14 @@ class Preprocessor:
                     self.actions.on_define(macro)
             else:
                 is_good = False
-        self.skip_to_eod(token, is_good)
+        self.skip_to_eod(None, is_good)
 
     def read_macro_definition(self, lexer, token):
         '''Lex a macro definition.  Return a macro definition, or None.'''
         macro = Macro(token.loc, 0, [], '')
 
         # Is this a function-like macro?
-        lexer.get_token(token)
+        token = lexer.get_token()
         is_function_like = (token.kind == TokenKind.PAREN_OPEN
                             and not (token.flags & TokenFlags.WS))
         if is_function_like:
@@ -847,7 +844,7 @@ class Preprocessor:
             # If we ever support GCC extensions then this needs to be updated
             self.in_variadic_macro_definition = bool(macro.flags & MacroFlags.IS_VARIADIC)
             # Get the real first token of the replacement list
-            lexer.get_token(token)
+            token = lexer.get_token()
         else:
             # [cpp.replace 4] There shall be whitespace between the identifier and the
             # replacement list in the definition of an object-like macro.
@@ -856,8 +853,8 @@ class Preprocessor:
 
         tokens = macro.replacement_list
         while token.kind != TokenKind.EOF:
-            tokens.append(copy(token))
-            lexer.get_token(token)
+            tokens.append(token)
+            token = lexer.get_token()
 
         self.in_variadic_macro_definition = False
 
@@ -888,8 +885,7 @@ class Preprocessor:
         def next_token(n):
             if n < len(tokens):
                 return tokens[n]
-            token = Token.create()
-            self.get_token(token)
+            token = self.get_token()
             assert token.kind == TokenKind.EOF
             return token
 
@@ -979,7 +975,7 @@ class Preprocessor:
             prior_kind = token.kind
             assert prior_kind in (TokenKind.PAREN_OPEN, TokenKind.IDENTIFIER,
                                   TokenKind.ELLIPSIS, TokenKind.COMMA)
-            lexer.get_token(token)
+            token = lexer.get_token()
 
             # ')' terminates the parameter list but cannot appear after a comma
             if token.kind == TokenKind.PAREN_CLOSE:
@@ -1049,21 +1045,21 @@ class Preprocessor:
     def on_undef(self, token):
         '''#undef directive processing.'''
         lexer = self.sources[-1]
-        lexer.get_token(token)
+        token = lexer.get_token()
         is_macro_name = self.is_macro_name(token, 2)
         if is_macro_name:
             token.extra.macro = None
             if self.actions:
                 self.actions.on_undef(token)
-        self.skip_to_eod(token, is_macro_name)
+        self.skip_to_eod(None, is_macro_name)
 
     def on_line(self, token):
         self.expand_macros = True
         # Read the line number - a digit-sequence (i.e. 0-9 with optional ')
-        self.get_token(token)
+        token = self.get_token()
         line_number = self.literal_interpreter.interpret_line_number(token, 2147483648)
         if line_number != -1:
-            self.get_token(token)
+            token = self.get_token()
             if token.kind == TokenKind.EOF:
                 filename = self.locator.prior_file_name
             else:
@@ -1072,7 +1068,7 @@ class Preprocessor:
                     filename = self.filename_to_string_literal(filename)
 
         is_good = line_number != -1 and filename is not None
-        self.skip_to_eod(token, is_good)
+        token = self.skip_to_eod(None, is_good)
         # Have the line number take effect from the first character of the next line
         if is_good:
             start_loc = token.loc + 1
@@ -1088,7 +1084,7 @@ class Preprocessor:
 
     def on_pragma(self, token):
         # Get the namespace token, if any
-        self.get_token(token)
+        token = self.get_token()
         handler = None
         if token.kind == TokenKind.IDENTIFIER:
             handler = self.pragma_namespaces.get(token.extra.spelling)
@@ -1098,10 +1094,10 @@ class Preprocessor:
             diagnose_extra_tokens = handler(token)
         else:
             diagnose_extra_tokens = False
-        self.skip_to_eod(token, diagnose_extra_tokens)
+        self.skip_to_eod(None, diagnose_extra_tokens)
 
     def read_Pragma_string(self, token):
-        self.get_token(token)
+        token = self.get_token()
         if token.kind != TokenKind.PAREN_OPEN:
             self.diag(DID.expected_open_paren, token.loc)
             return None
@@ -1135,7 +1131,7 @@ class Preprocessor:
                 self.process_Pragma_string(string)
 
     def ignore_directive(self, token):
-        self.skip_to_eod(token, False)
+        self.skip_to_eod(None, False)
 
     def enter_if_section(self, token, condition):
         section = IfSection(
@@ -1147,7 +1143,7 @@ class Preprocessor:
         self.buffer_states[-1].if_sections.append(section)
         if self.skipping:
             # True / False here doesn't matter as we're skipping
-            self.skip_to_eod(token, False)
+            self.skip_to_eod(None, False)
         else:
             section.true_condition_seen = condition(token)   # Skips to EOD
             self.skipping = not section.true_condition_seen
@@ -1156,27 +1152,27 @@ class Preprocessor:
         buffer_state = self.buffer_states[-1]
         if not buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
-            self.skip_to_eod(token, False)
+            self.skip_to_eod(None, False)
             return
 
         section = buffer_state.if_sections[-1]
         if section.was_skipping:
             # True / False here doesn't matter as we're skipping
-            self.skip_to_eod(token, False)
+            self.skip_to_eod(None, False)
             return
         if section.else_loc != -1:
             self.diag(DID.else_after_else, token.loc, [
                 self.token_spelling(token),
                 Diagnostic(DID.else_location, section.else_loc),
             ])
-            self.skip_to_eod(token, False)
+            self.skip_to_eod(None, False)
             return
 
         if condition:  # conditional else
             if section.true_condition_seen:
                 self.skipping = True
                 # True / False here doesn't matter as we're skipping
-                self.skip_to_eod(token, False)
+                self.skip_to_eod(None, False)
             else:
                 self.skipping = False
                 section.true_condition_seen = condition(token)   # Skips to EOD
@@ -1195,7 +1191,7 @@ class Preprocessor:
             # either both be diagnosable or neither (recent standards say neither).
             # Clang, GCC and EDG don't get this right.
             self.skipping = section.true_condition_seen
-            self.skip_to_eod(token, True)
+            self.skip_to_eod(None, True)
 
     def on_if(self, token):
         self.in_if_elif_directive = True
@@ -1229,28 +1225,23 @@ class Preprocessor:
         except IndexError:
             self.diag(DID.endif_without_if, token.loc)
             if_section = None
-        self.skip_to_eod(token, bool(if_section))
+        self.skip_to_eod(None, bool(if_section))
 
     def skip_to_eod(self, token, diagnose):
-        if diagnose is True:
-            self.get_token(token)
+        if token is None:
+            token = self.get_token()
         if token.kind == TokenKind.EOF:
-            return
+            return token
         if diagnose:
             spelling = self.token_spelling_at_loc(self.directive_name_loc)
             self.diag(DID.extra_directive_tokens, token.loc, [spelling])
-        # For efficiency, drop out of macro contexts to a lexer
-        while True:
-            lexer = self.sources[-1]
-            if isinstance(lexer, Lexer):
-                break
-            self.sources.pop()
         while token.kind != TokenKind.EOF:
-            lexer.get_token(token)
+            token = self.get_token()
+        return token
 
     def invalid_directive(self, token):
         self.diag(DID.invalid_directive, token.loc, [self.token_spelling(token)])
-        self.skip_to_eod(token, False)
+        self.skip_to_eod(None, False)
 
     def diagnostic_directive(self, token, did):
         '''Handle #error and #warning.'''
@@ -1269,8 +1260,7 @@ class Preprocessor:
     def evaluate_pp_expression(self, token):
         self.expand_macros = True
         value, token = self.expr_parser.parse_and_evaluate_constant_expr()
-        # 1 rather than True means "do not consume token"
-        self.skip_to_eod(token, int(not value.is_erroneous))
+        self.skip_to_eod(token, not value.is_erroneous)
         return bool(value.value)
 
     def is_macro_name(self, token, define_or_undef):
@@ -1313,7 +1303,7 @@ class Preprocessor:
         return False, False
 
     def test_defined(self, negate, token):
-        self.get_token(token)
+        token = self.get_token()
         is_defined, is_macro_name = self.is_defined(token)
-        self.skip_to_eod(token, is_macro_name)
+        self.skip_to_eod(None, is_macro_name)
         return not is_defined if negate else bool(is_defined)

@@ -228,9 +228,9 @@ class ExprParser:
             spelling = self.parse_body_method(macro_token.extra.macro)(state, is_evaluated)
             token = state.leave_context()
             if spelling is not None:
-                lex_token_from_builtin_spelling(self.pp, macro_token, spelling)
-                assert macro_token.kind == TokenKind.NUMBER
-                return self.evaluate_literal(macro_token)
+                token = lex_token_from_builtin_spelling(self.pp, macro_token, spelling)
+                assert token.kind == TokenKind.NUMBER
+                return self.evaluate_literal(token)
         else:
             self.diag(DID.expected_open_paren, token.loc)
             state.recover(token)
@@ -306,7 +306,7 @@ class ExprParser:
     def evaluate_literal(self, token):
         '''Evaluate a character constant or number.  This needs to be done even in unevaluated
         contexts because the signedness of the result matters.'''
-        literal = self.literal_interpreter.interpret(token)
+        literal, _ = self.literal_interpreter.interpret(token)
         if literal.kind == IntegerKind.error:
             value, is_unsigned, is_erroneous = 0, False, True
         else:

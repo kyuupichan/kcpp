@@ -55,12 +55,11 @@ class ParserState:
         preprocessor.
         '''
         if self.token is None:
-            token = Token.create()
-            self.pp.get_token(token)
-        else:
-            token = self.token
-            self.token = None
-        return token
+            return self.pp.get_token()
+
+        result = self.token
+        self.token = None
+        return result
 
     def save_token(self, token):
         assert self.token is None
