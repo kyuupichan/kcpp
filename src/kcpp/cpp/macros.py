@@ -228,34 +228,50 @@ class SimpleTokenList:
             return TokenKind.PEEK_AGAIN
         return self.tokens[self.cursor].kind
 
-    def concatenate_tokens(self, lhs, concat_loc, rhs):
-        '''Concatenate lhs and rhs; rhs must not be modified.  Return True on success and replace
-        lhs with the result, except lhs must retain its WS flag.  Return False on failure
-        and leave lhs and rhs unmodified.
-
+    def concatenate_tokens(self, tokens, concat_loc, rhs):
+        '''Concatenate tokens[-1] and rhs.  On success replace tokens[-1] with the result and the
+        WS flag of tokens[-1], otherwise append rhs to tokens.
         concat_loc is the macro location of the ## or %:%: token.
         '''
-        lhs_spelling = self.pp.token_spelling(lhs)
+        lhs_spelling = self.pp.token_spelling(tokens[-1])
         rhs_spelling = self.pp.token_spelling(rhs)
         spelling = lhs_spelling + rhs_spelling
 
-        if not spelling:
-            # Concatenation of two placemarkers - result is the left placemarker
-            assert lhs.kind == rhs.kind == TokenKind.PLACEMARKER
-            return True
+        if spelling:
+            token, all_consumed = self.pp.lex_from_scratch(spelling, concat_loc,
+                                                           ScratchEntryKind.concatenate)
+            if token.kind == TokenKind.EOF or not all_consumed:
+                self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
+                tokens.append(rhs)
+            else:
+                # Do not produce concat operators through concatenation
+                if token.kind == TokenKind.CONCAT:
+                    token.kind = TokenKind.OTHER
+                if tokens[-1].flags & TokenFlags.WS:
+                    token.flags |= TokenFlags.WS
+                tokens[-1] = token
+        else:  # Concatenation of two placemarkers - result is the left placemarker
+            assert tokens[-1].kind == rhs.kind == TokenKind.PLACEMARKER
 
-        token, all_consumed = self.pp.lex_from_scratch(spelling, concat_loc,
-                                                       ScratchEntryKind.concatenate)
-        if token.kind == TokenKind.EOF or not all_consumed:
-            self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
-            return False
-        # Do not produce concat operators through concatenation
-        if token.kind == TokenKind.CONCAT:
-            token.kind = TokenKind.OTHER
-        if lhs.flags & TokenFlags.WS:
-            token.flags |= TokenFlags.WS
-        lhs.set_to(token, token.loc)
-        return True
+    def objlike_replacement_tokens(self, tokens, base_loc):
+        '''Copy the replacement list tokens, giving them their new locations.  Whilst doing so,
+        perform any concatenations present.  Return a token list ready for stepping
+        through with get_token().
+        '''
+        # Copy the replacement list tokens giving them their new in-expansion locations.
+        result = []
+        cursor, limit = 0, len(tokens)
+        while cursor < limit:
+            token = copy(tokens[cursor])
+            token.loc = base_loc + cursor
+            if token.kind == TokenKind.CONCAT:
+                assert cursor + 1 < limit
+                self.concatenate_tokens(result, token.loc, tokens[cursor + 1])
+                cursor += 2
+            else:
+                result.append(token)
+                cursor += 1
+        return result
 
 
 class ObjectLikeExpansion(SimpleTokenList):
@@ -280,28 +296,6 @@ class ObjectLikeExpansion(SimpleTokenList):
         self.tokens = tokens
         self.trailing_ws = ws
         macro.disable()
-
-    def objlike_replacement_tokens(self, tokens, base_loc):
-        '''Copy the replacement list tokens, giving them their new locations.  Whilst doing so,
-        perform any concatenations present.  Return a token list ready for stepping
-        through with get_token().
-        '''
-        # Copy the replacement list tokens giving them their new in-expansion locations.
-        result = []
-        cursor, limit = 0, len(tokens)
-        while cursor < limit:
-            token = copy(tokens[cursor])
-            token.loc = base_loc + cursor
-            if token.kind == TokenKind.CONCAT:
-                assert cursor + 1 < limit
-                if self.concatenate_tokens(result[-1], token.loc, tokens[cursor + 1]):
-                    cursor += 2
-                else:
-                    cursor += 1
-            else:
-                result.append(token)
-                cursor += 1
-        return result
 
 
 class FunctionLikeExpansion(SimpleTokenList):
@@ -405,12 +399,9 @@ class FunctionLikeExpansion(SimpleTokenList):
         while cursor < limit:
             token = tokens[cursor]
             if token.kind == TokenKind.CONCAT:
-                assert cursor + 1 < len(tokens)
-                # Result[-1] is replaced, possibly with a placemarker
-                if self.concatenate_tokens(result[-1], token.loc, tokens[cursor + 1]):
-                    cursor += 2
-                else:
-                    cursor += 1
+                assert cursor + 1 < limit
+                self.concatenate_tokens(result, token.loc, tokens[cursor + 1])
+                cursor += 2
             else:
                 if remove_placemarkers and result and result[-1].kind == TokenKind.PLACEMARKER:
                     ws |= result[-1].flags & TokenFlags.WS

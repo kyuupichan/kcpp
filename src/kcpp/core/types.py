@@ -283,13 +283,6 @@ class Token:
     loc: int
     extra: any
 
-    def set_to(self, src, loc):
-        '''Copy a token to this one, but use the locaiton passed.'''
-        self.kind = src.kind
-        self.flags = src.flags
-        self.loc = loc
-        self.extra = src.extra
-
     def disable(self):
         self.flags |= TokenFlags.NO_EXPANSION
 
