@@ -494,26 +494,28 @@ class FunctionLikeExpansion(SimpleTokenList):
         return token
 
 
-class UnexpandedArgument(SimpleTokenList):
-
-    peek_end_kind = TokenKind.EOF
+class UnexpandedArgument:
 
     def __init__(self, tokens):
         self.tokens = tokens
         self.cursor = 0
+
+    def peek_token_kind(self):
+        if self.cursor == len(self.tokens):
+            return TokenKind.EOF
+        return self.tokens[self.cursor].kind
 
     def get_token(self):
         cursor = self.cursor
         tokens = self.tokens
         if cursor == len(tokens):
             # Terminate the collect_expanded_tokens() loop.
-            token = Token(TokenKind.EOF, 0, 0, None)
-        else:
-            # Don't care about the whitespace of the first token - it is set by
-            # FunctionLikeExpansion.get_token().
-            token = tokens[cursor]
-            self.cursor = cursor + 1
-        return token
+            return Token(TokenKind.EOF, 0, 0, None)
+
+        # Don't care about the whitespace of the first token - it is set by
+        # FunctionLikeExpansion.get_token().
+        self.cursor = cursor + 1
+        return tokens[cursor]
 
 
 def expand_builtin_macro(pp, token):
