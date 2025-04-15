@@ -320,9 +320,8 @@ class FunctionLikeExpansion(SimpleTokenList):
         tokens = macro.replacement_list
         # The first token acquires the WS flag of the invocation token.  If there is no
         # token, record any trailing whitepsace.
-        tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
-                                        invocation_token.flags & TokenFlags.WS)
-        self.tokens = tokens
+        self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
+                                             invocation_token.flags & TokenFlags.WS)
         macro.disable()
 
     def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws):
@@ -334,50 +333,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             if cursor != first:
                 ws |= token.flags & TokenFlags.WS
 
-            if token.kind == TokenKind.MACRO_PARAM:
-                # Our caller handles whitespace on the first token
-                if token.extra >= 0:
-                    argument_tokens = arguments[token.extra]
-                    va_opt_count = 0
-                else:  # __VA_OPT__
-                    assert self.macro.is_variadic()
-                    # Fully expand the variable argument only to see if it's empty
-                    va_opt_count = -token.extra   # Includes the parentheses
-                    va_tokens = self.expand_argument(arguments[-1])
-                    if va_tokens:
-                        argument_tokens = self.replace_arguments(
-                            tokens, arguments, base_loc, cursor + 2, cursor + va_opt_count, 0)
-                    else:
-                        argument_tokens = [self.placemarker_token()]
-                cursor += 1 + va_opt_count
-                if result and result[-1].kind == TokenKind.STRINGIZE:
-                    token = self.stringize_argument(argument_tokens, result[-1].loc)
-                    assert not (token.flags & TokenFlags.WS)
-                    token.flags |= result[-1].flags & TokenFlags.WS
-                    result[-1] = token
-                    ws = 0
-                else:
-                    lhs_concat = result and result[-1].kind == TokenKind.CONCAT
-                    rhs_concat = (cursor != limit and tokens[cursor].kind == TokenKind.CONCAT)
-                    if lhs_concat or rhs_concat or va_opt_count:
-                        if argument_tokens:
-                            argument_tokens = [copy(token) for token in argument_tokens]
-                        else:    # Replace empty argument with a placemarker
-                            argument_tokens = [self.placemarker_token()]
-                    else:
-                        argument_tokens = self.expand_argument(argument_tokens)
-
-                    # Set WS flag on the first token (if there is one)
-                    if argument_tokens:
-                        argument_tokens[0].flags |= ws
-                        ws = 0
-                    # Give the tokens their macro-expansion locations
-                    locations = [token.loc for token in argument_tokens]
-                    first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
-                    for loc, token in enumerate(argument_tokens, start=first_loc):
-                        token.loc = loc
-                    result.extend(argument_tokens)
-            else:
+            if token.kind != TokenKind.MACRO_PARAM:
                 token = copy(token)
                 token.loc = new_token_loc
                 # Apply whitepace appropriately
@@ -387,6 +343,52 @@ class FunctionLikeExpansion(SimpleTokenList):
                 ws = 0
                 result.append(token)
                 cursor += 1
+                continue
+
+            # Determine the argument
+            if token.extra >= 0:
+                argument_tokens = arguments[token.extra]
+                va_opt_count = 0
+            else:  # __VA_OPT__
+                assert self.macro.is_variadic()
+                # Fully expand the variable argument only to see if it's empty
+                va_opt_count = -token.extra   # Includes the parentheses
+                va_tokens = self.expand_argument(arguments[-1])
+                if va_tokens:
+                    argument_tokens = self.replace_arguments(
+                        tokens, arguments, base_loc, cursor + 2, cursor + va_opt_count, 0)
+                else:
+                    argument_tokens = [self.placemarker_token()]
+            cursor += 1 + va_opt_count
+
+            # Stringify the argument?
+            if result and result[-1].kind == TokenKind.STRINGIZE:
+                token = self.stringize_argument(argument_tokens, result[-1].loc)
+                assert not (token.flags & TokenFlags.WS)
+                token.flags |= result[-1].flags & TokenFlags.WS
+                result[-1] = token
+                ws = 0   # Don't carry the whitespace of the parameter
+            else:
+                lhs_concat = result and result[-1].kind == TokenKind.CONCAT
+                rhs_concat = (cursor != limit and tokens[cursor].kind == TokenKind.CONCAT)
+                if lhs_concat or rhs_concat or va_opt_count:
+                    if argument_tokens:
+                        argument_tokens = [copy(token) for token in argument_tokens]
+                    else:
+                        # Empty argument in a concatenation becomes a placemarker
+                        argument_tokens = [self.placemarker_token()]
+                else:
+                    argument_tokens = self.expand_argument(argument_tokens)
+                # Set WS flag on the first token if there is one
+                if argument_tokens:
+                    argument_tokens[0].flags |= ws
+                    ws = 0
+                # Give the argument tokens their special locations
+                locations = [token.loc for token in argument_tokens]
+                first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
+                for loc, token in enumerate(argument_tokens, start=first_loc):
+                    token.loc = loc
+                result.extend(argument_tokens)
 
         result, result_ws = self.perform_concatenations(result, first == 0)
         if first == 0:
