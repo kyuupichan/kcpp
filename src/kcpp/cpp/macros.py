@@ -320,12 +320,11 @@ class FunctionLikeExpansion(SimpleTokenList):
         # The first token acquires the WS flag of the invocation token.  If there is no
         # token, record any trailing whitepsace.
         tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
-                                        invocation_token.flags & TokenFlags.WS, True)
+                                        invocation_token.flags & TokenFlags.WS)
         self.tokens = tokens
         macro.disable()
 
-    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws,
-                          remove_placemarkers):
+    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
             if param.extra < 0:
@@ -336,7 +335,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                     token_count = -param.extra   # Includes the parentheses
                     va_opt_tokens = self.replace_arguments(
                         tokens, arguments, base_loc, cursor + 2, cursor + token_count,
-                        param.flags & TokenFlags.WS, False)
+                        param.flags & TokenFlags.WS)
                     return va_opt_tokens, token_count
                 else:
                     return [self.placemarker_token()], -param.extra
@@ -398,7 +397,7 @@ class FunctionLikeExpansion(SimpleTokenList):
             result.append(token)
             cursor += 1
 
-        result, result_ws = self.perform_concatenations(result, remove_placemarkers)
+        result, result_ws = self.perform_concatenations(result, first == 0)
         self.trailing_ws = ws | result_ws
         return result
 
