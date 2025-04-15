@@ -350,45 +350,45 @@ class FunctionLikeExpansion(SimpleTokenList):
                 ws |= token.flags & TokenFlags.WS
 
             if token.kind == TokenKind.MACRO_PARAM:
-                argument_tokens, token_count = check_argument(token)
-                cursor += token_count + 1
-                lhs_concat = result and result[-1].kind == TokenKind.CONCAT
-                rhs_concat = (cursor != limit and tokens[cursor].kind == TokenKind.CONCAT)
-                if lhs_concat or rhs_concat or token_count:
-                    if argument_tokens:
-                        argument_tokens = [copy(token) for token in argument_tokens]
-                    else:    # Replace empty argument with a placemarker
-                        argument_tokens = [self.placemarker_token()]
-                else:
-                    argument_tokens = self.expand_argument(argument_tokens)
-
-                # Set WS flag on the first token (if there is one)
-                if argument_tokens:
-                    argument_tokens[0].flags |= ws
-                    ws = 0
-                # Give the tokens their macro-expansion locations
-                locations = [token.loc for token in argument_tokens]
-                first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
-                for loc, token in enumerate(argument_tokens, start=first_loc):
-                    token.loc = loc
-                result.extend(argument_tokens)
-            else:
-                if token.kind == TokenKind.STRINGIZE:
-                    cursor += 1  # check_argument uses cursor... ugh
-                    argument_tokens, va_opt_count = check_argument(tokens[cursor])
-                    token = self.stringize_argument(argument_tokens, new_token_loc)
+                argument_tokens, va_opt_count = check_argument(token)
+                cursor += 1 + va_opt_count
+                if result and result[-1].kind == TokenKind.STRINGIZE:
+                    token = self.stringize_argument(argument_tokens, result[-1].loc)
                     assert not (token.flags & TokenFlags.WS)
-                    cursor += 1 + va_opt_count
+                    token.flags |= result[-1].flags & TokenFlags.WS
+                    result[-1] = token
+                    ws = 0
                 else:
-                    token = copy(token)
-                    token.loc = new_token_loc
-                    # Apply whitepace appropriately
-                    if cursor == first:
-                        token.flags &= ~TokenFlags.WS
-                    cursor += 1
+                    lhs_concat = result and result[-1].kind == TokenKind.CONCAT
+                    rhs_concat = (cursor != limit and tokens[cursor].kind == TokenKind.CONCAT)
+                    if lhs_concat or rhs_concat or va_opt_count:
+                        if argument_tokens:
+                            argument_tokens = [copy(token) for token in argument_tokens]
+                        else:    # Replace empty argument with a placemarker
+                            argument_tokens = [self.placemarker_token()]
+                    else:
+                        argument_tokens = self.expand_argument(argument_tokens)
+
+                    # Set WS flag on the first token (if there is one)
+                    if argument_tokens:
+                        argument_tokens[0].flags |= ws
+                        ws = 0
+                    # Give the tokens their macro-expansion locations
+                    locations = [token.loc for token in argument_tokens]
+                    first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
+                    for loc, token in enumerate(argument_tokens, start=first_loc):
+                        token.loc = loc
+                    result.extend(argument_tokens)
+            else:
+                token = copy(token)
+                token.loc = new_token_loc
+                # Apply whitepace appropriately
+                if cursor == first:
+                    token.flags &= ~TokenFlags.WS
                 token.flags |= ws
                 ws = 0
                 result.append(token)
+                cursor += 1
 
         result, result_ws = self.perform_concatenations(result, first == 0)
         if first == 0:
