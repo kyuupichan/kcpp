@@ -183,7 +183,10 @@ class Macro:
                 # Do not produce concat operators from arguments
                 token.kind = TokenKind.OTHER
 
-            # Save the token and continue looking for the ')'.
+            # Save the token and continue looking for the ')'.  Remove leading WS from the
+            # first token.
+            if not tokens:
+                token.flags &= ~TokenFlags.WS
             tokens.append(token)
 
         if arguments is not None:
@@ -306,19 +309,22 @@ class FunctionLikeExpansion(SimpleTokenList):
     handled by get_token().
     '''
 
-    def __init__(self, pp, macro, parent_token, arguments):
-        assert parent_token.kind == TokenKind.IDENTIFIER
+    def __init__(self, pp, macro, invocation_token, arguments):
+        assert invocation_token.kind == TokenKind.IDENTIFIER
         self.pp = pp
         self.macro = macro
         self.cursor = 0
         self.trailing_ws = 0     # Flags
+        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
         tokens = macro.replacement_list
-        base_loc = pp.locator.macro_replacement_span(macro, parent_token.loc)
-        self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
-                                             parent_token.flags, True)
+        # The first token acquires the WS flag of the invocation token.  If there is no
+        # token, record any trailing whitepsace.
+        tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
+                                        invocation_token.flags & TokenFlags.WS, True)
+        self.tokens = tokens
         macro.disable()
 
-    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, parent_flags,
+    def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws,
                           remove_placemarkers):
         def check_argument(param):
             assert param.kind == TokenKind.MACRO_PARAM
@@ -330,7 +336,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                     token_count = -param.extra   # Includes the parentheses
                     va_opt_tokens = self.replace_arguments(
                         tokens, arguments, base_loc, cursor + 2, cursor + token_count,
-                        param.flags, False)
+                        param.flags & TokenFlags.WS, False)
                     return va_opt_tokens, token_count
                 else:
                     return [self.placemarker_token()], -param.extra
@@ -339,13 +345,11 @@ class FunctionLikeExpansion(SimpleTokenList):
                 return arguments[param.extra], 0
 
         result = []
-        loop_count = -1
-        ws = parent_flags & TokenFlags.WS
+        first = cursor
         while cursor < limit:
-            loop_count += 1
             token = tokens[cursor]
             new_token_loc = base_loc + cursor
-            if loop_count:
+            if cursor != first:
                 ws |= token.flags & TokenFlags.WS
 
             if token.kind == TokenKind.STRINGIZE:
@@ -374,11 +378,8 @@ class FunctionLikeExpansion(SimpleTokenList):
 
                 # Set WS flag on the first token (if there is one)
                 if argument_tokens:
-                    if ws:
-                        argument_tokens[0].flags |= ws
-                        ws = 0
-                    elif loop_count == 0:
-                        argument_tokens[0].flags &= ~TokenFlags.WS
+                    argument_tokens[0].flags |= ws
+                    ws = 0
                 # Give the tokens their macro-expansion locations
                 locations = [token.loc for token in argument_tokens]
                 first_loc = self.pp.locator.macro_argument_span(new_token_loc, locations)
@@ -389,11 +390,10 @@ class FunctionLikeExpansion(SimpleTokenList):
                 continue
 
             token = copy(token)
-            if ws:
-                token.flags |= ws
-                ws = 0
-            elif loop_count == 0:
+            if cursor == first:
                 token.flags &= ~TokenFlags.WS
+            token.flags |= ws
+            ws = 0
             token.loc = new_token_loc
             result.append(token)
             cursor += 1
