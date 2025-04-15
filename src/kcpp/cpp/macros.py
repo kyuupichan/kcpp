@@ -327,22 +327,19 @@ class FunctionLikeExpansion(SimpleTokenList):
 
     def replace_arguments(self, tokens, arguments, base_loc, cursor, limit, ws):
         def check_argument(param):
-            assert param.kind == TokenKind.MACRO_PARAM
-            if param.extra < 0:
-                assert self.macro.is_variadic()
-                # Fully expand the variable argument only to see if it's empty
-                va_tokens = self.expand_argument(arguments[-1])
-                if va_tokens:
-                    token_count = -param.extra   # Includes the parentheses
-                    va_opt_tokens = self.replace_arguments(
-                        tokens, arguments, base_loc, cursor + 2, cursor + token_count,
-                        param.flags & TokenFlags.WS)
-                    return va_opt_tokens, token_count
-                else:
-                    return [self.placemarker_token()], -param.extra
-            else:
-                assert 0 <= param.extra < len(arguments)
+            # Our caller handles whitespace on the first token
+            if param.extra >= 0:
                 return arguments[param.extra], 0
+            assert self.macro.is_variadic()
+            # Fully expand the variable argument only to see if it's empty
+            va_opt_count = -param.extra   # Includes the parentheses
+            va_tokens = self.expand_argument(arguments[-1])
+            if va_tokens:
+                va_opt_tokens = self.replace_arguments(
+                    tokens, arguments, base_loc, cursor + 2, cursor + va_opt_count, 0)
+            else:
+                va_opt_tokens = [self.placemarker_token()]
+            return va_opt_tokens, va_opt_count
 
         result = []
         first = cursor
@@ -370,8 +367,7 @@ class FunctionLikeExpansion(SimpleTokenList):
                 if lhs_concat or rhs_concat or token_count:
                     if argument_tokens:
                         argument_tokens = [copy(token) for token in argument_tokens]
-                    # Replace empty argument with a placemarker
-                    if not argument_tokens:
+                    else:    # Replace empty argument with a placemarker
                         argument_tokens = [self.placemarker_token()]
                 else:
                     argument_tokens = self.expand_argument(argument_tokens)
