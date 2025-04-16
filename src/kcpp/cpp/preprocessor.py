@@ -13,7 +13,7 @@ from ..core import (
     Buffer, IntegerKind, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags,
     Encoding, targets, host
 )
-from ..diagnostics import DID, Diagnostic, location_command_line, location_none
+from ..diagnostics import DID, Diagnostic, TokenRange, location_command_line, location_none
 from ..parsing import ParserState
 from ..unicode import Charset, CodepointOutputKind
 
@@ -193,6 +193,7 @@ class Preprocessor:
         self.in_variadic_macro_definition = False
         self.lexing_scratch = False
         self.predefining_macros = False
+        self.skip_to_eod = False
         self.skipping = False
         # Collected whilst in a macro-expanding directive.  Handled when leaving the
         # directive.
@@ -599,6 +600,7 @@ class Preprocessor:
             # Pop the buffer unless collecting arguments or in a directive; that state
             # needs to be cleared first.  get_token() will continue with the enclosing
             # buffer, or pass through the EOF if there are none.
+            self.skip_to_eod = False
             return self.in_directive or self.collecting_arguments
 
         # Terminate macro argument pre-expansion
@@ -691,6 +693,7 @@ class Preprocessor:
         assert isinstance(lexer, Lexer)
         self.expand_macros = False
         self.in_directive = True
+        self.skip_to_eod = True
         # Turn off skipping whilst getting the directive name so that identifier
         # information is attached, and vertical whitespace is caught.
         was_skipping = self.skipping
@@ -699,6 +702,11 @@ class Preprocessor:
         self.skipping = was_skipping
         handler = get_handler(lexer, token)
         handler(token)
+        # It is important we don't skip to EOD after pushing an include file!
+        if self.skip_to_eod:
+            token = self.get_token()
+            while token.kind != TokenKind.EOF:
+                token = self.get_token()
         self.in_directive = False
         if self._Pragma_strings:
             for string in self._Pragma_strings:
@@ -734,8 +742,8 @@ class Preprocessor:
     def on_include(self, token):
         self.expand_macros = True
         header_token = self.create_header_name(in__has_include=False)
-        self.skip_to_eod(header_token is not None)
         if header_token:
+            self.diagnose_extra_tokens(None)
             file = self.read_header_file(header_token, diagnose_if_not_found=True)
             if file is not None:
                 if self.file_manager.include_depth() >= self.max_include_depth:
@@ -808,17 +816,13 @@ class Preprocessor:
         '''#define directive processing.'''
         lexer = self.sources[-1]
         token = lexer.get_token()
-        is_good = self.is_macro_name(token, 1)
-        if is_good:
+        if self.is_macro_name(token, 1):
             macro_ident = token.extra
             macro = self.read_macro_definition(lexer, token)
             if macro:
                 self.define_macro(macro_ident, macro)
                 if self.actions:
                     self.actions.on_define(macro)
-            else:
-                is_good = False
-        self.skip_to_eod(is_good)
 
     def read_macro_definition(self, lexer, token):
         '''Lex a macro definition.  Return a macro definition, or None.'''
@@ -1042,7 +1046,7 @@ class Preprocessor:
             token.extra.macro = None
             if self.actions:
                 self.actions.on_undef(token)
-        self.skip_to_eod(is_macro_name)
+            self.diagnose_extra_tokens(None)
 
     def on_line(self, token):
         self.expand_macros = True
@@ -1058,10 +1062,9 @@ class Preprocessor:
                 if filename is not None:
                     filename = self.filename_to_string_literal(filename)
 
-        is_good = line_number != -1 and filename is not None
-        token = self.skip_to_eod(is_good)
         # Have the line number take effect from the first character of the next line
-        if is_good:
+        if line_number != -1 and filename is not None:
+            token = self.diagnose_extra_tokens(None)
             start_loc = token.loc + 1
             self.locator.add_line_range(start_loc, filename, line_number)
             if self.actions:
@@ -1081,11 +1084,8 @@ class Preprocessor:
             handler = self.pragma_namespaces.get(token.extra.spelling)
         if not handler and self.actions:
             handler = self.actions.on_pragma
-        if handler:
-            diagnose_extra_tokens = handler(token)
-        else:
-            diagnose_extra_tokens = False
-        self.skip_to_eod(diagnose_extra_tokens)
+        if handler and handler(token):
+            self.diagnose_extra_tokens(None)
 
     def read_Pragma_string(self, token):
         token = self.get_token()
@@ -1122,7 +1122,7 @@ class Preprocessor:
                 self.process_Pragma_string(string)
 
     def ignore_directive(self, token):
-        self.skip_to_eod(False)
+        pass
 
     def enter_if_section(self, token, condition):
         section = IfSection(
@@ -1132,41 +1132,32 @@ class Preprocessor:
             token.loc           # opening_loc
         )
         self.buffer_states[-1].if_sections.append(section)
-        if self.skipping:
-            # True / False here doesn't matter as we're skipping
-            self.skip_to_eod(False)
-        else:
-            section.true_condition_seen = condition(token)   # Skips to EOD
+        if not self.skipping:
+            section.true_condition_seen = condition(token)
             self.skipping = not section.true_condition_seen
 
     def else_section(self, token, condition):
         buffer_state = self.buffer_states[-1]
         if not buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
-            self.skip_to_eod(False)
             return
 
         section = buffer_state.if_sections[-1]
         if section.was_skipping:
-            # True / False here doesn't matter as we're skipping
-            self.skip_to_eod(False)
             return
         if section.else_loc != -1:
             self.diag(DID.else_after_else, token.loc, [
                 self.token_spelling(token),
                 Diagnostic(DID.else_location, section.else_loc),
             ])
-            self.skip_to_eod(False)
             return
 
         if condition:  # conditional else
             if section.true_condition_seen:
                 self.skipping = True
-                # True / False here doesn't matter as we're skipping
-                self.skip_to_eod(False)
             else:
                 self.skipping = False
-                section.true_condition_seen = condition(token)   # Skips to EOD
+                section.true_condition_seen = condition(token)
                 self.skipping = not section.true_condition_seen
         else:  # unconditional else
             section.else_loc = token.loc
@@ -1182,7 +1173,7 @@ class Preprocessor:
             # either both be diagnosable or neither (recent standards say neither).
             # Clang, GCC and EDG don't get this right.
             self.skipping = section.true_condition_seen
-            self.skip_to_eod(True)
+            self.diagnose_extra_tokens(None)
 
     def on_if(self, token):
         self.in_if_elif_directive = True
@@ -1213,27 +1204,24 @@ class Preprocessor:
         try:
             if_section = self.buffer_states[-1].if_sections.pop()
             self.skipping = if_section.was_skipping
+            self.diagnose_extra_tokens(None)
         except IndexError:
             self.diag(DID.endif_without_if, token.loc)
-            if_section = None
-        self.skip_to_eod(bool(if_section))
 
-    def skip_to_eod(self, diagnose):
-        token = self.get_token()
+    def diagnose_extra_tokens(self, token):
+        if token is None:
+            token = self.get_token()
         if token.kind != TokenKind.EOF:
-            if diagnose:
-                self.diagnose_extra_tokens(token)
+            first_loc = token.loc
             while token.kind != TokenKind.EOF:
+                last_loc = token.loc
                 token = self.get_token()
+            self.diag(DID.extra_directive_tokens, TokenRange(first_loc, last_loc),
+                      [self.token_spelling_at_loc(self.directive_name_loc)])
         return token
-
-    def diagnose_extra_tokens(self, first):
-        self.diag(DID.extra_directive_tokens, first.loc,
-                  [self.token_spelling_at_loc(self.directive_name_loc)])
 
     def invalid_directive(self, token):
         self.diag(DID.invalid_directive, token.loc, [self.token_spelling(token)])
-        self.skip_to_eod(False)
 
     def diagnostic_directive(self, token, did):
         '''Handle #error and #warning.'''
@@ -1252,9 +1240,8 @@ class Preprocessor:
     def evaluate_pp_expression(self, token):
         self.expand_macros = True
         value, token = self.expr_parser.parse_and_evaluate_constant_expr()
-        if not value.is_erroneous and token.kind != TokenKind.EOF:
+        if not value.is_erroneous:
             self.diagnose_extra_tokens(token)
-        self.skip_to_eod(False)
         return bool(value.value)
 
     def is_macro_name(self, token, define_or_undef):
@@ -1299,5 +1286,6 @@ class Preprocessor:
     def test_defined(self, negate, token):
         token = self.get_token()
         is_defined, is_macro_name = self.is_defined(token)
-        self.skip_to_eod(is_macro_name)
+        if is_macro_name:
+            self.diagnose_extra_tokens(None)
         return not is_defined if negate else bool(is_defined)
