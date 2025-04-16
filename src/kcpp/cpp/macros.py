@@ -154,7 +154,6 @@ class Macro:
 
         while True:
             token = get_token()
-
             if token.kind == TokenKind.EOF:
                 macro_name = self.macro_name(pp)
                 note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
@@ -184,7 +183,6 @@ class Macro:
             elif token.kind == TokenKind.CONCAT:
                 # Do not produce concat operators from arguments
                 token.kind = TokenKind.OTHER
-
             # Save the token and continue looking for the ')'.  Remove leading WS from the
             # first token.
             if not tokens:
@@ -219,6 +217,11 @@ class MacroExpansion:
         tokens = macro.replacement_list
         if macro.is_function_like():
             arguments = macro.collect_arguments(pp, invocation_token.loc)
+        else:
+            arguments = None
+        # Small optimization: having checked the arguments, expand a function-like macro
+        # taking no arguments as if it were object-like
+        if arguments:
             self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
                                                  invocation_token.flags & TokenFlags.WS)
         else:
