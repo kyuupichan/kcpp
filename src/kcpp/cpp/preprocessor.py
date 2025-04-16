@@ -655,17 +655,9 @@ class Preprocessor:
             if macro.flags & MacroFlags.IS_FUNCTION_LIKE:
                 if self.peek_token_kind() != TokenKind.PAREN_OPEN:
                     return token
-                # Collect the arguments.  Macro expansion is disabled whilst doing this.
-                assert not self.collecting_arguments
-                self.collecting_arguments = True
-                self.expand_macros = False
-                arguments = macro.collect_arguments(self, token)
-                self.expand_macros = True
-                self.collecting_arguments = False
-                if arguments is not None:
-                    self.push_source(MacroExpansion(self, macro, token, arguments))
-            else:
-                self.push_source(MacroExpansion(self, macro, token, None))
+                # Eat the opening parenthesis that was already peeked
+                assert self.get_token().kind == TokenKind.PAREN_OPEN
+            self.push_source(MacroExpansion(self, macro, token))
 
         # We get the first token (or the next token if collect_arguments() failed, or for
         # has_feature pseudo-macros, or after _Pragma.

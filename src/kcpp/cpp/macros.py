@@ -136,7 +136,7 @@ class Macro:
 
         return ''.join(parts(self, pp))
 
-    def collect_arguments(self, pp, name_token):
+    def collect_arguments(self, pp, invocation_loc):
         '''Return the arguments to the macro.  This is a list of lists of tokens, once list per
         parameter (including any variable argument).
         '''
@@ -147,9 +147,10 @@ class Macro:
         param_count = self.param_count()
         too_many = False
 
-        # Eat the opening parenthesis that was already peeked
-        token = get_token()
-        assert token.kind == TokenKind.PAREN_OPEN
+        # Collect the arguments.  Macro expansion is disabled whilst doing this
+        assert not pp.collecting_arguments
+        pp.collecting_arguments = True
+        pp.expand_macros = False
 
         while True:
             token = get_token()
@@ -157,7 +158,7 @@ class Macro:
             if token.kind == TokenKind.EOF:
                 macro_name = self.macro_name(pp)
                 note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
-                pp.diag(DID.unterminated_argument_list, name_token.loc, [macro_name, note])
+                pp.diag(DID.unterminated_argument_list, invocation_loc, [macro_name, note])
                 break
             if token.kind == TokenKind.PAREN_CLOSE:
                 if paren_depth == 0:
@@ -199,15 +200,17 @@ class Macro:
             # Add empty arguments until we have the correct amount
             while len(arguments) < param_count:
                 arguments.append([])
-
         assert len(arguments) == param_count
+
+        pp.expand_macros = True
+        pp.collecting_arguments = False
         return arguments
 
 
 class MacroExpansion:
     '''A token source that returns the expansion of a macro.'''
 
-    def __init__(self, pp, macro, invocation_token, arguments):
+    def __init__(self, pp, macro, invocation_token):
         assert invocation_token.kind == TokenKind.IDENTIFIER
         self.pp = pp
         self.macro = macro
@@ -215,10 +218,10 @@ class MacroExpansion:
         base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
         tokens = macro.replacement_list
         if macro.is_function_like():
+            arguments = macro.collect_arguments(pp, invocation_token.loc)
             self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
                                                  invocation_token.flags & TokenFlags.WS)
         else:
-            assert arguments is None
             self.tokens = self.objlike_replacement_tokens(tokens, base_loc,
                                                           invocation_token.flags & TokenFlags.WS)
         macro.disable()
