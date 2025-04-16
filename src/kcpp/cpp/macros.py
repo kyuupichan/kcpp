@@ -141,15 +141,16 @@ class Macro:
         parameter (including any variable argument).
         '''
         paren_depth = 0
+        get_token = pp.get_token
         arguments = []
         tokens = []
         param_count = self.param_count()
         too_many = False
 
-        # Collect the arguments without expanding macros
-        get_token = pp.get_unexpanded_token
+        # Collect the arguments.  Macro expansion is disabled whilst doing this
         assert not pp.collecting_arguments
         pp.collecting_arguments = True
+        pp.expand_macros = False
 
         while True:
             token = get_token()
@@ -199,6 +200,7 @@ class Macro:
                 arguments.append([])
         assert len(arguments) == param_count
 
+        pp.expand_macros = True
         pp.collecting_arguments = False
         return arguments
 

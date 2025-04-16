@@ -628,28 +628,6 @@ class Preprocessor:
 
             return token
 
-    def get_unexpanded_token(self):
-        while True:
-            # Take tokens from the currently active source.
-            source = self.sources[-1]
-            token = source.get_token()
-
-            # Handle preprocessing directives
-            if token.kind == TokenKind.DIRECTIVE_HASH:
-                self.handle_directive(source, token)
-                continue
-
-            if token.kind == TokenKind.EOF:
-                if not self.pass_through_eof(source):
-                    self.pop_source()
-                    # Continue if there are more sources, otherwise pass on the EOF
-                    if self.sources:
-                        continue
-            elif self.skipping:
-                continue
-
-            return token
-
     def maybe_enter_macro(self, token):
         '''token is an identifier.  If it is an enabled macro, enter its expansion.'''
         if not self.expand_macros or token.is_disabled():
