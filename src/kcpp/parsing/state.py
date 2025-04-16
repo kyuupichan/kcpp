@@ -42,20 +42,21 @@ class ParserContext:
 @dataclass(slots=True)
 class ParserState:
     '''Parser state.  Separate from the parser so it is stateless and reusable.'''
-    pp: object
+    pp_get_token: object
+    pp_diag: object
     token: Token
     context_stack: list
 
     @classmethod
     def from_pp(cls, pp):
-        return cls(pp, None, [])
+        return cls(pp.get_token, pp.diag, None, [])
 
     def get_token(self):
         '''Get the next token.  Use a lookahead token if there is one, otherwise ask the
         preprocessor.
         '''
         if self.token is None:
-            return self.pp.get_token()
+            return self.pp_get_token()
 
         result = self.token
         self.token = None
@@ -76,7 +77,7 @@ class ParserState:
         context = self.context_stack[-1]
         if token.kind != context.metadata.want_kind:
             note = Diagnostic(DID.prior_match, context.start_loc, [context.metadata.open_punc])
-            self.pp.diag(context.metadata.did, token.loc, [note])
+            self.pp_diag(context.metadata.did, token.loc, [note])
             token = self.recover(token)
             if token.kind == context.metadata.want_kind:
                 self.token = None
