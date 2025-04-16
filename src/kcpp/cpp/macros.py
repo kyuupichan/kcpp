@@ -137,11 +137,15 @@ class Macro:
         return ''.join(parts(self, pp))
 
     def collect_arguments(self, pp, name_token):
+        '''Return the arguments to the macro.  This is a list of lists of tokens, once list per
+        parameter (including any variable argument).
+        '''
         paren_depth = 0
         get_token = pp.get_token
         arguments = []
         tokens = []
         param_count = self.param_count()
+        too_many = False
 
         # Eat the opening parenthesis that was already peeked
         token = get_token()
@@ -154,14 +158,12 @@ class Macro:
                 macro_name = self.macro_name(pp)
                 note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
                 pp.diag(DID.unterminated_argument_list, name_token.loc, [macro_name, note])
-                arguments = None
                 break
             if token.kind == TokenKind.PAREN_CLOSE:
                 if paren_depth == 0:
                     break
                 paren_depth -= 1
-            elif paren_depth == 0 and arguments is not None:
-                too_many = False
+            elif paren_depth == 0 and not too_many:
                 if token.kind == TokenKind.COMMA:
                     # This completes an argument unless we are in the variable arguments.
                     if len(arguments) + 1 < param_count:
@@ -175,7 +177,6 @@ class Macro:
                     too_many = param_count == 0
                 if too_many:
                     pp.diag(DID.too_many_macro_arguments, token.loc, [self.macro_name(pp)])
-                    arguments = None
 
             if token.kind == TokenKind.PAREN_OPEN:
                 paren_depth += 1
@@ -189,20 +190,17 @@ class Macro:
                 token.flags &= ~TokenFlags.WS
             tokens.append(token)
 
-        if arguments is not None:
-            # The ')' completed an argument unless there are no parameters at all.
-            if token.kind == TokenKind.PAREN_CLOSE and param_count:
-                arguments.append(tokens)
-                # Do we have enough arguments?
-                if len(arguments) < param_count:
-                    if len(arguments) < param_count - bool(self.is_variadic()):
-                        pp.diag(DID.too_few_macro_arguments, token.loc, [self.macro_name(pp)])
-                        arguments = None
-                    else:
-                        # Add an empty variable argument if none was given
-                        arguments.append([])
-            assert arguments is None or len(arguments) == param_count
+        # The ')', or EOF, completed an argument unless there are no parameters at all.
+        if param_count:
+            arguments.append(tokens)
+            # Do we have enough arguments?
+            if len(arguments) < param_count - bool(self.is_variadic()):
+                pp.diag(DID.too_few_macro_arguments, token.loc, [self.macro_name(pp)])
+            # Add empty arguments until we have the correct amount
+            while len(arguments) < param_count:
+                arguments.append([])
 
+        assert len(arguments) == param_count
         return arguments
 
 
