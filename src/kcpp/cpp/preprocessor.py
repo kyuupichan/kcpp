@@ -1087,7 +1087,7 @@ class Preprocessor:
         if handler and handler(token):
             self.diagnose_extra_tokens(None)
 
-    def read_Pragma_string(self, token):
+    def read_Pragma_string(self):
         token = self.get_token()
         if token.kind != TokenKind.PAREN_OPEN:
             self.diag(DID.expected_open_paren, token.loc)
@@ -1114,7 +1114,7 @@ class Preprocessor:
         self.sources.pop()
 
     def on_Pragma(self, token):
-        string = self.read_Pragma_string(token)
+        string = self.read_Pragma_string()
         if string is not None:
             if self.in_directive:
                 self._Pragma_strings.append(string)
@@ -1284,7 +1284,8 @@ class Preprocessor:
         return False, False
 
     def test_defined(self, negate, token):
-        token = self.get_token()
+        lexer = self.sources[-1]
+        token = lexer.get_token()
         is_defined, is_macro_name = self.is_defined(token)
         if is_macro_name:
             self.diagnose_extra_tokens(None)
