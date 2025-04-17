@@ -557,10 +557,10 @@ class Lexer:
             if c in ASCII_IDENT_CONTINUE:
                 continue
 
-            # continues_identifier() handles escaped newlines (in which case c is the character
-            # after them), UTF-8 characters, and UCNs
-            is_valid, c, cursor = self.continues_identifier(cursor, False, c)
-            if is_valid:
+            character, cursor = self.read_extended_character(cursor - 1)
+            c = character.value
+            if (character.kind is CharacterKind.valid_start
+                    or character.kind is CharacterKind.valid_continue):
                 continue
             if c == 46:  # '.'
                 continue
@@ -575,44 +575,27 @@ class Lexer:
                 token.extra = (self.fast_utf8_spelling(start, saved_cursor), None)
             return TokenKind.NUMBER, saved_cursor
 
-    def continues_identifier(self, cursor, is_ident_start, c):
-        '''Return a triple (is_valid, code_point, cursor).
-
-        If it is not lexically an identifier (e.g. a backslash, or a double quote,
-        is_valid is False and code_point is the character concerned.
-
-        If it is lexically an identifier (e.g. it starts a UCN) then is_valid is true even
-        if lexically incomplete.  code_point is -1 if lexically incomplete, or if the
-        character is semantically invalid.
-        '''
-        if c == 92:  # '\\'
-            # Maybe the backslash started an escaped newline
-            c, cursor = self.read_logical_byte(cursor - 1)
+    def read_extended_character(self, cursor):
+        '''Return a pair (character, cursor).'''
+        c, cursor = self.read_logical_byte(cursor)
 
         # Handle UCNs
         if c == 92:  # '\\'
             # A backslash has been consumed.  A UCN starts / continues the identifier.
-            character, cursor = self.maybe_ucn(cursor)
             self.clean = False
-        elif c < 0x80:
-            valid_chars = ASCII_IDENT_START if is_ident_start else ASCII_IDENT_CONTINUE
-            return c in valid_chars, c, cursor
-        else:
-            # Handle UTF-8 extended identifiers.  Have invalid UTF-8 returned as -1,
-            # and substitute the replacement character.
-            c, cursor = self.read_char(cursor - 1, -1)
-            if c == -1:
-                return False, REPLACEMENT_CHAR, cursor
-            character = self.extended_character(c)
+            return self.maybe_ucn(cursor)
+        if c < 0x80:
+            if c in ASCII_IDENT_START:
+                return Character(CharacterKind.valid_start, c, None), cursor
+            if c in ASCII_IDENT_CONTINUE:
+                return Character(CharacterKind.valid_continue, c, None), cursor
+            return Character(CharacterKind.valid_other, c, None), cursor
 
-        if is_ident_start:
-            if character.diagnostic and not self.pp.skipping:
-                self.pp.emit(character.diagnostic)
-            continues = character.kind == CharacterKind.valid_start
-        else:
-            continues = (character.kind is CharacterKind.valid_start
-                         or character.kind is CharacterKind.valid_continue)
-        return continues, character.value, cursor
+        # Handle UTF-8 extended identifiers
+        c, cursor = self.read_char(cursor - 1, -1)
+        if c == -1:
+            c = REPLACEMENT_CHAR
+        return self.extended_character(c), cursor
 
     def on_identifier(self, token, cursor):
         '''Return a (token_kind, cursor) pair.
@@ -664,8 +647,14 @@ class Lexer:
             cursor += 1
             # Fast-track standard ASCII identifiers
             if c not in quick_chars:
-                is_valid, _c, cursor = self.continues_identifier(cursor, is_start, c)
-                if not is_valid:
+                character, cursor = self.read_extended_character(cursor - 1)
+                if is_start:
+                    if character.diagnostic and not self.pp.skipping:
+                        self.pp.emit(character.diagnostic)
+                    if character.kind != CharacterKind.valid_start:
+                        break
+                elif (character.kind != CharacterKind.valid_continue
+                        and character.kind != CharacterKind.valid_start):
                     break
             quick_chars = ASCII_IDENT_CONTINUE
             is_start = False
