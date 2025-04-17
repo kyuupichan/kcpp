@@ -3,6 +3,9 @@
 # All rights reserved.
 #
 
+from dataclasses import dataclass
+from enum import IntEnum, auto
+
 from ..core import Token, TokenKind, TokenFlags, IdentifierInfo, SpecialKind
 from ..diagnostics import BufferRange, Diagnostic, DID
 from ..unicode import (
@@ -95,7 +98,7 @@ class Lexer:
         Lexer.on_char = on_char
 
     def diag(self, did, loc, args=None):
-        self.pp.diag(did, loc + self.start_loc, args)
+        self.pp.emit(self.diagnostic(did, loc, args))
 
     def diag_range(self, did, start, end, args=None):
         '''Diagnose a range of characters.  start and end are byte offsets, and start must not be
@@ -103,7 +106,13 @@ class Lexer:
         the single character at that position is diagnosed.  If end is in the middle of a
         multi-byte character, the diagnosis extends to the end of that character.
         '''
-        self.pp.diag(did, BufferRange(start + self.start_loc, end + self.start_loc), args)
+        self.pp.emit(self.diagnostic_range(did, start, end, args))
+
+    def diagnostic(self, did, loc, args=None):
+        return Diagnostic(did, loc + self.start_loc, args)
+
+    def diagnostic_range(self, did, start, end, args=None):
+        return Diagnostic(did, BufferRange(start + self.start_loc, end + self.start_loc), args)
 
     def read_logical_byte(self, cursor):
         # Return the next byte skipping escaped newlines
@@ -1122,6 +1131,30 @@ def did_for_codepoint(cp, is_ident_start, basic_charset):
         return DID.codepoint_cannot_continue_identifier
 
     return None
+
+
+class CharacterKind(IntEnum):
+    '''5 categories of character in a source file.'''
+    # A valid character that can start or continue an identifier
+    valid_start = auto()
+    # A valid character that can continue and identifier
+    valid_continue = auto()
+    # A valid character that cannot appear in identifiers
+    valid_other = auto()
+    # A lexically well-formed UCN sequence that is invalid
+    invalid_ucn = auto()
+    # Invalid UTF-8 - bad encoding, surrogate or over-long
+    invalid_utf8 = auto()
+
+
+@dataclass(slots=True)
+class Character:
+    # The valid kinds are spelt as their UTF-8 encoding.  invalid UCNs are spelt as their
+    # UCN spelling.  Invalid UTF-8 is spelled as the UTF-8 encoding of the replacement
+    # character.
+    kind: CharacterKind
+    value: int                # -1 or a valid Unicode codepoint
+    diagnostic: object        # A diagnostic or None.  Only set for invalid_ucn.
 
 
 Lexer.initialize()
