@@ -575,28 +575,6 @@ class Lexer:
                 token.extra = (self.fast_utf8_spelling(start, saved_cursor), None)
             return TokenKind.NUMBER, saved_cursor
 
-    def read_extended_character(self, cursor):
-        '''Return a pair (character, cursor).'''
-        c, cursor = self.read_logical_byte(cursor)
-
-        # Handle UCNs
-        if c == 92:  # '\\'
-            # A backslash has been consumed.  A UCN starts / continues the identifier.
-            self.clean = False
-            return self.maybe_ucn(cursor)
-        if c < 0x80:
-            if c in ASCII_IDENT_START:
-                return Character(CharacterKind.valid_start, c, None), cursor
-            if c in ASCII_IDENT_CONTINUE:
-                return Character(CharacterKind.valid_continue, c, None), cursor
-            return Character(CharacterKind.valid_other, c, None), cursor
-
-        # Handle UTF-8 extended identifiers
-        c, cursor = self.read_char(cursor - 1, -1)
-        if c == -1:
-            c = REPLACEMENT_CHAR
-        return self.extended_character(c), cursor
-
     def on_identifier(self, token, cursor):
         '''Return a (token_kind, cursor) pair.
 
@@ -862,6 +840,28 @@ class Lexer:
 
         return TokenKind.STRING_LITERAL, cursor
 
+    #
+    # Extended characters and UCNs
+    #
+
+    def read_extended_character(self, cursor):
+        '''Return a pair (character, cursor).'''
+        c, cursor = self.read_logical_byte(cursor)
+        if c < 0x80:
+            if c in ASCII_IDENT_START:
+                return Character(CharacterKind.valid_start, c, None), cursor
+            if c in ASCII_IDENT_CONTINUE:
+                return Character(CharacterKind.valid_continue, c, None), cursor
+            if c == 92:  # '\\'
+                self.clean = False
+                return self.maybe_ucn(cursor)
+            return Character(CharacterKind.valid_other, c, None), cursor
+        # Handle UTF-8 extended identifiers
+        c, cursor = self.read_char(cursor - 1, -1)
+        if c == -1:
+            return Character(CharacterKind.invalid_utf8, -1, None), cursor
+        return self.extended_character(c), cursor
+
     # universal-character-name:
     #     \u hex-quad
     #     \U hex-quad hex-quad
@@ -874,13 +874,9 @@ class Lexer:
     # simple-hexadecimal-digit-sequence:
     #    hexadecimal-digit
     #    simple-hexadecimal-digit-sequence hexadecimal-digit
-    #
     def hex_ucn(self, cursor, is_U, ucn_start):
-        '''Try to lex the portion of a hexadecimal univeral character after the backslash-u or
-        backslash-U prefix has been consumed.
-
-        Return a pair (cp, cursor).  If lexically invalid (insufficient digits, no closing
-        brace), codepoint, cp is -1.  Otherwise cp is the hexadecimal value.
+        '''Lex a hexadecimal UCN; backslash-u or U has been consumed.  Return a (character,
+        cursor) pair.
         '''
         count = 0
         cp = 0
@@ -923,12 +919,8 @@ class Lexer:
     #    n-char
     #    n-char-sequence n-char
     def named_character(self, cursor, ucn_start):
-        '''Try to lex the portion of a named univeral character after the backslash-N prefix
-        has been consumed.
-
-        Return a triple (lexically_valid, value, cursor).  If lexically invalid, value is
-        -1 and cursor is the lexically invalid character.  If lexically invalid but the
-        named character is unknown (which is diagnosed) then value is -1.
+        '''Lex a named univeral character; backslash-N has been consumed.  Return a (character,
+        cursor) pair.
         '''
         N_cursor = cursor - 1
         name = ''
@@ -970,14 +962,13 @@ class Lexer:
         return Character(CharacterKind.valid_other, 92, None), cursor - 1
 
     def ucn_character(self, c, ucn_start, cursor):
-        # Validate the UCN's value
-        value = c
+        '''Validate the value C of a UCN over the range ucn_start to cursor.  Return a (character,
+        cursor) pair.
+        '''
         if not is_valid_codepoint(c):
             did = DID.codepoint_invalid
-            value = -1
         elif is_surrogate(c):
             did = DID.codepoint_surrogate
-            value = -1
         elif is_control_character(c):
             did = DID.codepoint_control_character
         elif c in self.pp.basic_charset:
@@ -985,9 +976,10 @@ class Lexer:
         else:
             return self.extended_character(c), cursor
         diagnostic = self.diagnostic_range(did, ucn_start, cursor, [codepoint_to_hex(c)])
-        return Character(CharacterKind.invalid_ucn, value, diagnostic), cursor
+        return Character(CharacterKind.invalid_ucn, -1, diagnostic), cursor
 
     def extended_character(self, c):
+        '''Return a Character instance representing an extended character of value 'c'.'''
         if is_XID_Start(c):
             return Character(CharacterKind.valid_start, c, None)
         elif is_XID_Continue(c):
