@@ -75,9 +75,7 @@ class Lexer:
     def initialize():
         on_char = {}
         for n in range(256):
-            on_char[n] = Lexer.on_other
-        for c in ASCII_IDENT_START:
-            on_char[c] = Lexer.on_identifier
+            on_char[n] = Lexer.on_identifier
         for c in ASCII_DIGITS:
             on_char[c] = Lexer.on_number
         on_char.update({
@@ -268,19 +266,13 @@ class Lexer:
     def on_nul(self, token, cursor):
         if cursor == len(self.buff):
             return TokenKind.EOF, cursor - 1
-        return self.on_other(token, cursor)
+        return self.on_identifier(token, cursor)
 
     def on_backslash(self, token, cursor):
         is_nl, ncursor = self.skip_escaped_newline(cursor)
         if is_nl:
             return TokenKind.WS, ncursor
-        return self.on_other(token, cursor)
-
-    def on_other(self, token, cursor):
-        kind, ident, cursor = self.maybe_identifier(token, cursor - 1)
-        if kind == TokenKind.IDENTIFIER:
-            token.extra = ident
-        return kind, cursor
+        return self.on_identifier(token, cursor)
 
     def on_brace_open(self, token, cursor):
         return TokenKind.BRACE_OPEN, cursor
@@ -573,42 +565,17 @@ class Lexer:
                 token.extra = (self.fast_utf8_spelling(start, char_start), None)
             return TokenKind.NUMBER, char_start
 
-    def on_identifier(self, token, cursor):
-        '''Return a (token_kind, cursor) pair.
+    def on_identifier(self, token, cursor, ud_suffix=False):
+        '''Return a (token_kind, cursor) pair.  If lexing a ud-suffix, set it to True.
 
         The token kind is normally TokenKind.IDENTIFIER, but conversion to alternative
         tokens is handled.  In either case token.extra is the IdentifierInfo object.
 
         Encoding-prefixed strings are also handled, in which case token.extra is as for
-        strings.
+        strings.  If it is a non-identifier character, kind is CHARACTER and token.extra
+        is its value.  kind can also be a module keyword.
         '''
-        kind, ident, cursor = self.maybe_identifier(token, token.loc)
-        assert ident is not None
-
-        # Is this an encoding prefix to a string or character literal?
-        if ident.special & SpecialKind.ENCODING_PREFIX:
-            encoding = ident.encoding()
-            c, ncursor = self.read_logical_byte(cursor)
-            if ident.spelling[-1] == 82:  # 'R'
-                # There is no such thing as a raw character literal
-                if c == 34:  # '"'
-                    token.flags |= TokenFlags.encoding_bits(encoding)
-                    return self.raw_string_literal(token, ncursor)
-            elif c == 34 or c == 39:  # '"' and "'"
-                token.flags |= TokenFlags.encoding_bits(encoding)
-                return self.on_delimited_literal(token, ncursor)
-
-        token.extra = ident
-        return kind, cursor
-
-    def maybe_identifier(self, token, cursor, ud_suffix=False):
-        '''Lex what may be an identifier, and return a tuple (kind, ident, cursor).
-
-        If it is lexically an identifier, ident is the IdentifierInfo object.  If that
-        identifier is an alternative token, kind is its token kind.  If it is a
-        non-identifier character, kind is CHARACTER and ident is None.  kind can also be a
-        module keyword.
-        '''
+        cursor -= 1
         start = cursor
         buff = self.buff
         quick_chars = ASCII_IDENT_START
@@ -633,38 +600,53 @@ class Lexer:
             if character.diagnostic and not self.pp.skipping and not ud_suffix:
                 self.pp.emit(character.diagnostic)
             token.extra = character.value
-            return TokenKind.CHARACTER, None, cursor
+            return TokenKind.CHARACTER, cursor
 
         cursor = char_start
-        kind = TokenKind.IDENTIFIER
-        if self.pp.skipping:
-            return kind, IdentifierInfo.dummy, cursor
+        if not self.pp.skipping:
+            spelling = self.fast_utf8_spelling(start, cursor)
+            if not is_NFC(spelling):
+                self.diag(DID.identifier_not_NFC, start, [spelling])
+            ident = self.pp.get_identifier(spelling)
+            token.extra = ident
+            if ident.special:
+                return self.handle_special_identifier(token, start, cursor, ud_suffix)
 
-        spelling = self.fast_utf8_spelling(start, cursor)
-        if not is_NFC(spelling):
-            self.diag(DID.identifier_not_NFC, start, [spelling])
+        return TokenKind.IDENTIFIER, cursor
 
-        ident = self.pp.get_identifier(spelling)
-        if ident.special:
-            kind = self.handle_special_identifier(ident, start, cursor, ud_suffix)
-        return kind, ident, cursor
-
-    def handle_special_identifier(self, ident, start, cursor, ud_suffix):
+    def handle_special_identifier(self, token, start, cursor, ud_suffix):
         '''Handle __VA_ARGS__, alternative tokens, etc.'''
+        ident = token.extra
         special = ident.special
-        if special & SpecialKind.VA_IDENTIFIER:
+        kind = TokenKind.IDENTIFIER
+
+        # Is this an encoding prefix to a string or character literal?
+        if special & SpecialKind.ENCODING_PREFIX and not ud_suffix:
+            encoding = ident.encoding()
+            c, ncursor = self.read_logical_byte(cursor)
+            if ident.spelling[-1] == 82:  # 'R'
+                # There is no such thing as a raw character literal
+                if c == 34:  # '"'
+                    token.extra = None
+                    token.flags |= TokenFlags.encoding_bits(encoding)
+                    return self.raw_string_literal(token, ncursor)
+            elif c == 34 or c == 39:  # '"' and "'"
+                token.extra = None
+                token.flags |= TokenFlags.encoding_bits(encoding)
+                return self.on_delimited_literal(token, ncursor)
+        elif special & SpecialKind.VA_IDENTIFIER:
             if not self.pp.in_variadic_macro_definition:
                 self.diag(DID.invalid_variadic_identifier_use, start, [ident.spelling])
         elif special & SpecialKind.ALT_TOKEN:
-            return ident.alt_token_kind()
+            kind = ident.alt_token_kind()
         elif self.is_start_of_line and special & SpecialKind.MODULE_KEYWORD and not ud_suffix:
             # The special keyword shall not be an object-like macro
             if ident.macro and not ident.macro.is_function_like():
                 note = Diagnostic(DID.macro_defined_here, ident.macro.name_loc, [ident.spelling])
                 self.diag(DID.macro_in_module_directive, start, [ident.spelling, note])
             else:
-                return self.maybe_module_keyword(ident, cursor)
-        return TokenKind.IDENTIFIER
+                return self.maybe_module_keyword(ident, cursor), cursor
+        return kind, cursor
 
     def maybe_module_keyword(self, ident, cursor):
         '''Called by the lexer on lexing what is perhaps a module keyword.'''
@@ -738,6 +720,7 @@ class Lexer:
             if not in_header and not self.pp.skipping:
                 selector = 0 if kind == TokenKind.CHARACTER_LITERAL else 1
                 self.diag(DID.unterminated_literal, token.loc, [selector])
+            token.extra = None
             return TokenKind.UNTERMINATED, cursor
 
         # Header names have no ud_suffix
@@ -759,11 +742,10 @@ class Lexer:
 
         Otherwise return (ident, cursor) where ident is an IdentifierIno object.
         '''
-        kind, ident, ncursor = self.maybe_identifier(token, cursor, ud_suffix=True)
-        # An alternative token must not be treated as a user-defined suffix.
-        if kind != TokenKind.IDENTIFIER:
-            return None, cursor
-        return ident, ncursor
+        kind, ncursor = self.on_identifier(token, cursor + 1, ud_suffix=True)
+        if kind == TokenKind.IDENTIFIER:
+            return token.extra, ncursor
+        return None, cursor
 
     # raw-string:
     #     "d-char-sequence[opt] (r-char-sequence[opt]) d-char-sequence[opt]"
