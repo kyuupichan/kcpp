@@ -603,12 +603,10 @@ class Lexer:
     def maybe_identifier(self, token, cursor):
         '''Lex what may be an identifier, and return a tuple (kind, ident, cursor).
 
-        If it is lexically an identifier, ident is an IdentifierInfo object.  If that
-        identifier becomes an alternative token, kind is that token kind, oterhwise it is
-        TokenKind.IDENTIFIER.
-
-        If it is not an identifier kind is None and cursor is unchanged from the one
-        passed in.
+        If it is lexically an identifier, ident is the IdentifierInfo object.  If that
+        identifier is an alternative token, kind is its token kind.  If it is a
+        non-identifier character, kind is CHARACTER and ident is None.  kind can also be a
+        module keyword.
         '''
         start = cursor
         buff = self.buff
@@ -646,21 +644,25 @@ class Lexer:
 
         # Handle __VA_ARGS__, alternative tokens, etc.
         ident = self.pp.get_identifier(spelling)
+        if ident.special:
+            kind = self.handle_special_identifier(ident, start, cursor)
+        return kind, ident, cursor
+
+    def handle_special_identifier(self, ident, start, cursor):
         special = ident.special
         if special & SpecialKind.VA_IDENTIFIER:
             if not self.pp.in_variadic_macro_definition:
-                self.diag(DID.invalid_variadic_identifier_use, start, [spelling])
+                self.diag(DID.invalid_variadic_identifier_use, start, [ident.spelling])
         elif special & SpecialKind.ALT_TOKEN:
-            kind = ident.alt_token_kind()
+            return ident.alt_token_kind()
         elif self.is_start_of_line and special & SpecialKind.MODULE_KEYWORD:
             # The special keyword shall not be an object-like macro
             if ident.macro and not ident.macro.is_function_like():
-                note = Diagnostic(DID.macro_defined_here, ident.macro.name_loc, [spelling])
-                self.diag(DID.macro_in_module_directive, start, [spelling, note])
+                note = Diagnostic(DID.macro_defined_here, ident.macro.name_loc, [ident.spelling])
+                self.diag(DID.macro_in_module_directive, start, [ident.spelling, note])
             else:
-                kind = self.maybe_module_keyword(ident, cursor)
-
-        return kind, ident, cursor
+                return self.maybe_module_keyword(ident, cursor)
+        return TokenKind.IDENTIFIER
 
     def maybe_module_keyword(self, ident, cursor):
         '''Called by the lexer on lexing what is perhaps a module keyword.'''
