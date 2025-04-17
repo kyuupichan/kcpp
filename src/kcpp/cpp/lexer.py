@@ -923,7 +923,7 @@ class Lexer:
             name = ''
             name_loc = cursor
             while True:
-                c, cursor = self.read_logical_byte(cursor)
+                c, cursor = self.read_logical_char(cursor)
                 if c == 125:  # '}'
                     break
                 if c == 0 and cursor == len(self.buff):
