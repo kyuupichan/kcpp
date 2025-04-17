@@ -1090,19 +1090,23 @@ class Preprocessor:
             self.diagnose_extra_tokens(None)
 
     def read_Pragma_string(self):
+        self.collecting_arguments = True
         token = self.get_token()
         if token.kind != TokenKind.PAREN_OPEN:
             self.diag(DID.expected_open_paren, token.loc)
-            return None
-
-        state = ParserState.from_pp(self)
-        state.enter_context(token.kind, token.loc)
-        string = state.get_token()
-        if string.kind != TokenKind.STRING_LITERAL:
-            self.diag(DID.expected_string_literal, string.loc)
-            state.recover(string)
             string = None
-        state.leave_context()
+        else:
+            state = ParserState.from_pp(self)
+            state.enter_context(token.kind, token.loc)
+            string = state.get_token()
+            if string.kind != TokenKind.STRING_LITERAL:
+                # Unterminated literals already diagnosed
+                if string.kind != TokenKind.UNTERMINATED:
+                    self.diag(DID.expected_string_literal, string.loc)
+                state.recover(string)
+                string = None
+            state.leave_context()
+        self.collecting_arguments = False
         return string
 
     def process_Pragma_string(self, string):
