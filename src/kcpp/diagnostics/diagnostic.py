@@ -441,11 +441,14 @@ class DiagnosticManager:
         return exit_code
 
     def location_text(self, caret_loc):
-        '''Return the location text for the elaborated location.  This is empty for a diagnostic
-        with no location, something like '<command line>: ' for command-line errors, and
-        otherwise something like '"file_name": line 25: " for file locations.
+        '''Return a pair (text, show_source).  The text is empty for a diagnostic with no
+        location, something like 'kcpp' for command-line errors, and otherwise something
+        like '"file_name": line 25" for file locations.
         '''
-        location = self.locator.presumed_location(caret_loc, False)
+        if caret_loc == location_none:
+            return '', False
+        if caret_loc == location_command_line:
+            return 'kcpp', False
 
         # Column numbers, like line numbers, are 1-based.  They could reasonably be any of
         # 1) the column on a terminal, 2) the byte offset in the line, or 3) the count of
@@ -453,10 +456,12 @@ class DiagnosticManager:
         # the terminal column (but GCC is inconsistent w.r.t. wide and unprintable
         # characters like \v).  For now, like Clang, we give the byte offset on the line
         # plus 1, which is at least well-defined.
+        location = self.locator.presumed_location(caret_loc, False)
         arguments = [location.presumed_filename, location.presumed_line_number,
                      location.column_offset + 1]
+        buffer_position = location.buffer_position()
+        show_source = buffer_position != BufferPosition.END_OF_SOURCE
         if self.worded_locations:
-            buffer_position = location.buffer_position()
             if buffer_position == BufferPosition.END_OF_SOURCE:
                 did = DID.at_file_end
             elif buffer_position == BufferPosition.END_OF_LINE:
@@ -472,7 +477,7 @@ class DiagnosticManager:
                 did = DID.brief_at_file_and_line
         msg = self.translations.diagnostic_text(did)
         parts = self.substitute_arguments(msg, arguments)
-        return ''.join(part for (part, _kind) in parts)
+        return ''.join(part for (part, _kind) in parts), show_source
 
     def elaborate(self, diagnostic):
         '''Returns an ElaboratedDiagnostic instance.'''
@@ -502,11 +507,8 @@ class DiagnosticManager:
         caret_loc = caret_range.caret_loc()
 
         text_parts = []
-        if caret_loc != location_none:
-            if caret_loc == location_command_line:
-                location_text = 'kcpp'
-            else:
-                location_text = self.location_text(caret_loc)
+        location_text, show_source = self.location_text(caret_loc)
+        if location_text:
             text_parts.append((location_text + ': ', 'path'))
         # Add the severity text unless it is none
         severity = main_context.severity
@@ -521,14 +523,13 @@ class DiagnosticManager:
             text_parts.append((f'  [{defn.group.name}]', 'message'))
 
         # Now convert each range to RangeCoords
-        if caret_loc <= location_none:
-            assert not main_context.source_ranges
-            caret_range = RangeCoords(None, None)
-            source_ranges = []
-        else:
+        if show_source:
             caret_range = self.locator.range_coords(caret_range)
             source_ranges = [self.locator.range_coords(source_range)
                              for source_range in main_context.source_ranges]
+        else:
+            caret_range = RangeCoords(None, None)
+            source_ranges = []
         return MessageContext(caret_range, source_ranges, text_parts)
 
     def substitute_arguments(self, format_text, arguments):

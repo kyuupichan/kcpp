@@ -157,7 +157,7 @@ class PresumedLocation:
         '''Where this location lies in the buffer.'''
         text = self.buffer.text
         offset = self.offset()
-        if offset == len(text):
+        if offset == len(text) - 1:
             return BufferPosition.END_OF_SOURCE
         elif text[offset] in {10, 13}:
             return BufferPosition.END_OF_LINE
