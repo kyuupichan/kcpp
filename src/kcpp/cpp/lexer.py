@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
-from ..core import Token, TokenKind, TokenFlags, IdentifierInfo, SpecialKind
+from ..core import Token, TokenKind, TokenFlags, SpecialKind
 from ..diagnostics import BufferRange, Diagnostic, DID
 from ..unicode import (
     name_to_cp, utf8_cp, REPLACEMENT_CHAR, is_NFC, is_valid_codepoint,

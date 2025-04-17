@@ -70,8 +70,6 @@ class DID(IntEnum):
     character_does_not_exist = auto()
     character_not_single_code_unit = auto()
     codepoint_basic_character_set = auto()
-    codepoint_cannot_begin_identifier = auto()
-    codepoint_cannot_continue_identifier = auto()
     codepoint_control_character = auto()
     codepoint_invalid = auto()
     codepoint_surrogate = auto()
@@ -287,18 +285,6 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         '%q0 is in the basic character set',
-    ),
-    DID.codepoint_cannot_begin_identifier: DiagnosticDefinition(
-        DID.codepoint_cannot_begin_identifier,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
-        '%q0 cannot begin an identifier',
-    ),
-    DID.codepoint_cannot_continue_identifier: DiagnosticDefinition(
-        DID.codepoint_cannot_continue_identifier,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
-        '%q0 is not permitted in identifiers or numbers',
     ),
     DID.codepoint_control_character: DiagnosticDefinition(
         DID.codepoint_control_character,

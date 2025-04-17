@@ -12,14 +12,6 @@ codepoint_basic_character_set:
   severity: error
   text: "%q0 is in the basic character set"
 
-codepoint_cannot_begin_identifier:
-  severity: error
-  text: "%q0 cannot begin an identifier"
-
-codepoint_cannot_continue_identifier:
-  severity: error
-  text: "%q0 is not permitted in identifiers or numbers"
-
 codepoint_control_character:
   severity: error
   text: "%q0 is a control character"
