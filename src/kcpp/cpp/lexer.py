@@ -50,10 +50,8 @@ class Lexer:
     @staticmethod
     def initialize():
         on_char = {}
-        for n in range(128):
+        for n in range(256):
             on_char[n] = Lexer.on_other
-        for n in range(128, 256):
-            on_char[n] = Lexer.on_identifier
         for c in ASCII_IDENT_START:
             on_char[c] = Lexer.on_identifier
         for c in ASCII_DIGITS:
@@ -248,20 +246,16 @@ class Lexer:
             return TokenKind.EOF, cursor - 1
         return self.on_other(token, cursor)
 
-    def on_other(self, token, cursor):
-        return TokenKind.OTHER, cursor
-
     def on_backslash(self, token, cursor):
-        is_nl, cursor = self.skip_escaped_newline(cursor)
+        is_nl, ncursor = self.skip_escaped_newline(cursor)
         if is_nl:
-            return TokenKind.WS, cursor
-        kind, ident, ncursor = self.maybe_identifier(token, cursor - 1)
-        if kind is not None:
-            # No alternative tokens begin with a UCN (yet!)
-            assert kind == TokenKind.IDENTIFIER
-            token.extra = ident
-            return kind, ncursor
-        return TokenKind.OTHER, cursor
+            return TokenKind.WS, ncursor
+        return self.on_other(token, cursor)
+
+    def on_other(self, token, cursor):
+        kind, ident, cursor = self.maybe_identifier(token, cursor - 1)
+        token.extra = ident
+        return kind, cursor
 
     def on_brace_open(self, token, cursor):
         return TokenKind.BRACE_OPEN, cursor
@@ -567,7 +561,6 @@ class Lexer:
         if lexically incomplete.  code_point is -1 if lexically incomplete, or if the
         character is semantically invalid.
         '''
-        char_loc = cursor - 1
         if c == 92:  # '\\'
             # Maybe the backslash started an escaped newline
             c, cursor = self.read_logical_byte(cursor - 1)
@@ -575,9 +568,7 @@ class Lexer:
         # Handle UCNs
         if c == 92:  # '\\'
             # A backslash has been consumed.  A UCN starts / continues the identifier.
-            c, cursor = self.maybe_ucn(cursor, is_ident_start, False)
-            if c == -1:
-                return False, c, char_loc
+            character, cursor = self.maybe_ucn(cursor)
             self.clean = False
         elif c < 0x80:
             valid_chars = ASCII_IDENT_START if is_ident_start else ASCII_IDENT_CONTINUE
@@ -587,11 +578,17 @@ class Lexer:
             # and substitute the replacement character.
             c, cursor = self.read_char(cursor - 1, -1)
             if c == -1:
-                c = REPLACEMENT_CHAR
-            else:
-                self.validate_codepoint(c, is_ident_start, char_loc, cursor, False)
+                return False, REPLACEMENT_CHAR, cursor
+            character = self.extended_character(c)
 
-        return True, c, cursor
+        if is_ident_start:
+            if character.diagnostic and not self.pp.skipping:
+                self.pp.emit(character.diagnostic)
+            continues = character.kind == CharacterKind.valid_start
+        else:
+            continues = (character.kind is CharacterKind.valid_start
+                         or character.kind is CharacterKind.valid_continue)
+        return continues, character.value, cursor
 
     def on_identifier(self, token, cursor):
         '''Return a (token_kind, cursor) pair.
@@ -634,23 +631,24 @@ class Lexer:
         '''
         start = cursor
         buff = self.buff
-        is_start = True
         quick_chars = ASCII_IDENT_START
+        is_start = True
 
         while True:
+            char_start = cursor
             c = buff[cursor]
-            ncursor = cursor + 1
+            cursor += 1
             # Fast-track standard ASCII identifiers
             if c not in quick_chars:
-                is_valid, _c, ncursor = self.continues_identifier(token, ncursor, is_start, c)
+                is_valid, _c, cursor = self.continues_identifier(token, cursor, is_start, c)
                 if not is_valid:
                     break
-            cursor = ncursor
-            is_start = False
             quick_chars = ASCII_IDENT_CONTINUE
+            is_start = False
 
-        if cursor == start:
-            return None, None, cursor
+        if is_start:
+            return TokenKind.OTHER, None, cursor
+        cursor = char_start
 
         kind = TokenKind.IDENTIFIER
         if self.pp.skipping:
@@ -864,7 +862,7 @@ class Lexer:
     #    hexadecimal-digit
     #    simple-hexadecimal-digit-sequence hexadecimal-digit
     #
-    def hex_ucn(self, cursor, is_U):
+    def hex_ucn(self, cursor, is_U, ucn_start):
         '''Try to lex the portion of a hexadecimal univeral character after the backslash-u or
         backslash-U prefix has been consumed.
 
@@ -874,6 +872,7 @@ class Lexer:
         count = 0
         cp = 0
         limit = 8 if is_U else 4
+        u_cursor = cursor - 1
 
         while True:
             c, cursor = self.read_logical_byte(cursor)
@@ -897,9 +896,11 @@ class Lexer:
             else:
                 cursor -= 1
 
-            return -1, cursor
+            # This was an incomplete UCN.  Continue future lexing from the 'u' or 'U'.
+            diagnostic = self.diagnostic_range(DID.incomplete_UCN_as_tokens, ucn_start, cursor)
+            return Character(CharacterKind.valid_other, 92, diagnostic), u_cursor
 
-        return cp, cursor
+        return self.ucn_character(cp, ucn_start, cursor)
 
     # named-universal-character:
     #    \N{ n-char-sequence }
@@ -908,7 +909,7 @@ class Lexer:
     # n-char-sequence:
     #    n-char
     #    n-char-sequence n-char
-    def named_character(self, cursor, quiet):
+    def named_character(self, cursor, ucn_start):
         '''Try to lex the portion of a named univeral character after the backslash-N prefix
         has been consumed.
 
@@ -916,65 +917,70 @@ class Lexer:
         -1 and cursor is the lexically invalid character.  If lexically invalid but the
         named character is unknown (which is diagnosed) then value is -1.
         '''
-        c, cursor = self.read_logical_byte(cursor)
-        if c != 123:  # '{'
-            cursor -= 1
-        else:
-            name = ''
-            name_loc = cursor
-            while True:
-                c, cursor = self.read_logical_char(cursor)
-                if c == 125:  # '}'
+        N_cursor = cursor - 1
+        name = ''
+        name_loc = None
+        while True:
+            char_start = cursor
+            c, cursor = self.read_logical_char(cursor)
+            if name_loc is None:
+                if c != 123:  # '{'
                     break
-                if c == 0 and cursor == len(self.buff):
-                    cursor -= 1
-                    break
-                if c == 10 or c == 13:  # '\n' '\r'
-                    # Don't swallow the newline sequence
-                    cursor -= 1
-                    break
-                name += chr(c)
+                name_loc = cursor
+                continue
+            # '}' '\n' '\r'
+            if c == 125 or c == 10 or c == 13 or (c == 0 and cursor == len(self.buff)):
+                break
+            name += chr(c)
 
-            if c == 125 and name:  # '}'
-                cp = name_to_cp(name)
-                if cp == -1 and not self.pp.skipping and not quiet:
-                    self.diag_range(DID.unrecognized_universal_character_name,
-                                    name_loc, cursor - 1, [name])
-                return True, cp, cursor
+        if c == 125 and name:  # '}'
+            cp = name_to_cp(name)
+            if cp != -1:
+                return self.ucn_character(cp, ucn_start, cursor)
+            diagnostic = self.diagnostic_range(DID.unrecognized_universal_character_name,
+                                               name_loc, cursor - 1, [name])
+            return Character(CharacterKind.invalid_ucn, -1, diagnostic), cursor
 
-        return False, -1, cursor
+        # This was an incomplete UCN.  Continue future lexing from the 'N'.
+        diagnostic = self.diagnostic_range(DID.incomplete_UCN_as_tokens, ucn_start, char_start)
+        return Character(CharacterKind.valid_other, 92, diagnostic), N_cursor
 
-    def maybe_ucn(self, cursor, is_ident_start, quiet):
-        '''On entry, a backslash has been consumed.  Return a triple (cp, cursor).
-
-        If lexically the backslash does not form a UCN, then cp is -1.  If lexically it
-        does form a UCN, then the codepoint is checked for validity in context.  If the
-        codepoint is valid it is returned, otherise REPLACEMENT_CHAR is returned.
-        '''
-        saved_cursor = cursor
-
+    def maybe_ucn(self, cursor):
+        '''Called after a logical backslash.  Work out what the character really is.'''
+        ucn_start = cursor - 1
         c, cursor = self.read_logical_byte(cursor)
         if c == 85 or c == 117:  # 'U' 'u'
-            cp, cursor = self.hex_ucn(cursor, c == 85)
-            is_ucn = cp != -1
-        elif c == 78:  # 'N'
-            is_ucn, cp, cursor = self.named_character(cursor, quiet)
-        else:
-            # It didn't begin anything resembling a UCN sequence
-            return -1, saved_cursor
+            return self.hex_ucn(cursor, c == 85, ucn_start)
+        if c == 78:  # 'N'
+            return self.named_character(cursor, ucn_start)
+        # Not a UCN, just the backslash.  Later lexing can start at the logical byte
+        return Character(CharacterKind.valid_other, 92, None), cursor - 1
 
-        if is_ucn:
-            # -1 is an unknown named character.
-            if cp != -1:
-                cp = self.validate_codepoint(cp, is_ident_start, saved_cursor - 1, cursor, quiet)
-            if cp == -1:
-                cp = REPLACEMENT_CHAR
+    def ucn_character(self, c, ucn_start, cursor):
+        # Validate the UCN's value
+        value = c
+        if not is_valid_codepoint(c):
+            did = DID.codepoint_invalid
+            value = -1
+        elif is_surrogate(c):
+            did = DID.codepoint_surrogate
+            value = -1
+        elif is_control_character(c):
+            did = DID.codepoint_control_character
+        elif c in self.pp.basic_charset:
+            did = DID.codepoint_basic_character_set
         else:
-            assert cp == -1
-            if is_ident_start and not quiet and not self.pp.skipping:
-                self.diag_range(DID.incomplete_UCN_as_tokens, saved_cursor - 1, cursor)
+            return self.extended_character(c), cursor
+        diagnostic = self.diagnostic_range(did, ucn_start, cursor, [codepoint_to_hex(c)])
+        return Character(CharacterKind.invalid_ucn, value, diagnostic), cursor
 
-        return cp, cursor
+    def extended_character(self, c):
+        if is_XID_Start(c):
+            return Character(CharacterKind.valid_start, c, None)
+        elif is_XID_Continue(c):
+            return Character(CharacterKind.valid_continue, c, None)
+        else:
+            return Character(CharacterKind.valid_other, c, None)
 
     def token_spelling_at_cursor(self):
         prior_cursor = self.cursor
@@ -1059,13 +1065,14 @@ class Lexer:
 
             if cp < 0x80:
                 if cp == 92 and delim is None and rs_limit is None:
-                    cp, cursor = self.maybe_ucn(cursor, count == 0, True)
-                    if cp == -1:
-                        cp = 92
-                if cp < 0x80:
+                    character, cursor = self.maybe_ucn(cursor)
+                    if character.kind == CharacterKind.invalid_ucn:
+                        encoding = self.clean_spelling(char_start, cursor)
+                    else:
+                        encoding = chr(character.value).encode()
+                else:
                     result.append(cp)
                     continue
-                encoding = chr(cp).encode()
             else:
                 cursor -= 1
                 cp, size = utf8_cp(self.buff, cursor)
@@ -1086,51 +1093,12 @@ class Lexer:
 
         return bytes(result)
 
-    def validate_codepoint(self, cp, is_ident_start, start, end, quiet):
-        assert cp != -1
-        did = did_for_codepoint(cp, is_ident_start, self.pp.basic_charset)
-        if did:
-            if not quiet and not self.pp.skipping:
-                self.diag_range(did, start, end, [codepoint_to_hex(cp)])
-            cp = REPLACEMENT_CHAR
-        return cp
-
-
-# Requirements on UCNs in the C++23 standard:
-#
-# 1) \u \U UCNs must be a unicode scalar value (in-range and not a surrogate)
-# 2) \N must be its character name in UCD, or "control/correction/alternate" in NameAliases.txt
-# 3) Outside a c-char, s-char or r-char sequence, of a character or string literal, is a control
-#    character or in the basic character set, the program is ill-formed.
-# 4) Identifier characters must have XID_Start and XID_Continue properties
-# 5) Identifier needs to conform to Normalization Form C.
-def did_for_codepoint(cp, is_ident_start, basic_charset):
-    '''Diagnose bad UCN values.  Return True if valid.'''
-    assert cp >= 0
-
-    if not is_valid_codepoint(cp):
-        return DID.codepoint_invalid
-
-    if is_surrogate(cp):
-        return DID.codepoint_surrogate
-
-    # If a universal-character-name outside the c-char-sequence, s-char-sequence, or
-    # r-char-sequence of a character-literal or string-literal (in either case,
-    # including within a user-defined-literal) corresponds to a control character or
-    # to a character in the basic character set, the program is ill-formed.
-    if is_control_character(cp):
-        return DID.codepoint_control_character
-
-    if cp in basic_charset:
-        return DID.codepoint_basic_character_set
-
-    if is_ident_start:
-        if not is_XID_Start(cp):
-            return DID.codepoint_cannot_begin_identifier
-    elif not is_XID_Continue(cp):
-        return DID.codepoint_cannot_continue_identifier
-
-    return None
+    def clean_spelling(self, cursor, end):
+        result = bytearray()
+        while cursor < end:
+            c, cursor = self.read_logical_char(cursor)
+            result.extend(chr(c).encode())
+        return result
 
 
 class CharacterKind(IntEnum):
