@@ -601,7 +601,7 @@ class Lexer:
         token.extra = ident
         return kind, cursor
 
-    def maybe_identifier(self, token, cursor):
+    def maybe_identifier(self, token, cursor, ud_suffix=False):
         '''Lex what may be an identifier, and return a tuple (kind, ident, cursor).
 
         If it is lexically an identifier, ident is the IdentifierInfo object.  If that
@@ -630,7 +630,7 @@ class Lexer:
 
         if char_start == start:
             # Emit diagnostics only at the start of a token
-            if character.diagnostic and not self.pp.skipping:
+            if character.diagnostic and not self.pp.skipping and not ud_suffix:
                 self.pp.emit(character.diagnostic)
             token.extra = character.value
             return TokenKind.CHARACTER, None, cursor
@@ -646,10 +646,10 @@ class Lexer:
 
         ident = self.pp.get_identifier(spelling)
         if ident.special:
-            kind = self.handle_special_identifier(ident, start, cursor)
+            kind = self.handle_special_identifier(ident, start, cursor, ud_suffix)
         return kind, ident, cursor
 
-    def handle_special_identifier(self, ident, start, cursor):
+    def handle_special_identifier(self, ident, start, cursor, ud_suffix):
         '''Handle __VA_ARGS__, alternative tokens, etc.'''
         special = ident.special
         if special & SpecialKind.VA_IDENTIFIER:
@@ -657,7 +657,7 @@ class Lexer:
                 self.diag(DID.invalid_variadic_identifier_use, start, [ident.spelling])
         elif special & SpecialKind.ALT_TOKEN:
             return ident.alt_token_kind()
-        elif self.is_start_of_line and special & SpecialKind.MODULE_KEYWORD:
+        elif self.is_start_of_line and special & SpecialKind.MODULE_KEYWORD and not ud_suffix:
             # The special keyword shall not be an object-like macro
             if ident.macro and not ident.macro.is_function_like():
                 note = Diagnostic(DID.macro_defined_here, ident.macro.name_loc, [ident.spelling])
@@ -687,7 +687,6 @@ class Lexer:
         # Ensure a subsequent lex gets the header name
         self.in_header_name = peeked_kind == TokenKind.HEADER_NAME
         self.pp.in_directive = was_in_directive
-
         return mk_kind if peeked_kind in choices else TokenKind.IDENTIFIER
 
     def on_delimited_literal(self, token, cursor):
@@ -760,7 +759,7 @@ class Lexer:
 
         Otherwise return (ident, cursor) where ident is an IdentifierIno object.
         '''
-        kind, ident, ncursor = self.maybe_identifier(token, cursor)
+        kind, ident, ncursor = self.maybe_identifier(token, cursor, ud_suffix=True)
         # An alternative token must not be treated as a user-defined suffix.
         if kind != TokenKind.IDENTIFIER:
             return None, cursor
