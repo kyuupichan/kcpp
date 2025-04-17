@@ -575,7 +575,7 @@ class Lexer:
         # Handle UCNs
         if c == 92:  # '\\'
             # A backslash has been consumed.  A UCN starts / continues the identifier.
-            c, cursor = self.maybe_ucn(cursor, char_loc, is_ident_start, False)
+            c, cursor = self.maybe_ucn(cursor, is_ident_start, False)
             if c == -1:
                 return False, c, char_loc
             self.clean = False
@@ -944,7 +944,7 @@ class Lexer:
 
         return False, -1, cursor
 
-    def maybe_ucn(self, cursor, escape_loc, is_ident_start, quiet):
+    def maybe_ucn(self, cursor, is_ident_start, quiet):
         '''On entry, a backslash has been consumed.  Return a triple (cp, cursor).
 
         If lexically the backslash does not form a UCN, then cp is -1.  If lexically it
@@ -966,13 +966,13 @@ class Lexer:
         if is_ucn:
             # -1 is an unknown named character.
             if cp != -1:
-                cp = self.validate_codepoint(cp, is_ident_start, escape_loc, cursor, quiet)
+                cp = self.validate_codepoint(cp, is_ident_start, saved_cursor - 1, cursor, quiet)
             if cp == -1:
                 cp = REPLACEMENT_CHAR
         else:
             assert cp == -1
             if is_ident_start and not quiet and not self.pp.skipping:
-                self.diag_range(DID.incomplete_UCN_as_tokens, escape_loc, cursor)
+                self.diag_range(DID.incomplete_UCN_as_tokens, saved_cursor - 1, cursor)
 
         return cp, cursor
 
@@ -1059,7 +1059,7 @@ class Lexer:
 
             if cp < 0x80:
                 if cp == 92 and delim is None and rs_limit is None:
-                    cp, cursor = self.maybe_ucn(cursor, cursor - 1, count == 0, True)
+                    cp, cursor = self.maybe_ucn(cursor, count == 0, True)
                     if cp == -1:
                         cp = 92
                 if cp < 0x80:
