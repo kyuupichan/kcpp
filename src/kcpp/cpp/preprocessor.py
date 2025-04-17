@@ -848,6 +848,8 @@ class Preprocessor:
 
         tokens = macro.replacement_list
         while token.kind != TokenKind.EOF:
+            if token.kind == TokenKind.HASH_HASH:
+                token.kind = TokenKind.CONCAT
             tokens.append(token)
             token = lexer.get_token()
 

@@ -180,9 +180,6 @@ class Macro:
 
             if token.kind == TokenKind.PAREN_OPEN:
                 paren_depth += 1
-            elif token.kind == TokenKind.CONCAT:
-                # Do not produce concat operators from arguments
-                token.kind = TokenKind.OTHER
             # Save the token and continue looking for the ')'.  Remove leading WS from the
             # first token.
             if not tokens:
@@ -264,9 +261,6 @@ class MacroExpansion:
                 self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
                 tokens.append(rhs)
             else:
-                # Do not produce concat operators through concatenation
-                if token.kind == TokenKind.CONCAT:
-                    token.kind = TokenKind.OTHER
                 if tokens[-1].flags & TokenFlags.WS:
                     token.flags |= TokenFlags.WS
                 tokens[-1] = token

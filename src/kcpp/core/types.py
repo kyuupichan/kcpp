@@ -336,15 +336,16 @@ class TokenKind(IntEnum):
     WS = auto()                  # whitespace - internal to lexer
     DIRECTIVE_HASH = auto()      # The hash that starts a directive
     MACRO_PARAM = auto()         # only appears in macro replacement lists
+    CONCAT = auto()              # only appears in macro replacement lists
     STRINGIZE = auto()           # only appears in macro replacement lists
     PLACEMARKER = auto()         # used in function-like macro expansion
     HEADER_NAME = auto()         # A header-name
 
     # These can all be returned by pp.get_token()
     EOF = auto()                 # EOF to the preprocessor; end of source to a front end
-    OTHER = auto()               # a character that is not another token, e.g. @
+    CHARACTER = auto()           # a character that is not another token, e.g. @
     HASH = auto()                # # %:
-    CONCAT = auto()              # ## %:%:
+    HASH_HASH = auto()           # ## %:%:
     UNTERMINATED = auto()        # An unterminated character or string literal
 
     IDENTIFIER = auto()          # abc

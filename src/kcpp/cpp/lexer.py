@@ -29,10 +29,34 @@ NON_NL_WS = set(b' \t\v\f')
 DELIMITER_INVALID = set(b' ()\\\t\v\f\r\n')
 
 
-class Lexer:
+class CharacterKind(IntEnum):
+    '''Categorizes a source file character.'''
+    # A valid character that can start or continue an identifier
+    valid_start = auto()
+    # A valid character that can continue and identifier
+    valid_continue = auto()
+    # A valid character that cannot appear in identifiers
+    valid_other = auto()
+    # A lexically well-formed UCN sequence that is invalid
+    invalid_ucn = auto()
+    # Invalid UTF-8 - bad encoding, surrogate or over-long
+    invalid_utf8 = auto()
 
-    # The preprocessor is necessary to look up e.g. if an identifier is special, or
-    # an alternative token, or language options.
+
+@dataclass(slots=True)
+class Character:
+    '''A source file character.'''
+    # The valid kinds are spelt as their UTF-8 encoding.  invalid UCNs are spelt as their
+    # UCN spelling.  Invalid UTF-8 is spelled as the UTF-8 encoding of the replacement
+    # character.
+    kind: CharacterKind
+    value: int                # -1 or a valid Unicode codepoint
+    diagnostic: object        # A diagnostic or None.  Only set for invalid_ucn.
+
+
+class Lexer:
+    '''A lexer.  It tokenizes a buffer terminated with a NUL.'''
+
     def __init__(self, pp, buff, start_loc, is_start_of_line):
         assert isinstance(buff, (bytes, bytearray, memoryview))
         assert buff and buff[-1] == 0
@@ -291,7 +315,7 @@ class Lexer:
         # Handle "# ##"
         c, ncursor = self.read_logical_byte(cursor)
         if c == 35:  # '#'
-            return TokenKind.CONCAT, ncursor
+            return TokenKind.HASH_HASH, ncursor
         if self.is_start_of_line:
             return TokenKind.DIRECTIVE_HASH, cursor
         else:
@@ -441,7 +465,7 @@ class Lexer:
         if c == 37:  # '%'
             c, cursor = self.read_logical_byte(cursor)
             if c == 58:  # ':'
-                return TokenKind.CONCAT, cursor
+                return TokenKind.HASH_HASH, cursor
         if self.is_start_of_line:
             return TokenKind.DIRECTIVE_HASH, ncursor
         else:
@@ -647,7 +671,7 @@ class Lexer:
             is_start = False
 
         if is_start:
-            return TokenKind.OTHER, None, cursor
+            return TokenKind.CHARACTER, None, cursor
         cursor = char_start
 
         kind = TokenKind.IDENTIFIER
@@ -1099,30 +1123,6 @@ class Lexer:
             c, cursor = self.read_logical_char(cursor)
             result.extend(chr(c).encode())
         return result
-
-
-class CharacterKind(IntEnum):
-    '''5 categories of character in a source file.'''
-    # A valid character that can start or continue an identifier
-    valid_start = auto()
-    # A valid character that can continue and identifier
-    valid_continue = auto()
-    # A valid character that cannot appear in identifiers
-    valid_other = auto()
-    # A lexically well-formed UCN sequence that is invalid
-    invalid_ucn = auto()
-    # Invalid UTF-8 - bad encoding, surrogate or over-long
-    invalid_utf8 = auto()
-
-
-@dataclass(slots=True)
-class Character:
-    # The valid kinds are spelt as their UTF-8 encoding.  invalid UCNs are spelt as their
-    # UCN spelling.  Invalid UTF-8 is spelled as the UTF-8 encoding of the replacement
-    # character.
-    kind: CharacterKind
-    value: int                # -1 or a valid Unicode codepoint
-    diagnostic: object        # A diagnostic or None.  Only set for invalid_ucn.
 
 
 Lexer.initialize()
