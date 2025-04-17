@@ -278,7 +278,8 @@ class Lexer:
 
     def on_other(self, token, cursor):
         kind, ident, cursor = self.maybe_identifier(token, cursor - 1)
-        token.extra = ident
+        if kind == TokenKind.IDENTIFIER:
+            token.extra = ident
         return kind, cursor
 
     def on_brace_open(self, token, cursor):
@@ -585,7 +586,7 @@ class Lexer:
         assert ident is not None
 
         # Is this an encoding prefix to a string or character literal?
-        if kind == TokenKind.IDENTIFIER and ident.special & SpecialKind.ENCODING_PREFIX:
+        if ident.special & SpecialKind.ENCODING_PREFIX:
             encoding = ident.encoding()
             c, ncursor = self.read_logical_byte(cursor)
             if ident.spelling[-1] == 82:  # 'R'
@@ -631,6 +632,7 @@ class Lexer:
             # Emit diagnostics only at the start of a token
             if character.diagnostic and not self.pp.skipping:
                 self.pp.emit(character.diagnostic)
+            token.extra = character.value
             return TokenKind.CHARACTER, None, cursor
 
         cursor = char_start
@@ -642,13 +644,13 @@ class Lexer:
         if not is_NFC(spelling):
             self.diag(DID.identifier_not_NFC, start, [spelling])
 
-        # Handle __VA_ARGS__, alternative tokens, etc.
         ident = self.pp.get_identifier(spelling)
         if ident.special:
             kind = self.handle_special_identifier(ident, start, cursor)
         return kind, ident, cursor
 
     def handle_special_identifier(self, ident, start, cursor):
+        '''Handle __VA_ARGS__, alternative tokens, etc.'''
         special = ident.special
         if special & SpecialKind.VA_IDENTIFIER:
             if not self.pp.in_variadic_macro_definition:

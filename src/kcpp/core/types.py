@@ -318,6 +318,8 @@ class Token:
             extra = f', {extra.to_text()}'
         elif isinstance(extra, tuple):
             extra = f', {extra[0].decode()}'
+        elif isinstance(extra, int):
+            extra = f', {extra}'
         return f'Token({self.kind.name}, {flags}, {self.loc}{extra})'
 
     def to_short_text(self):
@@ -327,6 +329,8 @@ class Token:
                 or self.kind == TokenKind.HEADER_NAME):
             spelling, _ = self.extra
             return f'Token({self.kind.name}, {spelling.decode()})'
+        if self.kind == TokenKind.CHARACTER:
+            return f'Token({self.kind.name}, {self.extra})'
         return f'Token({self.kind.name})'
 
 
