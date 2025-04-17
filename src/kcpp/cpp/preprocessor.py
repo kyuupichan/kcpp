@@ -1090,6 +1090,7 @@ class Preprocessor:
             self.diagnose_extra_tokens(None)
 
     def read_Pragma_string(self):
+        assert not self.collecting_arguments
         self.collecting_arguments = True
         token = self.get_token()
         if token.kind != TokenKind.PAREN_OPEN:

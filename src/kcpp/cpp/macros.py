@@ -148,7 +148,7 @@ class Macro:
         too_many = False
 
         # Collect the arguments.  Macro expansion is disabled whilst doing this
-        assert not pp.collecting_arguments
+        was_collecting_arguments = pp.collecting_arguments
         pp.collecting_arguments = True
         pp.expand_macros = False
 
@@ -198,7 +198,7 @@ class Macro:
         assert len(arguments) == param_count
 
         pp.expand_macros = True
-        pp.collecting_arguments = False
+        pp.collecting_arguments = was_collecting_arguments
         return arguments
 
 
