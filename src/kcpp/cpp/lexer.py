@@ -559,7 +559,7 @@ class Lexer:
 
             # continues_identifier() handles escaped newlines (in which case c is the character
             # after them), UTF-8 characters, and UCNs
-            is_valid, c, cursor = self.continues_identifier(token, cursor, False, c)
+            is_valid, c, cursor = self.continues_identifier(cursor, False, c)
             if is_valid:
                 continue
             if c == 46:  # '.'
@@ -575,7 +575,7 @@ class Lexer:
                 token.extra = (self.fast_utf8_spelling(start, saved_cursor), None)
             return TokenKind.NUMBER, saved_cursor
 
-    def continues_identifier(self, token, cursor, is_ident_start, c):
+    def continues_identifier(self, cursor, is_ident_start, c):
         '''Return a triple (is_valid, code_point, cursor).
 
         If it is not lexically an identifier (e.g. a backslash, or a double quote,
@@ -664,7 +664,7 @@ class Lexer:
             cursor += 1
             # Fast-track standard ASCII identifiers
             if c not in quick_chars:
-                is_valid, _c, cursor = self.continues_identifier(token, cursor, is_start, c)
+                is_valid, _c, cursor = self.continues_identifier(cursor, is_start, c)
                 if not is_valid:
                     break
             quick_chars = ASCII_IDENT_CONTINUE
