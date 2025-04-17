@@ -51,7 +51,7 @@ class Character:
     # character.
     kind: CharacterKind
     value: int                # -1 or a valid Unicode codepoint
-    diagnostic: object        # A diagnostic or None.  Only set for invalid_ucn.
+    diagnostic: object        # A diagnostic or None.  Only set for invalid_ucn or valid_other.
 
 
 class Lexer:
@@ -526,8 +526,8 @@ class Lexer:
     #     digit
     #    . digit
     #    pp-number identifier-continue
-    #    pp-number’ digit
-    #    pp-number’ nondigit
+    #    pp-number ’ digit
+    #    pp-number ’ nondigit
     #    pp-number e sign
     #    pp-number E sign
     #    pp-number p sign
@@ -541,22 +541,19 @@ class Lexer:
     #    [0-9]
     # non-digit:
     #    [A-Z] [a-z] _
-    #
     def on_number(self, token, cursor):
-        # Handle 0 1 2 3 4 5 6 7 8 9 .digit
+        '''Lex a pp-number.'''
         start = cursor - 1
         c = None
         buff = self.buff
         while True:
+            char_start = cursor
             prevc = c
-            saved_cursor = cursor
             c = buff[cursor]
             cursor += 1
-
             # Fast-track standard ASCII numbers
             if c in ASCII_IDENT_CONTINUE:
                 continue
-
             character, cursor = self.read_extended_character(cursor - 1)
             c = character.value
             if (character.kind is CharacterKind.valid_start
@@ -572,8 +569,8 @@ class Lexer:
                     continue
 
             if not self.pp.skipping:
-                token.extra = (self.fast_utf8_spelling(start, saved_cursor), None)
-            return TokenKind.NUMBER, saved_cursor
+                token.extra = (self.fast_utf8_spelling(start, char_start), None)
+            return TokenKind.NUMBER, char_start
 
     def on_identifier(self, token, cursor):
         '''Return a (token_kind, cursor) pair.
@@ -584,7 +581,6 @@ class Lexer:
         Encoding-prefixed strings are also handled, in which case token.extra is as for
         strings.
         '''
-        # Start again at the beginning
         kind, ident, cursor = self.maybe_identifier(token, token.loc)
         assert ident is not None
 
@@ -617,7 +613,6 @@ class Lexer:
         start = cursor
         buff = self.buff
         quick_chars = ASCII_IDENT_START
-        is_start = True
 
         while True:
             char_start = cursor
@@ -626,21 +621,21 @@ class Lexer:
             # Fast-track standard ASCII identifiers
             if c not in quick_chars:
                 character, cursor = self.read_extended_character(cursor - 1)
-                if is_start:
-                    if character.diagnostic and not self.pp.skipping:
-                        self.pp.emit(character.diagnostic)
-                    if character.kind != CharacterKind.valid_start:
-                        break
-                elif (character.kind != CharacterKind.valid_continue
-                        and character.kind != CharacterKind.valid_start):
+                if character.kind == CharacterKind.valid_start:
+                    pass
+                elif character.kind == CharacterKind.valid_continue and char_start != start:
+                    pass
+                else:
                     break
             quick_chars = ASCII_IDENT_CONTINUE
-            is_start = False
 
-        if is_start:
+        if char_start == start:
+            # Emit diagnostics only at the start of a token
+            if character.diagnostic and not self.pp.skipping:
+                self.pp.emit(character.diagnostic)
             return TokenKind.CHARACTER, None, cursor
-        cursor = char_start
 
+        cursor = char_start
         kind = TokenKind.IDENTIFIER
         if self.pp.skipping:
             return kind, IdentifierInfo.dummy, cursor
