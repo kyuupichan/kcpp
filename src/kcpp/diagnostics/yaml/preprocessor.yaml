@@ -27,7 +27,7 @@ cannot_write_file:
 
 directive_in_macro_arguments:
   severity: error
-  group: directive_in_macro
+  group: directive_in_args
   text: directive within arguments of macro %q0
 
 invalid_charset:

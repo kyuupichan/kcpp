@@ -45,6 +45,7 @@ class DiagnosticGroup(IntEnum):
     strict_start = comma_expr
     strict_end = shift_count
     # Not strict groups:
+    directive_in_args = auto()
     multichar = auto()
     shift_of_negative = auto()
     sign_change = auto()
@@ -77,6 +78,7 @@ class DID(IntEnum):
     compilation_halted = auto()
     delimeter_invalid_character = auto()
     delimeter_too_long = auto()
+    directive_in_macro_arguments = auto()
     division_by_zero = auto()
     duplicate_macro_parameter = auto()
     else_after_else = auto()
@@ -327,6 +329,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.warning,
         DiagnosticGroup.raw_delimiter,
         'raw string literal delimeter is too long',
+    ),
+    DID.directive_in_macro_arguments: DiagnosticDefinition(
+        DID.directive_in_macro_arguments,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.directive_in_args,
+        'directive within arguments of macro %q0',
     ),
     DID.division_by_zero: DiagnosticDefinition(
         DID.division_by_zero,

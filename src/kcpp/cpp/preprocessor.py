@@ -714,6 +714,11 @@ class Preprocessor:
 
         assert isinstance(lexer, Lexer)
         assert not self.in_directive
+        if self.collecting_arguments:
+            _, macro = self.collecting_arguments[-1]
+            if macro:
+                self.diag(DID.directive_in_macro_arguments, token.loc, [macro.macro_name(self)])
+        was_expanding_macros = self.expand_macros
         self.expand_macros = False
         self.in_directive = True
         self.skip_to_eod = True
@@ -737,7 +742,7 @@ class Preprocessor:
             self._Pragma_strings = []
             for string in strings:
                 self.process_Pragma_string(string)
-        self.expand_macros = True
+        self.expand_macros = was_expanding_macros
 
     def has_attribute_spelling(self, scope_spelling, attrib_spelling):
         values = self.attributes_by_scope.get(scope_spelling)
