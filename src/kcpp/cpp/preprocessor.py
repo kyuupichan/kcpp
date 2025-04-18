@@ -4,6 +4,7 @@
 #
 
 import sys
+from contextlib import contextmanager
 from copy import copy
 from dataclasses import dataclass
 from enum import IntEnum, auto
@@ -183,7 +184,7 @@ class Preprocessor:
         )
 
         # Internal state
-        self.collecting_arguments = False
+        self.collecting_arguments = []
         self.directive_name_loc = None
         self.expand_macros = True
         self.ignore_diagnostics = 0
@@ -595,14 +596,35 @@ class Preprocessor:
         # literals can be read back in.
         return CodepointOutputKind.character.bytes_to_string_literal(filename)
 
+    def current_lexer(self):
+        for source in reversed(self.sources):
+            if isinstance(source, Lexer):
+                return source
+
+    @contextmanager
+    def collect_arguments(self, macro):
+        '''Start collecting arguments for the given macro (None for _Pragma).  When collecting
+        arguments, an EOF token is returned when the current lexer's end-of-file is reached.
+        '''
+        self.collecting_arguments.append((self.current_lexer(), macro))
+        try:
+            yield None
+        finally:
+            self.collecting_arguments.pop()
+
     def pass_through_eof(self, source):
         if isinstance(source, Lexer):
             # Pop the buffer unless collecting arguments or in a directive; that state
             # needs to be cleared first.  get_token() will continue with the enclosing
             # buffer, or pass through the EOF if there are none.
             self.skip_to_eod = False
-            return self.in_directive or self.collecting_arguments
-
+            if self.in_directive:
+                return True
+            if self.collecting_arguments:
+                lexer, _ = self.collecting_arguments[-1]
+                if lexer is source:
+                    return True
+            return False
         # Terminate macro argument pre-expansion
         return True
 
@@ -691,6 +713,7 @@ class Preprocessor:
             return self.invalid_directive
 
         assert isinstance(lexer, Lexer)
+        assert not self.in_directive
         self.expand_macros = False
         self.in_directive = True
         self.skip_to_eod = True
@@ -1094,13 +1117,12 @@ class Preprocessor:
             self.diagnose_extra_tokens(None)
 
     def read_Pragma_string(self):
-        assert not self.collecting_arguments
-        self.collecting_arguments = True
-        token = self.get_token()
-        if token.kind != TokenKind.PAREN_OPEN:
-            self.diag(DID.expected_open_paren, token.loc)
-            string = None
-        else:
+        with self.collect_arguments(None):
+            token = self.get_token()
+            if token.kind != TokenKind.PAREN_OPEN:
+                self.diag(DID.expected_open_paren, token.loc)
+                return None
+
             state = ParserState.from_pp(self)
             state.enter_context(token.kind, token.loc)
             string = state.get_token()
@@ -1111,8 +1133,7 @@ class Preprocessor:
                 state.recover(string)
                 string = None
             state.leave_context()
-        self.collecting_arguments = False
-        return string
+            return string
 
     def process_Pragma_string(self, string):
         raw = destringize(string)

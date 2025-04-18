@@ -25,6 +25,11 @@ cannot_write_file:
   severity: fatal
   text: "cannot write to file %0: %1"
 
+directive_in_macro_arguments:
+  severity: error
+  group: directive_in_macro
+  text: directive within arguments of macro %q0
+
 invalid_charset:
   # fatal as caused by command line arguments
   severity: fatal

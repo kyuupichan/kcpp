@@ -148,44 +148,43 @@ class Macro:
         too_many = False
 
         # Collect the arguments.  Macro expansion is disabled whilst doing this
-        was_collecting_arguments = pp.collecting_arguments
-        pp.collecting_arguments = True
         pp.expand_macros = False
-
-        while True:
-            token = get_token()
-            if token.kind == TokenKind.EOF:
-                macro_name = self.macro_name(pp)
-                note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
-                pp.diag(DID.unterminated_argument_list, invocation_loc, [macro_name, note])
-                break
-            if token.kind == TokenKind.PAREN_CLOSE:
-                if paren_depth == 0:
+        with pp.collect_arguments(self):
+            while True:
+                token = get_token()
+                if token.kind == TokenKind.EOF:
+                    macro_name = self.macro_name(pp)
+                    note = Diagnostic(DID.macro_defined_here, self.name_loc, [macro_name])
+                    pp.diag(DID.unterminated_argument_list, invocation_loc, [macro_name, note])
                     break
-                paren_depth -= 1
-            elif paren_depth == 0 and not too_many:
-                if token.kind == TokenKind.COMMA:
-                    # This completes an argument unless we are in the variable arguments.
-                    if len(arguments) + 1 < param_count:
-                        arguments.append(tokens)
-                        tokens = []
-                        continue
-                    # It is impossible to have too many arguments to a variadic macro; the
-                    # comma just becomes part of the current variable argument.
-                    too_many = not self.is_variadic()
-                else:
-                    too_many = param_count == 0
-                if too_many:
-                    pp.diag(DID.too_many_macro_arguments, token.loc, [self.macro_name(pp)])
+                if token.kind == TokenKind.PAREN_CLOSE:
+                    if paren_depth == 0:
+                        break
+                    paren_depth -= 1
+                elif paren_depth == 0 and not too_many:
+                    if token.kind == TokenKind.COMMA:
+                        # This completes an argument unless we are in the variable arguments.
+                        if len(arguments) + 1 < param_count:
+                            arguments.append(tokens)
+                            tokens = []
+                            continue
+                        # It is impossible to have too many arguments to a variadic macro; the
+                        # comma just becomes part of the current variable argument.
+                        too_many = not self.is_variadic()
+                    else:
+                        too_many = param_count == 0
+                    if too_many:
+                        pp.diag(DID.too_many_macro_arguments, token.loc, [self.macro_name(pp)])
 
-            if token.kind == TokenKind.PAREN_OPEN:
-                paren_depth += 1
-            # Save the token and continue looking for the ')'.  Remove leading WS from the
-            # first token.
-            if not tokens:
-                token.flags &= ~TokenFlags.WS
-            tokens.append(token)
+                if token.kind == TokenKind.PAREN_OPEN:
+                    paren_depth += 1
+                # Save the token and continue looking for the ')'.  Remove leading WS from the
+                # first token.
+                if not tokens:
+                    token.flags &= ~TokenFlags.WS
+                tokens.append(token)
 
+        pp.expand_macros = True
         # The ')', or EOF, completed an argument unless there are no parameters at all.
         if param_count:
             arguments.append(tokens)
@@ -195,10 +194,8 @@ class Macro:
             # Add empty arguments until we have the correct amount
             while len(arguments) < param_count:
                 arguments.append([])
-        assert len(arguments) == param_count
 
-        pp.expand_macros = True
-        pp.collecting_arguments = was_collecting_arguments
+        assert len(arguments) == param_count
         return arguments
 
 
