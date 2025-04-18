@@ -181,7 +181,7 @@ class FrontEnd(FrontEndBase):
     '''
 
     help_group_name = 'token dumper'
-    #diagnostic_class = DiagnosticPrinter
+    diagnostic_class = DiagnosticPrinter
 
     def process(self, source, multiple):
         '''Act like a front-end, consuming tokens and evaluating literals.  At present

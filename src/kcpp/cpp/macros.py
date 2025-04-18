@@ -251,7 +251,7 @@ class MacroExpansion:
         spelling = lhs_spelling + rhs_spelling
 
         if spelling:
-            parent_range = TokenRange(concat_loc, concat_loc)
+            parent_range = TokenRange(tokens[-1].loc, rhs.loc)
             token, all_consumed = self.pp.lex_from_scratch(spelling, parent_range,
                                                            ScratchEntryKind.concatenate)
             if token.kind == TokenKind.EOF or not all_consumed:
