@@ -15,7 +15,7 @@ from kcpp.diagnostics import (
 from .frontends import PreprocessedOutput, FrontEnd
 
 
-__all__ = ['KCPP']
+__all__ = ['Skin', 'KCPP']
 
 
 class Skin:

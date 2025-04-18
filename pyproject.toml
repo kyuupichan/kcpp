@@ -26,4 +26,5 @@ classifiers = [
 ]
 
 [project.scripts]
-kcpp = "kcpp:main_cli"
+kcpp = "kcpp:cpp_cli"
+kcc = "kcpp:cc_cli"
