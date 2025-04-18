@@ -681,7 +681,7 @@ class Preprocessor:
                     return token
                 # Eat the opening parenthesis that was already peeked
                 assert self.get_token().kind == TokenKind.PAREN_OPEN
-            self.push_source(MacroExpansion(self, macro, token))
+            self.push_source(MacroExpansion(self, macro, token.loc, token.flags & TokenFlags.WS))
 
         # We get the first token (or the next token if collect_arguments() failed, or for
         # has_feature pseudo-macros, or after _Pragma.
@@ -835,7 +835,8 @@ class Preprocessor:
         '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token
-        scratch_loc = self.locator.new_scratch_token(spelling, parent_loc, kind)
+        parent_range = TokenRange(parent_loc, parent_loc)
+        scratch_loc = self.locator.new_scratch_token(spelling, parent_range, kind)
         lexer = Lexer(self, spelling + b'\0', scratch_loc, False)
         self.lexing_scratch = True
         token = lexer.get_token()
@@ -1142,7 +1143,8 @@ class Preprocessor:
 
     def process_Pragma_string(self, string):
         raw = destringize(string)
-        scratch_loc = self.locator.new_scratch_token(raw, string.loc, ScratchEntryKind.pragma)
+        parent_range = TokenRange(string.loc, string.loc)
+        scratch_loc = self.locator.new_scratch_token(raw, parent_range, ScratchEntryKind.pragma)
         lexer = Lexer(self, raw + b'\0', scratch_loc, False)
         self.push_source(lexer)
         self.handle_directive(lexer, string, self.on_pragma)

@@ -51,9 +51,9 @@ class BufferSpan:
     def buffer(self):
         return self._buffer
 
-    def macro_parent_loc(self, loc):
+    def macro_parent_range(self, loc):
         assert self.start <= loc <= self.end
-        return -1
+        return None
 
     def spelling_loc(self, loc):
         return loc
@@ -103,7 +103,7 @@ class ScratchBufferSpan(Buffer):
     def has_room(self, size):
         return self.start + len(self.text) + size + 1 <= self.end
 
-    def add_spelling(self, spelling, parent_loc, entry_kind):
+    def add_spelling(self, spelling, parent_range, entry_kind):
         text = self.text
         start = self.start + len(text)
         # We place a newline character at the end of the spelling so it appears on its own
@@ -111,7 +111,7 @@ class ScratchBufferSpan(Buffer):
         text.extend(spelling)
         text.append(10)
         assert start + len(text) <= self.end
-        self.entries.append(ScratchEntry(start, parent_loc, entry_kind))
+        self.entries.append(ScratchEntry(start, parent_range, entry_kind))
         # Clear any cached line offsets
         self._sparse_line_offsets = None
         return start
@@ -123,7 +123,8 @@ class ScratchBufferSpan(Buffer):
         elif entry.kind == ScratchEntryKind.stringize:
             return DID.in_argument_stringizing, []
         elif entry.kind == ScratchEntryKind.builtin:
-            return DID.in_expansion_of_builtin, [pp.token_spelling_at_loc(entry.parent_loc)]
+            spelling = pp.token_spelling_at_loc(entry.parent_range.start)
+            return DID.in_expansion_of_builtin, [spelling]
         elif entry.kind == ScratchEntryKind.header:
             return DID.from_formation_of_header_name, []
         elif entry.kind == ScratchEntryKind.pragma:
@@ -140,8 +141,8 @@ class ScratchBufferSpan(Buffer):
     def spelling_loc(self, loc):
         return loc
 
-    def macro_parent_loc(self, loc):
-        return self.entry_for_loc(loc).parent_loc
+    def macro_parent_range(self, loc):
+        return self.entry_for_loc(loc).parent_range
 
     def presumed_location(self, offset):
         '''Return a PresumedLocation instance.'''
@@ -163,15 +164,17 @@ class ScratchEntryKind(IntEnum):
 @dataclass(slots=True)
 class ScratchEntry:
     offset: int
-    parent_loc: int
+    parent_range: TokenRange
     kind: ScratchEntryKind
 
 
 @dataclass(slots=True)
 class MacroReplacementSpan:
+    '''Represents the tokens of a macro's replacement list before parameter replacement takes
+    place..'''
 
     macro: object
-    invocation_loc: int
+    invocation_range: TokenRange
     start: int
     end: int
 
@@ -179,12 +182,12 @@ class MacroReplacementSpan:
         token_index = loc - self.start
         return self.macro.replacement_list[token_index].loc
 
-    def macro_parent_loc(self, loc):
-        return self.invocation_loc
+    def macro_parent_range(self, loc):
+        return self.invocation_range
 
     def macro_name(self, pp):
         '''Return the macro name (as UTF-8).'''
-        return pp.token_spelling_at_loc(self.invocation_loc)
+        return pp.token_spelling_at_loc(self.invocation_range.start)
 
     def did_and_substitutions(self, pp, loc):
         return DID.in_expansion_of_macro, [self.macro_name(pp)]
@@ -192,6 +195,7 @@ class MacroReplacementSpan:
 
 @dataclass(slots=True)
 class MacroArgumentSpan:
+    '''Represents the tokens that replaced a macro parameter in the replacement list.'''
 
     parameter_loc: int
     start: int
@@ -201,8 +205,8 @@ class MacroArgumentSpan:
     def spelling_loc(self, loc):
         return self.locations[loc - self.start]
 
-    def macro_parent_loc(self, loc):
-        return self.parameter_loc
+    def macro_parent_range(self, loc):
+        return TokenRange(self.parameter_loc, self.parameter_loc)
 
 
 class Locator:
@@ -244,13 +248,15 @@ class Locator:
         except IndexError:
             return self.FIRST_MACRO_LOC
 
-    def macro_replacement_span(self, macro, parent_loc):
+    def macro_replacement_span(self, macro, invocation_range):
+        assert isinstance(invocation_range, TokenRange)
         start = self.next_macro_span_start()
         end = start + len(macro.replacement_list) - 1
-        self.macro_spans.append(MacroReplacementSpan(macro, parent_loc, start, end))
+        self.macro_spans.append(MacroReplacementSpan(macro, invocation_range, start, end))
         return start
 
     def macro_argument_span(self, parameter_loc, locations):
+        assert isinstance(parameter_loc, int)
         start = self.next_macro_span_start()
         end = start + len(locations) - 1
         self.macro_spans.append(MacroArgumentSpan(parameter_loc, start, end, locations))
@@ -263,11 +269,12 @@ class Locator:
         self.buffer_spans.append(scratch_range)
         return scratch_range
 
-    def new_scratch_token(self, spelling, parent_loc, entry_kind):
+    def new_scratch_token(self, spelling, parent_range, entry_kind):
+        assert isinstance(parent_range, TokenRange)
         size = len(spelling)
         if not self.scratch_range.has_room(size):
             self.scratch_range = self.create_scratch_range(size)
-        return self.scratch_range.add_spelling(spelling, parent_loc, entry_kind)
+        return self.scratch_range.add_spelling(spelling, parent_range, entry_kind)
 
     def add_line_range(self, start_loc, name, line_number):
         span = self.lookup_span(start_loc)
@@ -315,10 +322,10 @@ class Locator:
         '''
         while True:
             span = self.lookup_span(loc)
-            parent_loc = span.macro_parent_loc(loc)
-            if parent_loc == -1:
+            parent_range = span.macro_parent_range(loc)
+            if parent_range is None:
                 return loc
-            loc = parent_loc
+            loc = parent_range.start
 
     def spelling_coords(self, loc, token_end=False):
         '''Convert a location to a PresumedLocation instance.'''
@@ -375,39 +382,43 @@ class Locator:
 
         return RangeCoords(start, end)
 
-    def spans_and_locs(self, loc):
+    def spans_and_ranges(self, loc):
         '''Generates the spans of a location stepping up through the locations parents.
 
-        The span of the location is generated first, then the span of its parent location,
+        The span of the location is generated first, then the span of its parent range,
         recursively.
         '''
         result = []
+        range = TokenRange(loc, loc)
         while True:
             span = self.lookup_span(loc)
+            if not span.start <= range.end <= span.end:
+                range.end = span.end
             if isinstance(span, MacroArgumentSpan):
                 macro_span = self.lookup_span(span.parameter_loc)
-                result.append((macro_span, span.parameter_loc))
+                result.append((macro_span, span.macro_parent_range(None)))
                 loc = span.spelling_loc(loc)
+                range = TokenRange(loc, loc)
             else:
-                result.append((span, loc))
-                parent_loc = span.macro_parent_loc(loc)
-                if parent_loc == -1:
+                result.append((span, range))
+                range = span.macro_parent_range(loc)
+                if range is None:
                     return result
-                loc = parent_loc
+                loc = range.start
 
     def diagnostic_contexts(self, main_context):
         def intersections(spans, source_range):
             result = []
             if isinstance(source_range, BufferRange):
-                start_spans_and_locs = self.spans_and_locs(source_range.start)
+                start_spans_and_ranges = self.spans_and_ranges(source_range.start)
                 for span in spans:
-                    for our_span, our_loc in start_spans_and_locs:
+                    for our_span, our_range in start_spans_and_ranges:
                         if span is not our_span:
                             continue
-                        if our_loc == source_range.start:
+                        if our_range.start == source_range.start:
                             item = source_range
                         else:
-                            item = TokenRange(our_loc, our_loc)
+                            item = our_range
                         break
                     else:
                         item = None
@@ -420,33 +431,36 @@ class Locator:
                 # decay into a TokenRange for a single token.
                 token_loc = source_range.token_loc
                 spelling_span, _ = self.spelling_span_and_offset(token_loc)
-                our_spans_and_locs = self.spans_and_locs(token_loc)
+                our_spans_and_ranges = self.spans_and_ranges(token_loc)
                 for span in spans:
-                    for our_span, our_loc in our_spans_and_locs:
+                    for our_span, our_range in our_spans_and_ranges:
                         if span is not our_span:
                             continue
                         if span is spelling_span:
-                            item = SpellingRange(our_loc, source_range.start, source_range.end)
+                            item = SpellingRange(our_range.start, source_range.start,
+                                                 source_range.end)
                         else:
-                            item = TokenRange(our_loc, our_loc)
+                            item = our_range
                         break
                     else:
                         item = None
                     result.append(item)
                 return result
 
-            def token_intersection(span, token_spans_and_locs):
-                for token_span, token_loc in token_spans_and_locs:
+            def token_intersection(span, token_spans_and_ranges, is_start):
+                for token_span, token_range in token_spans_and_ranges:
                     if span is token_span:
-                        return token_loc
+                        loc = token_range.start if is_start else token_range.end
+                        if span.start <= loc <= span.end:
+                            return loc
                 return None
 
             if isinstance(source_range, TokenRange):
-                start_spans_and_locs = self.spans_and_locs(source_range.start)
-                end_spans_and_locs = self.spans_and_locs(source_range.end)
+                start_spans_and_ranges = self.spans_and_ranges(source_range.start)
+                end_spans_and_ranges = self.spans_and_ranges(source_range.end)
                 for span in spans:
-                    start = token_intersection(span, start_spans_and_locs)
-                    end = token_intersection(span, end_spans_and_locs)
+                    start = token_intersection(span, start_spans_and_ranges, True)
+                    end = token_intersection(span, end_spans_and_ranges, False)
                     if start is None:
                         if end is not None:
                             item = TokenRange(span.start, end)
@@ -471,20 +485,19 @@ class Locator:
         # evolution would benefit, the code accepts and handles appropriately any of
         # Buffer Range, SpellingRange, TokenRange or single token locations for the caret
         # range and the highlights.
-        caret_spans_and_locs = self.spans_and_locs(main_context.caret_range.caret_loc())
-        caret_spans = [span for span, loc in caret_spans_and_locs]
+        caret_spans_and_ranges = self.spans_and_ranges(main_context.caret_range.caret_loc())
+        caret_spans = [span for span, range in caret_spans_and_ranges]
         caret_ranges = intersections(caret_spans, main_context.caret_range)
         source_ranges_list = [intersections(caret_spans, source_range)
                               for source_range in main_context.source_ranges]
 
-        for n, ((span, caret_loc), caret_range) in enumerate(zip(caret_spans_and_locs,
-                                                                 caret_ranges)):
+        for n, (span, caret_range) in enumerate(zip(caret_spans, caret_ranges)):
             if isinstance(span, BufferSpan):
                 severity = main_context.severity
                 did, substitutions = main_context.did, main_context.substitutions
             else:
                 severity = DiagnosticSeverity.note
-                did, substitutions = span.did_and_substitutions(self.pp, caret_loc)
+                did, substitutions = span.did_and_substitutions(self.pp, caret_range.caret_loc())
 
             source_ranges = [source_ranges_item[n] for source_ranges_item in source_ranges_list]
 

@@ -53,12 +53,11 @@ class Skin:
         parser.add_argument('files', metavar='files', nargs='*', default=['-'],
                             help='files to preprocess')
 
-        if frontend_class is None:
-            try:
-                argv.remove('--tokens')
-                frontend_class = FrontEnd
-            except ValueError:
-                frontend_class = PreprocessedOutput
+        try:
+            argv.remove('--tokens')
+            frontend_class = FrontEnd
+        except ValueError:
+            pass
 
         group = parser.add_argument_group(frontend_class.help_group_name)
         skin.add_frontend_commands(group, frontend_class)

@@ -75,4 +75,4 @@ unknown_target:
 
 unterminated_argument_list:
   severity: error
-  text: unerminated argument list invoking macro %q0
+  text: unterminated argument list invoking macro %q0

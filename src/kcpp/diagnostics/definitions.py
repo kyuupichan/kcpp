@@ -894,7 +894,7 @@ diagnostic_definitions = {
         DID.unterminated_argument_list,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'unerminated argument list invoking macro %q0',
+        'unterminated argument list invoking macro %q0',
     ),
     DID.unterminated_block_comment: DiagnosticDefinition(
         DID.unterminated_block_comment,

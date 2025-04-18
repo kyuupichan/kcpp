@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import IntEnum, auto
 
 from ..core import Token, TokenKind, TokenFlags
-from ..diagnostics import DID, Diagnostic
+from ..diagnostics import DID, Diagnostic, TokenRange
 
 from .locator import ScratchEntryKind
 
@@ -196,31 +196,30 @@ class Macro:
                 arguments.append([])
 
         assert len(arguments) == param_count
-        return arguments
+        return arguments, TokenRange(invocation_loc, token.loc)
 
 
 class MacroExpansion:
     '''A token source that returns the expansion of a macro.'''
 
-    def __init__(self, pp, macro, invocation_token):
-        assert invocation_token.kind == TokenKind.IDENTIFIER
+    def __init__(self, pp, macro, invocation_loc, token_ws_flag):
         self.pp = pp
         self.macro = macro
         self.cursor = 0
-        base_loc = pp.locator.macro_replacement_span(macro, invocation_token.loc)
         tokens = macro.replacement_list
         if macro.is_function_like():
-            arguments = macro.collect_arguments(pp, invocation_token.loc)
+            arguments, invocation_range = macro.collect_arguments(pp, invocation_loc)
         else:
+            invocation_range = TokenRange(invocation_loc, invocation_loc)
             arguments = None
+        base_loc = pp.locator.macro_replacement_span(macro, invocation_range)
         # Small optimization: having checked the arguments, expand a function-like macro
         # taking no arguments as if it were object-like
         if arguments:
             self.tokens = self.replace_arguments(tokens, arguments, base_loc, 0, len(tokens),
-                                                 invocation_token.flags & TokenFlags.WS)
+                                                 token_ws_flag)
         else:
-            self.tokens = self.objlike_replacement_tokens(tokens, base_loc,
-                                                          invocation_token.flags & TokenFlags.WS)
+            self.tokens = self.objlike_replacement_tokens(tokens, base_loc, token_ws_flag)
         macro.disable()
 
     def get_token(self):
