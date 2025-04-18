@@ -614,7 +614,7 @@ class Preprocessor:
 
             # Handle preprocessing directives.  This must happen before macro expansion.
             if token.kind == TokenKind.DIRECTIVE_HASH:
-                self.handle_directive(source, token)
+                self.handle_directive(source, token, None)
                 continue
 
             if token.kind == TokenKind.EOF:
@@ -673,7 +673,7 @@ class Preprocessor:
                 return kind
         raise RuntimeError('no sources left to peek from')
 
-    def handle_directive(self, lexer, token):
+    def handle_directive(self, lexer, token, handler=None):
         '''Handle a directive to and including the EOF token.  We have read the '#' introducing a
         directive.'''
         def get_handler(lexer, token):
@@ -694,13 +694,14 @@ class Preprocessor:
         self.expand_macros = False
         self.in_directive = True
         self.skip_to_eod = True
-        # Turn off skipping whilst getting the directive name so that identifier
-        # information is attached, and vertical whitespace is caught.
-        was_skipping = self.skipping
-        self.skipping = False
-        token = lexer.get_token()
-        self.skipping = was_skipping
-        handler = get_handler(lexer, token)
+        if handler is None:
+            # Turn off skipping whilst getting the directive name so that identifier
+            # information is attached, and vertical whitespace is caught.
+            was_skipping = self.skipping
+            self.skipping = False
+            token = lexer.get_token()
+            self.skipping = was_skipping
+            handler = get_handler(lexer, token)
         handler(token)
         # It is important we don't skip to EOD after pushing an include file!
         if self.skip_to_eod:
@@ -708,10 +709,11 @@ class Preprocessor:
             while token.kind != TokenKind.EOF:
                 token = self.get_token()
         self.in_directive = False
-        if self._Pragma_strings:
-            for string in self._Pragma_strings:
+        strings = self._Pragma_strings
+        if strings:
+            self._Pragma_strings = []
+            for string in strings:
                 self.process_Pragma_string(string)
-            self._Pragma_strings.clear()
         self.expand_macros = True
 
     def has_attribute_spelling(self, scope_spelling, attrib_spelling):
@@ -1079,6 +1081,8 @@ class Preprocessor:
         self.diagnostic_directive(token, DID.warning_directive)
 
     def on_pragma(self, token):
+        '''The passed-in token is a string literal (for _Pragma) or the 'pragma' identifier.
+        In any case it is ignored.'''
         # Get the namespace token, if any
         token = self.get_token()
         handler = None
@@ -1115,9 +1119,7 @@ class Preprocessor:
         scratch_loc = self.locator.new_scratch_token(raw, string.loc, ScratchEntryKind.pragma)
         lexer = Lexer(self, raw + b'\0', scratch_loc, False)
         self.push_source(lexer)
-        self.in_directive = True
-        self.on_pragma(string)
-        self.in_directive = False
+        self.handle_directive(lexer, string, self.on_pragma)
         self.sources.pop()
 
     def on_Pragma(self, token):
