@@ -272,10 +272,6 @@ class IdentifierInfo:
         self.special |= SpecialKind.VA_IDENTIFIER
 
 
-# A dummy used for a lexed identifier when skipping
-IdentifierInfo.dummy = IdentifierInfo('!', None, 0)
-
-
 @dataclass(slots=True)
 class Token:
     kind: int
