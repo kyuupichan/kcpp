@@ -251,7 +251,8 @@ class MacroExpansion:
         spelling = lhs_spelling + rhs_spelling
 
         if spelling:
-            token, all_consumed = self.pp.lex_from_scratch(spelling, concat_loc,
+            parent_range = TokenRange(concat_loc, concat_loc)
+            token, all_consumed = self.pp.lex_from_scratch(spelling, parent_range,
                                                            ScratchEntryKind.concatenate)
             if token.kind == TokenKind.EOF or not all_consumed:
                 self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
@@ -442,7 +443,8 @@ class MacroExpansion:
             else:
                 spelling.extend(token_spelling)
         spelling.append(34)    # '"'
-        token, all_consumed = self.pp.lex_from_scratch(spelling, stringize_loc,
+        parent_range = TokenRange(stringize_loc, stringize_loc)
+        token, all_consumed = self.pp.lex_from_scratch(spelling, parent_range,
                                                        ScratchEntryKind.stringize)
         return token   # kind is either STRING_LITERAL or UNTERMINATED
 
@@ -506,7 +508,8 @@ def expand_builtin_macro(pp, token):
 
 def lex_token_from_builtin_spelling(pp, token, spelling):
     ws = token.flags & TokenFlags.WS
-    token, all_consumed = pp.lex_from_scratch(spelling.encode(), token.loc,
+    parent_range = TokenRange(token.loc, token.loc)
+    token, all_consumed = pp.lex_from_scratch(spelling.encode(), parent_range,
                                               ScratchEntryKind.builtin)
     assert all_consumed
     assert not (token.flags & TokenFlags.WS)

@@ -824,18 +824,19 @@ class Preprocessor:
                 token = self.get_token()
 
             self.in_header_name = True
-            token, entirely = self.lex_from_scratch(spelling, first_loc, ScratchEntryKind.header)
+            parent_range = TokenRange(first_loc, first_loc)
+            token, entirely = self.lex_from_scratch(spelling, parent_range,
+                                                    ScratchEntryKind.header)
             self.in_header_name = False
             if token.kind == TokenKind.HEADER_NAME and entirely:
                 return token
         self.diag(DID.expected_header_name, first_loc)
         return None
 
-    def lex_from_scratch(self, spelling, parent_loc, kind):
+    def lex_from_scratch(self, spelling, parent_range, kind):
         '''Place the spelling in a scratch buffer and return a pair (token, all_consumed).
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token
-        parent_range = TokenRange(parent_loc, parent_loc)
         scratch_loc = self.locator.new_scratch_token(spelling, parent_range, kind)
         lexer = Lexer(self, spelling + b'\0', scratch_loc, False)
         self.lexing_scratch = True
