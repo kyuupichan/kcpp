@@ -571,9 +571,9 @@ def standard_c_predefines(pp):
 
 
 def standard_cxx_predefines(pp):
-    # We do not define __STDC__ or __STDC_VERSION__ or __STDC_ISO_10646__ when compiling
-    # C++.
     yield '__cplusplus', '202302L'
+    yield '__STDC__', '1'
+    # We do not define __STDC_VERSION__ or __STDC_ISO_10646__ when compiling C++.
 
     # The values for C++23
     yield '__cpp_aggregate_bases', '201603L'
