@@ -8,7 +8,7 @@ from abc import ABC
 
 from kcpp.core import TokenKind, TokenFlags
 from kcpp.cpp import PreprocessorActions
-from kcpp.diagnostics import UnicodeTerminal, DiagnosticPrinter
+from kcpp.diagnostics import UnicodeTerminal
 
 
 __all__ = ['PreprocessedOutput', 'FrontEndBase', 'FrontEnd']
