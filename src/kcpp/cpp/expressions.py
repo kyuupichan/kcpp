@@ -228,7 +228,8 @@ class ExprParser:
             spelling = self.parse_body_method(macro_token.extra.macro)(state, is_evaluated)
             token = state.leave_context()
             if spelling is not None:
-                token = lex_token_from_builtin_spelling(self.pp, macro_token, spelling)
+                token = lex_token_from_builtin_spelling(self.pp, macro_token, spelling,
+                                                        TokenRange(macro_token.loc, token.loc))
                 assert token.kind == TokenKind.NUMBER
                 return self.evaluate_literal(token)
         else:

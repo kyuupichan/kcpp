@@ -503,12 +503,11 @@ def expand_builtin_macro(pp, token):
     else:
         assert False
 
-    return lex_token_from_builtin_spelling(pp, token, spelling)
+    return lex_token_from_builtin_spelling(pp, token, spelling, TokenRange(token.loc, token.loc))
 
 
-def lex_token_from_builtin_spelling(pp, token, spelling):
+def lex_token_from_builtin_spelling(pp, token, spelling, parent_range):
     ws = token.flags & TokenFlags.WS
-    parent_range = TokenRange(token.loc, token.loc)
     token, all_consumed = pp.lex_from_scratch(spelling.encode(), parent_range,
                                               ScratchEntryKind.builtin)
     assert all_consumed
