@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import IntEnum, auto
 
 from ..core import Token, TokenKind, TokenFlags
-from ..diagnostics import DID, Diagnostic, TokenRange
+from ..diagnostics import DID, Diagnostic, TokenRange, BufferRange
 
 from .locator import ScratchEntryKind
 
@@ -255,7 +255,8 @@ class MacroExpansion:
             token, all_consumed = self.pp.lex_from_scratch(spelling, parent_range,
                                                            ScratchEntryKind.concatenate)
             if token.kind == TokenKind.EOF or not all_consumed:
-                self.pp.diag(DID.token_concatenation_failed, concat_loc, [spelling])
+                diag_loc = BufferRange(token.loc, token.loc + len(spelling))
+                self.pp.diag(DID.token_concatenation_failed, diag_loc, [spelling])
                 tokens.append(rhs)
             else:
                 if tokens[-1].flags & TokenFlags.WS:

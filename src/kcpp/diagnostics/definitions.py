@@ -551,7 +551,7 @@ diagnostic_definitions = {
         DID.in_argument_stringizing,
         DiagnosticSeverity.note,
         DiagnosticGroup.none,
-        'in stringizing of macro argument',
+        'stringized macro argument',
     ),
     DID.in_expansion_of_builtin: DiagnosticDefinition(
         DID.in_expansion_of_builtin,
@@ -569,7 +569,7 @@ diagnostic_definitions = {
         DID.in_token_concatenation,
         DiagnosticSeverity.note,
         DiagnosticGroup.none,
-        'in result of token concatenation',
+        'spelling of token concatenation',
     ),
     DID.incomplete_UCN_as_tokens: DiagnosticDefinition(
         DID.incomplete_UCN_as_tokens,

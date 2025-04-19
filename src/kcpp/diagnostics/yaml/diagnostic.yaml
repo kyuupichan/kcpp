@@ -63,7 +63,7 @@ from_Pragma:
 
 in_argument_stringizing:
   severity: note
-  text: in stringizing of macro argument
+  text: stringized macro argument
 
 in_expansion_of_builtin:
   severity: note
@@ -75,7 +75,7 @@ in_expansion_of_macro:
 
 in_token_concatenation:
   severity: note
-  text: in result of token concatenation
+  text: spelling of token concatenation
 
 severity_remark:
   severity: none

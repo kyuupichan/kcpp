@@ -53,6 +53,7 @@ class BufferSpan:
 
     def macro_parent_range(self, loc):
         assert self.start <= loc <= self.end
+        # Buffers are terminal
         return None
 
     def spelling_loc(self, loc):
