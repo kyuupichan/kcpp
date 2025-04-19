@@ -112,7 +112,7 @@ class StringLiteral:
 
     def to_short_text(self):
         ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
-        return f'StringLiteral({self.encoded.decode()}, {self.char_kind.name}{ud_suffix_part})'
+        return f'StringLiteral({bytes(self.encoded)}, {self.char_kind.name}{ud_suffix_part})'
 
 
 def printable_form(cp):
