@@ -313,20 +313,6 @@ class Locator:
         '''Return True if loc is from a macro expansion.'''
         return not isinstance(self.lookup_span(loc), BufferSpan)
 
-    def buffer_span_loc(self, loc):
-        '''Step up through the parents of a location until a BufferSpan is reached, and return the
-        location there.
-
-        So if a location arises from a macro expansion, this will return to the outermost
-        macro invocation.
-        '''
-        while True:
-            span = self.lookup_span(loc)
-            parent_range = span.macro_parent_range(loc)
-            if parent_range is None:
-                return loc
-            loc = parent_range.start
-
     def spelling_coords(self, loc, token_end=False):
         '''Convert a location to a PresumedLocation instance.'''
         span, offset = self.spelling_span_and_offset(loc)
@@ -352,8 +338,15 @@ class Locator:
         file, otherwise the outermost macro invocation.  Otherwise use loc directly.
         '''
         if force_outermost_context:
-            loc = self.buffer_span_loc(loc)
-        span, offset = self.spelling_span_and_offset(loc)
+            while True:
+                span = self.lookup_span(loc)
+                parent_range = span.macro_parent_range(loc)
+                if parent_range is None:
+                    break
+                loc = parent_range.start
+            offset = loc - span.start
+        else:
+            span, offset = self.spelling_span_and_offset(loc)
         return span.presumed_location(offset)
 
     def range_coords(self, source_range):
