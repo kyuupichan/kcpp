@@ -496,10 +496,7 @@ class TokenKind(IntEnum):
     kw_dynamic_cast = auto()
     kw_explicit = auto()
     kw_export = auto()
-    kw_export_keyword = auto()
     kw_friend = auto()
-    kw_import_keyword = auto()
-    kw_module_keyword = auto()
     kw_mutable = auto()
     kw_namespace = auto()
     kw_new = auto()
@@ -520,6 +517,10 @@ class TokenKind(IntEnum):
     kw_using = auto()
     kw_virtual = auto()
     kw_wchar_t = auto()
+    # These keywords have no spelling
+    kw_export_keyword = auto()
+    kw_import_keyword = auto()
+    kw_module_keyword = auto()
 
 
 TokenKind.spelling_kinds = {TokenKind.NUMBER, TokenKind.CHARACTER_LITERAL, TokenKind.HEADER_NAME,
