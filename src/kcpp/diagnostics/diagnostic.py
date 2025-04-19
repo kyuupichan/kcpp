@@ -440,6 +440,10 @@ class DiagnosticManager:
 
         return exit_code
 
+    def write(self, text):
+        '''Write text to stdder (or error output) followed by a newline.'''
+        print(text, file=self.consumer.stderr)
+
     def location_text(self, caret_loc):
         '''Return a pair (text, show_source).  The text is empty for a diagnostic with no
         location, something like 'kcpp' for command-line errors, and otherwise something

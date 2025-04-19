@@ -52,6 +52,7 @@ class File:
     path: str
     # The contents of the file
     contents: FileContents
+    is_virtual: bool
 
     def nul_terminated_contents(self):
         result = self.contents.raw
@@ -115,7 +116,7 @@ class FileManager:
             return None
         if not host.stat_is_regular_file(stat_result):
             return None
-        return File(directory, path, FileContents(None, False))
+        return File(directory, path, FileContents(None, False), False)
 
     def search_directory(self, header_name, directory):
         if directory and not directory.exists:
@@ -193,13 +194,13 @@ class FileManager:
         '''
         directory = IncludeDirectory('', DirectoryKind.none, True)
         contents = FileContents(raw + b'\0', is_virtual=True)
-        return File(directory, filename, contents)
+        return File(directory, filename, contents, True)
 
     def file_for_path(self, path):
         dirname = host.path_dirname(path)
         directory = IncludeDirectory(dirname, DirectoryKind.none, True)
         contents = FileContents(None, is_virtual=False)
-        return File(directory, path, contents)
+        return File(directory, path, contents, False)
 
     def read_file(self, file):
         if file.contents.raw is None:

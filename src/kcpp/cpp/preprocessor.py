@@ -117,6 +117,7 @@ class Config:
     angled_dirs: list
     system_dirs: list
     max_include_depth: int
+    trace_includes: bool
 
     @classmethod
     def default(cls):
@@ -129,6 +130,7 @@ class Config:
             [], [], [],                  # defines, undefines, includes
             [], [], [],                  # quoted, angled, system dirs
             -1,                          # max include depth
+            False,                       # trace_includes
         )
 
 
@@ -196,6 +198,7 @@ class Preprocessor:
         self.predefining_macros = False
         self.skip_to_eod = False
         self.skipping = False
+        self.trace_includes = False
         # Collected whilst in a macro-expanding directive.  Handled when leaving the
         # directive.
         self._Pragma_strings = []
@@ -295,10 +298,10 @@ class Preprocessor:
 
         # The command line buffer is processed when the main buffer is pushed.
         self.command_line_buffer = '\n'.join(buffer_lines(config)).encode()
-
         # Max include depth
         if config.max_include_depth >= 0:
             self.max_include_depth = config.max_include_depth
+        self.trace_includes = config.trace_includes
 
     def initialize(self, config):
         '''Configure and then finish general initialization.'''
@@ -531,10 +534,16 @@ class Preprocessor:
         file manager File object) , and return it.  Also push an entry in the file
         manager's file stack, and inform listeners that the source file changed.
         '''
-        # Stack an entry in the file manager
-        self.file_manager.enter_file(file)
         # Get the filename as a string literal and create the lexer token source
         filename_literal = self.filename_to_string_literal(file.path)
+        # Stack an entry in the file manager
+        self.file_manager.enter_file(file)
+        if self.trace_includes and not file.is_virtual:
+            depth = self.file_manager.include_depth()
+            if depth > 0:
+                # Write the literal, not the path, so that odd characters are quoted and
+                # output can't be messed up
+                self.diag_manager.write(f'{"." * depth} {filename_literal}')
         buffer = Buffer(file.nul_terminated_contents())
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal, -1)
         lexer = Lexer(self, buffer.text, first_loc, True)

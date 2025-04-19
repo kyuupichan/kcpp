@@ -128,6 +128,9 @@ class KCPP(Skin):
         group.add_argument('--system-dir', action='append', default=[], metavar='DIR',
                            help='''add a directory to the list of directories searched for <>
                            includes before the standard directories but after -I directories''')
+        group.add_argument('--trace-includes', '-H', action='store_true', default=False,
+                           help='''write the quoted names of include files to the error output
+                           preceded by dots indicating the include depth''')
 
     def add_diagnostic_commands(self, group):
         group.add_argument('--error-output', metavar='FILENAME', default='',
@@ -174,6 +177,7 @@ class KCPP(Skin):
         config.wide_exec_charset = self.command_line.wide_exec_charset
         config.source_date_epoch = self.environ.get(self.SOURCE_DATE_EPOCH_ENVVAR, '')
         config.max_include_depth = self.command_line.max_include_depth
+        config.trace_includes = self.command_line.trace_includes
         config.defines = self.command_line.define_macro
         config.undefines = self.command_line.undefine_macro
         config.includes = self.command_line.include
