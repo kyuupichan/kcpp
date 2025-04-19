@@ -40,12 +40,11 @@ class BufferSpan:
     directive (the actual "include" token) so that an include stack can be produced.
     '''
 
-    def __init__(self, buffer, start, parent_loc, name):
+    def __init__(self, buffer, start, name):
         self._buffer = buffer
         self.start = start
         # End is inclusive, so this permits an end-of-buffer location
         self.end = start + len(buffer.text)
-        self._parent_loc = parent_loc
         self.line_ranges = [LineRange(0, name, 0)]
 
     def buffer(self):
@@ -228,9 +227,9 @@ class Locator:
             return self.buffer_spans[-1].end + 1
         return self.FIRST_BUFFER_LOC
 
-    def new_buffer_loc(self, buffer, name, parent_loc):
+    def new_buffer_loc(self, buffer, name):
         start = self.next_buffer_span_start()
-        self.buffer_spans.append(BufferSpan(buffer, start, parent_loc, name))
+        self.buffer_spans.append(BufferSpan(buffer, start, name))
         # Create a scratch buffer after the initial buffer to keep first locations stable
         # if predefines change
         if not self.scratch_range:
