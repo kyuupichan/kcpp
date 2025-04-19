@@ -331,7 +331,8 @@ class MacroExpansion:
 
             # Stringify the argument?
             if result and result[-1].kind == TokenKind.STRINGIZE:
-                token = self.stringize_argument(argument_tokens, result[-1].loc)
+                stringize_range = TokenRange(result[-1].loc, new_token_loc)
+                token = self.stringize_argument(argument_tokens, stringize_range)
                 assert not (token.flags & TokenFlags.WS)
                 token.flags |= result[-1].flags & TokenFlags.WS
                 result[-1] = token
@@ -409,7 +410,7 @@ class MacroExpansion:
     def placemarker_token(self):
         return Token(TokenKind.PLACEMARKER, 0, 0, None)
 
-    def stringize_argument(self, argument_tokens, stringize_loc):
+    def stringize_argument(self, argument_tokens, stringize_range):
         '''Stringize the argument tokens.  Return a new token.  stringize_loc is the macro
         location of the # operator.
 
@@ -443,8 +444,7 @@ class MacroExpansion:
             else:
                 spelling.extend(token_spelling)
         spelling.append(34)    # '"'
-        parent_range = TokenRange(stringize_loc, stringize_loc)
-        token, all_consumed = self.pp.lex_from_scratch(spelling, parent_range,
+        token, all_consumed = self.pp.lex_from_scratch(spelling, stringize_range,
                                                        ScratchEntryKind.stringize)
         return token   # kind is either STRING_LITERAL or UNTERMINATED
 
