@@ -919,7 +919,7 @@ class LiteralInterpreter:
                 return -1, cursor
 
             if value != -1:
-                state.diag_char(DID.invalid_digit, c_cursor, [1])
+                state.diag_char(DID.invalid_digit, c_cursor, [bases.index(radix)])
                 value = -1
 
     def maybe_ucn(self, state, cursor, cp):
