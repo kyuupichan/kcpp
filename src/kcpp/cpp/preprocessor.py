@@ -203,6 +203,7 @@ class Preprocessor:
         # The date and time of compilation if __DATE__ or __TIME__ is seen.
         self.date_str = None
         self.time_str = None
+        self.counter = 0                       # For __COUNTER__.
         self.source_date_epoch = None          # For reproducible timestamps
         self.command_line_buffer = None
 
@@ -354,6 +355,7 @@ class Preprocessor:
         self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
         self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
         self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
+        self.get_identifier(b'__COUNTER__').macro = BuiltinKind.COUNTER
         self.get_identifier(b'_Pragma').macro = BuiltinKind.Pragma
 
         # Module keywords.  "export" is overloaded as a standard keyword too....
@@ -406,6 +408,9 @@ class Preprocessor:
                 return
             if self.diag_manager.emit(diagnostic):
                 self.halt_compilation()
+
+    def ice(self, loc, text):
+        self.emit(Diagnostic(DID.internal_compiler_error, loc, [text]))
 
     def get_identifier(self, spelling):
         ident = self.identifiers.get(spelling)
@@ -1110,6 +1115,20 @@ class Preprocessor:
     def on_warning(self, token):
         self.diagnostic_directive(token, DID.warning_directive)
 
+    def diagnostic_directive(self, token, did):
+        '''Handle #error and #warning.'''
+        lexer = self.sources[-1]
+        diag_loc = token.loc
+        text = bytearray()
+        while True:
+            token = lexer.get_token_quietly()
+            if token.kind == TokenKind.EOF:
+                break
+            if token.flags & TokenFlags.WS and text:
+                text.append(32)
+            text.extend(lexer.fast_utf8_spelling(token.loc - lexer.start_loc, lexer.cursor))
+        self.diag(did, diag_loc, [bytes(text)])
+
     def on_pragma(self, token):
         '''The passed-in token is a string literal (for _Pragma) or the 'pragma' identifier.
         In any case it is ignored.'''
@@ -1260,20 +1279,6 @@ class Preprocessor:
 
     def invalid_directive(self, token):
         self.diag(DID.invalid_directive, token.loc, [self.token_spelling(token)])
-
-    def diagnostic_directive(self, token, did):
-        '''Handle #error and #warning.'''
-        lexer = self.sources[-1]
-        diag_loc = token.loc
-        text = bytearray()
-        while True:
-            token = lexer.get_token_quietly()
-            if token.kind == TokenKind.EOF:
-                break
-            if token.flags & TokenFlags.WS and text:
-                text.append(32)
-            text.extend(lexer.fast_utf8_spelling(token.loc - lexer.start_loc, lexer.cursor))
-        self.diag(did, diag_loc, [bytes(text)])
 
     def evaluate_pp_expression(self, token):
         self.expand_macros = True

@@ -45,6 +45,7 @@ class BuiltinKind(IntEnum):
     TIME = auto()
     FILE = auto()
     LINE = auto()
+    COUNTER = auto()
 
     # _Pragma unary operator
     Pragma = auto()
@@ -501,14 +502,19 @@ def expand_builtin_macro(pp, token):
             spelling = pp.time_str
         else:
             spelling = pp.date_str
+    elif kind == BuiltinKind.COUNTER:
+        spelling = str(pp.counter)
+        pp.counter += 1
     else:
-        assert False
+        pp.ice(token.loc, f'unhandled builtin kind {kind}')
+        return token
 
     return lex_token_from_builtin_spelling(pp, token, spelling, TokenRange(token.loc, token.loc))
 
 
 def lex_token_from_builtin_spelling(pp, token, spelling, parent_range):
     ws = token.flags & TokenFlags.WS
+    assert spelling
     token, all_consumed = pp.lex_from_scratch(spelling.encode(), parent_range,
                                               ScratchEntryKind.builtin)
     assert all_consumed

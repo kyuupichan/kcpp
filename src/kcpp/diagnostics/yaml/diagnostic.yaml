@@ -77,6 +77,10 @@ in_token_concatenation:
   severity: note
   text: spelling of token concatenation
 
+internal_compiler_error:
+  severity: fatal
+  text: "internal compiler error: %q0"
+
 severity_remark:
   severity: none
   text: remark

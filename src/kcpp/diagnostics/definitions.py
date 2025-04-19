@@ -121,6 +121,7 @@ class DID(IntEnum):
     incomplete_UCN_as_tokens = auto()
     integer_overflow = auto()
     integer_too_large = auto()
+    internal_compiler_error = auto()
     invalid_charset = auto()
     invalid_digit = auto()
     invalid_directive = auto()
@@ -588,6 +589,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
         'integer value is too large for any integer type',
+    ),
+    DID.internal_compiler_error: DiagnosticDefinition(
+        DID.internal_compiler_error,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'internal compiler error: %q0',
     ),
     DID.invalid_charset: DiagnosticDefinition(
         DID.invalid_charset,
