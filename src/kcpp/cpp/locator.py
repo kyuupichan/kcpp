@@ -10,6 +10,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from enum import IntEnum, auto
 
+from .lexer import Lexer
 from ..core import Buffer, PresumedLocation
 from ..diagnostics import (
     BufferRange, TokenRange, SpellingRange, DiagnosticContext, DID, RangeCoords,
@@ -177,7 +178,6 @@ class MacroReplacementSpan:
     place, in other words, as it appeared in the #define directive.  There is one location
     per token.
     '''
-
     macro: object
     invocation_range: TokenRange
     start: int
@@ -197,13 +197,13 @@ class MacroReplacementSpan:
 @dataclass(slots=True)
 class MacroArgumentSpan:
     '''Represents the tokens that replaced a macro parameter in the replacement list.'''
-
     parameter_loc: int
     start: int
     end: int
     locations: list
 
     def spelling_loc(self, loc):
+        assert self.start <= loc <= self.end
         return self.locations[loc - self.start]
 
     def macro_parent_range(self, loc):
@@ -211,11 +211,13 @@ class MacroArgumentSpan:
 
 
 class Locator:
-    '''Manages and supplies token locations.'''
+    '''Manages and supplies token locations.  A location is an integer but encodes the source
+    of the token and its macro expansion history.
+    '''
 
     FIRST_BUFFER_LOC = 1
     FIRST_MACRO_LOC = 1 << 40
-    prior_file_name = str
+    prior_file_name = str   # Used only as a sentinel
 
     def __init__(self, pp):
         self.pp = pp
@@ -310,6 +312,13 @@ class Locator:
         span, offset = self.spelling_span_and_offset(loc)
         return span.buffer().text, offset
 
+    def lexer_at_loc(self, loc):
+        '''Return a new lexer ready to lex the spelling of the token at loc.'''
+        text, offset = self.buffer_text_and_offset(loc)
+        lexer = Lexer(self.pp, text + b'\0', loc - offset, False)
+        lexer.cursor = offset
+        return lexer
+
     def derives_from_macro_expansion(self, loc):
         '''Return True if loc is from a macro expansion.'''
         return not isinstance(self.lookup_span(loc), BufferSpan)
@@ -325,7 +334,7 @@ class Locator:
         '''The length of the token in bytes in the source file.  This incldues, e.g., escaped
         newlines.  The result can be 0, for end-of-source indicator EOF.
         '''
-        lexer = self.pp.lexer_at_loc(loc)
+        lexer = self.lexer_at_loc(loc)
         prior_cursor = lexer.cursor
         lexer.get_token_quietly()
         return lexer.cursor - prior_cursor
@@ -354,7 +363,7 @@ class Locator:
         if isinstance(source_range, SpellingRange):
             # Convert the SpellingRange to a BufferRange
             assert source_range.start < source_range.end
-            lexer = self.pp.lexer_at_loc(source_range.token_loc)
+            lexer = self.lexer_at_loc(source_range.token_loc)
             cursor = lexer.cursor
             lexer.get_token_quietly()
             offsets = [source_range.start, source_range.end]

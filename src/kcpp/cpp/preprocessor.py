@@ -439,20 +439,13 @@ class Preprocessor:
             return token.extra
         return None
 
-    def lexer_at_loc(self, loc):
-        '''Return a new lexer ready to lex the spelling of the token at loc.'''
-        text, offset = self.locator.buffer_text_and_offset(loc)
-        lexer = Lexer(self, text + b'\0', loc - offset, False)
-        lexer.cursor = offset
-        return lexer
-
     def token_spelling_at_loc(self, loc):
         '''Return the spelling of the token at loc.'''
-        return self.lexer_at_loc(loc).token_spelling_at_cursor()
+        return self.locator.lexer_at_loc(loc).token_spelling_at_cursor()
 
     def token_spelling(self, token):
         '''Return the spelling of a token.  Faster than token_spelling_at_loc(), so is preferable
-        if a token rather than alocation is available.
+        if a token is available.
         '''
         assert isinstance(token, Token)
         if token.kind == TokenKind.IDENTIFIER:
