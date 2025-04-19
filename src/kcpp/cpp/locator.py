@@ -92,7 +92,7 @@ class ScratchBufferSpan(Buffer):
 
     def __init__(self, start, end):
         '''Create a scratch buffer with the given size.'''
-        super().__init__(bytearray())
+        super().__init__(bytearray(1))
         assert start <= end
         self.start = start
         self.end = end
@@ -103,20 +103,22 @@ class ScratchBufferSpan(Buffer):
         return self
 
     def has_room(self, size):
-        return self.start + len(self.text) + size + 1 <= self.end
+        return len(self.text) + size + 1 <= self.end - self.start
 
     def add_spelling(self, spelling, parent_range, entry_kind):
         text = self.text
-        start = self.start + len(text)
         # We place a newline character at the end of the spelling so it appears on its own
         # line in diagnostics.
+        text.pop()  # Drop the NUL
+        loc = self.start + len(text)
         text.extend(spelling)
         text.append(10)
-        assert start + len(text) <= self.end
-        self.entries.append(ScratchEntry(start, parent_range, entry_kind))
+        text.append(0)
+        assert len(text) <= self.end - self.start
+        self.entries.append(ScratchEntry(loc, parent_range, entry_kind))
         # Clear any cached line offsets
         self._sparse_line_offsets = None
-        return start
+        return loc
 
     def did_and_substitutions(self, pp, loc):
         entry = self.entry_for_loc(loc)
@@ -307,15 +309,10 @@ class Locator:
                 continue
             return span, loc - span.start
 
-    def buffer_text_and_offset(self, loc):
-        '''Return a buffer's text and offset into it so that the token can be lexed.'''
-        span, offset = self.spelling_span_and_offset(loc)
-        return span.buffer().text, offset
-
     def lexer_at_loc(self, loc):
         '''Return a new lexer ready to lex the spelling of the token at loc.'''
-        text, offset = self.buffer_text_and_offset(loc)
-        lexer = Lexer(self.pp, text + b'\0', loc - offset, False)
+        span, offset = self.spelling_span_and_offset(loc)
+        lexer = Lexer(self.pp, span.buffer().text, loc - offset, False)
         lexer.cursor = offset
         return lexer
 
