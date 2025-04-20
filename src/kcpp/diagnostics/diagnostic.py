@@ -364,7 +364,7 @@ class DiagnosticManager:
         # override and once-only requests.
         if defn.group is not DiagnosticGroup.none:
             # Silence the diagnostic in a system header.
-            if  self.file_manager.in_system_header():
+            if self.file_manager.in_system_header():
                 return DiagnosticSeverity.ignored
 
             # For strict groups, upgrade severity based on strict mode
