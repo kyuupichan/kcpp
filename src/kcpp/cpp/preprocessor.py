@@ -151,17 +151,18 @@ class Preprocessor:
 
         # Tracks locations
         self.locator = Locator(self)
+        # Caches header lookups and file contents
+        self.file_manager = FileManager()
         # Diagnostics
+        diag_manager.locator = self.locator
+        diag_manager.file_manager = self.file_manager
         self.diag_manager = diag_manager
-        self.diag_manager.locator = self.locator
 
         # Output files
         self.stdout = sys.stdout
 
         # Helper objects.
         self.identifiers = {}
-        # Caches header lookups and file contents
-        self.file_manager = FileManager()
         # Action listener
         self.actions = None
 

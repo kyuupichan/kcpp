@@ -316,6 +316,8 @@ class DiagnosticManager:
         from .terminal import UnicodeTerminal
         # The locator is only needed for diagnostics with a source file location
         self.locator = None
+        # Used to determine if we're in a system header
+        self.file_manager = None
         self.error_count = 0
         self.fatal_error_count = 0
 
@@ -358,9 +360,13 @@ class DiagnosticManager:
         defn = diagnostic_definitions[did]
         severity = defn.severity
 
-        # For diagnostics with a group, handle user severity override and once-only
-        # requests.
-        if defn.group:
+        # For discretionary diagnostics (those with a group), handle user severity
+        # override and once-only requests.
+        if defn.group is not DiagnosticGroup.none:
+            # Silence the diagnostic in a system header.
+            if  self.file_manager.in_system_header():
+                return DiagnosticSeverity.ignored
+
             # For strict groups, upgrade severity based on strict mode
             if DiagnosticGroup.strict_start <= defn.group <= DiagnosticGroup.strict_end:
                 if self.strict is StrictKind.warnings:

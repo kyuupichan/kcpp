@@ -52,6 +52,7 @@ class File:
     path: str
     # The contents of the file
     contents: FileContents
+    # If the file is a virtual file
     is_virtual: bool
 
     def nul_terminated_contents(self):
@@ -162,6 +163,8 @@ class FileManager:
             if dirname == '' or dirname == '.':
                 directory = entry.directory
             else:
+                # Relative directory searches acquite the kind of what they are relative
+                # to; this also ensures they inherit systemheader-ness
                 directory = IncludeDirectory(dirname, entry.directory.kind, True)
             result = self.search_directory(header_name, directory)
             if result:
@@ -216,3 +219,7 @@ class FileManager:
     def include_depth(self):
         # Don't count the primary source file.
         return len(self.file_stack) - 1
+
+    def in_system_header(self):
+        '''Return true if we're in a system header.'''
+        return self.file_stack and self.file_stack[-1].directory.is_system()
