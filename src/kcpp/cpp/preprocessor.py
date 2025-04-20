@@ -310,8 +310,38 @@ class Preprocessor:
         self.literal_interpreter = LiteralInterpreter(self, False)
         self.expr_parser = ExprParser(self)
 
-        # Alternative tokens exist only in C++.  In C they are macros in <iso646.h>.
+        for spelling in (b'include define undef line error warning pragma if ifdef ifndef '
+                         b'elif elifdef elifndef else endif').split():
+            self.get_identifier(spelling).set_directive()
+
+        encoding_prefixes = {
+            b'': Encoding.NONE,
+            b'L': Encoding.WIDE,
+            b'u8': Encoding.UTF_8,
+            b'u': Encoding.UTF_16,
+            b'U': Encoding.UTF_32,
+        }
+        for spelling, encoding in encoding_prefixes.items():
+            self.get_identifier(spelling).set_encoding(encoding)
+
+        # The variadic macro identifiers
+        for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
+            self.get_identifier(spelling).set_va_identifier()
+
+        # Built-in macros
+        self.get_identifier(b'__DATE__').macro = BuiltinKind.DATE
+        self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
+        self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
+        self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
+        self.get_identifier(b'__COUNTER__').macro = BuiltinKind.COUNTER
+        self.get_identifier(b'_Pragma').macro = BuiltinKind.Pragma
+
+        # Built-in has-feature pseudo-macros
+        self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
+
+        # C++-specific features
         if self.language.is_cxx():
+            # Alternative tokens exist only in C++.  In C they are macros in <iso646.h>.
             alt_tokens = {
                 b'and': TokenKind.LOGICAL_AND,
                 b'or': TokenKind.LOGICAL_OR,
@@ -328,22 +358,7 @@ class Preprocessor:
             for spelling, token_kind in alt_tokens.items():
                 self.get_identifier(spelling).set_alt_token(token_kind)
 
-        # Encoding prefixes and directive names should all be modified by language
-        for spelling in (b'include define undef line error warning pragma if ifdef ifndef '
-                         b'elif elifdef elifndef else endif').split():
-            self.get_identifier(spelling).set_directive()
-
-        encoding_prefixes = {
-            b'': Encoding.NONE,
-            b'L': Encoding.WIDE,
-            b'u8': Encoding.UTF_8,
-            b'u': Encoding.UTF_16,
-            b'U': Encoding.UTF_32,
-        }
-        for spelling, encoding in encoding_prefixes.items():
-            self.get_identifier(spelling).set_encoding(encoding)
-
-        if self.language.is_cxx():
+            # Raw strings
             encoding_prefixes = {
                 b'R': Encoding.RAW,
                 b'LR': Encoding.WIDE_RAW,
@@ -354,40 +369,24 @@ class Preprocessor:
             for spelling, encoding in encoding_prefixes.items():
                 self.get_identifier(spelling).set_encoding(encoding)
 
-        # The variadic macro identifiers
-        for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):
-            self.get_identifier(spelling).set_va_identifier()
-
-        # Built-in macros
-        self.get_identifier(b'__DATE__').macro = BuiltinKind.DATE
-        self.get_identifier(b'__TIME__').macro = BuiltinKind.TIME
-        self.get_identifier(b'__FILE__').macro = BuiltinKind.FILE
-        self.get_identifier(b'__LINE__').macro = BuiltinKind.LINE
-        self.get_identifier(b'__COUNTER__').macro = BuiltinKind.COUNTER
-        self.get_identifier(b'_Pragma').macro = BuiltinKind.Pragma
-
-        # Module keywords.  "export" is overloaded as a standard keyword too....
-        self.get_identifier(b'export').set_module_keyword(TokenKind.kw_export_keyword)
-        self.get_identifier(b'import').set_module_keyword(TokenKind.kw_import_keyword)
-        self.get_identifier(b'module').set_module_keyword(TokenKind.kw_module_keyword)
-
-        # Built-in has-feature pseudo-macros
-        self.get_identifier(b'__has_cpp_attribute').macro = BuiltinKind.has_cpp_attribute
-        self.get_identifier(b'__has_include').macro = BuiltinKind.has_include
-
-        self.attributes_by_scope = {
-            b'': {
-                b'assume': '202207L',
-                b'carries_dependency': '200809L',
-                b'deprecated': '201309L',
-                b'fallthrough': '201603L',
-                b'likely': '201803L',
-                b'maybe_unused': '201603L',
-                b'no_unique_address': '201803L',
-                b'nodiscard': '201907L',
-                b'noreturn': '200809L',
-                b'unlikely': '201803L'
-            }
+            # Module keywords.  "export" is overloaded as a standard keyword too....
+            self.get_identifier(b'export').set_module_keyword(TokenKind.kw_export_keyword)
+            self.get_identifier(b'import').set_module_keyword(TokenKind.kw_import_keyword)
+            self.get_identifier(b'module').set_module_keyword(TokenKind.kw_module_keyword)
+            self.get_identifier(b'__has_cpp_attribute').macro = BuiltinKind.has_cpp_attribute
+            self.attributes_by_scope = {
+                b'': {
+                    b'assume': '202207L',
+                    b'carries_dependency': '200809L',
+                    b'deprecated': '201309L',
+                    b'fallthrough': '201603L',
+                    b'likely': '201803L',
+                    b'maybe_unused': '201603L',
+                    b'no_unique_address': '201803L',
+                    b'nodiscard': '201907L',
+                    b'noreturn': '200809L',
+                    b'unlikely': '201803L'
+                }
         }
 
         return not self.diag_manager.should_halt_compilation()
