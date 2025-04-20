@@ -57,14 +57,15 @@ class Character:
 class Lexer:
     '''A lexer.  It tokenizes a buffer terminated with a NUL.'''
 
-    def __init__(self, pp, buff, start_loc, is_start_of_line):
+    def __init__(self, pp, buff, start_loc, pp_state):
         assert isinstance(buff, (bytes, bytearray, memoryview))
         assert buff and buff[-1] == 0
         self.pp = pp
         self.buff = buff
         self.start_loc = start_loc
+        self.pp_state = pp_state
         self.cursor = 0
-        self.is_start_of_line = is_start_of_line
+        self.is_start_of_line = bool(pp_state)
         self.in_header_name = False
         self.clean = True
 

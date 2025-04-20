@@ -175,8 +175,6 @@ class Preprocessor:
 
         # Token source stack
         self.sources = []
-        # Buffer state stack
-        self.buffer_states = []
         # Map from pragma namespace identifier strings (in binary) to callbacks.
         self.pragma_namespaces = {}
         # The basic charset and raw string delimiter characters
@@ -425,7 +423,7 @@ class Preprocessor:
     def lex_spelling_quietly(self, spelling):
         '''Lex a token from the spelling.  Return the token and the number of bytes consumed.
         Its location is meaningless.'''
-        lexer = Lexer(self, spelling + b'\0', 1, False)
+        lexer = Lexer(self, spelling + b'\0', 1, None)
         token = lexer.get_token_quietly()
         return token, lexer.cursor
 
@@ -502,7 +500,6 @@ class Preprocessor:
         # immediately
         while len(self.sources) > 1:
             self.pop_source()
-        assert len(self.buffer_states) == 1
         lexer = self.sources[0]
         lexer.cursor = len(lexer.buff) - 1  # The NUL byte
 
@@ -512,7 +509,6 @@ class Preprocessor:
         The preprocessor frontend should call this when it has finished processing, and it will
         no longer call get_token().'''
         assert not self.sources
-        assert not self.buffer_states
         # Returns None if no primary source file was pushed
         filename = self.locator.primary_source_file_name()
         if filename is None:
@@ -539,11 +535,9 @@ class Preprocessor:
                 self.diag_manager.write(f'{"." * depth} {filename_literal}')
         buffer = Buffer(file.nul_terminated_contents())
         first_loc = self.locator.new_buffer_loc(buffer, filename_literal)
-        lexer = Lexer(self, buffer.text, first_loc, True)
+        lexer = Lexer(self, buffer.text, first_loc, BufferState([]))
         lexer.cursor = buffer.bom_length
         self.push_source(lexer)
-        # Maintain buffer states
-        self.buffer_states.append(BufferState([]))
         if self.actions:
             self.actions.on_source_file_change(first_loc, SourceFileChangeReason.enter)
         return lexer
@@ -561,12 +555,11 @@ class Preprocessor:
     def pop_source(self):
         source = self.sources.pop()
         if isinstance(source, Lexer):
-            self.pop_buffer()
+            self.pop_buffer(source)
 
-    def pop_buffer(self):
-        buffer_state = self.buffer_states.pop()
+    def pop_buffer(self, lexer):
         # Diagnose unclosed conditional blocks
-        for if_section in reversed(buffer_state.if_sections):
+        for if_section in reversed(lexer.pp_state.if_sections):
             if_loc = if_section.opening_loc
             self.diag(DID.unclosed_if_block, if_loc, [self.token_spelling_at_loc(if_loc)])
         self.file_manager.leave_file()
@@ -845,7 +838,7 @@ class Preprocessor:
         all_consumed is True if lexing consumed the whole spelling.'''
         # Get a scratch buffer location for the new token
         scratch_loc = self.locator.new_scratch_token(spelling, parent_range, kind)
-        lexer = Lexer(self, spelling + b'\0', scratch_loc, False)
+        lexer = Lexer(self, spelling + b'\0', scratch_loc, None)
         self.lexing_scratch = True
         token = lexer.get_token()
         self.lexing_scratch = False
@@ -1167,7 +1160,7 @@ class Preprocessor:
         raw = destringize(string)
         parent_range = TokenRange(string.loc, string.loc)
         scratch_loc = self.locator.new_scratch_token(raw, parent_range, ScratchEntryKind.pragma)
-        lexer = Lexer(self, raw + b'\0', scratch_loc, False)
+        lexer = Lexer(self, raw + b'\0', scratch_loc, None)
         self.push_source(lexer)
         self.handle_directive(lexer, string, self.on_pragma)
         self.sources.pop()
@@ -1190,13 +1183,14 @@ class Preprocessor:
             -1,                 # else_loc
             token.loc           # opening_loc
         )
-        self.buffer_states[-1].if_sections.append(section)
+        buffer_state = self.sources[-1].pp_state
+        buffer_state.if_sections.append(section)
         if not self.skipping:
             section.true_condition_seen = condition(token)
             self.skipping = not section.true_condition_seen
 
     def else_section(self, token, condition):
-        buffer_state = self.buffer_states[-1]
+        buffer_state = self.sources[-1].pp_state
         if not buffer_state.if_sections:
             self.diag(DID.else_without_if, token.loc, [self.token_spelling(token)])
             return
@@ -1261,7 +1255,7 @@ class Preprocessor:
 
     def on_endif(self, token):
         try:
-            if_section = self.buffer_states[-1].if_sections.pop()
+            if_section = self.sources[-1].pp_state.if_sections.pop()
             self.skipping = if_section.was_skipping
             self.diagnose_extra_tokens(None)
         except IndexError:

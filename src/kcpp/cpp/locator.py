@@ -312,7 +312,7 @@ class Locator:
     def lexer_at_loc(self, loc):
         '''Return a new lexer ready to lex the spelling of the token at loc.'''
         span, offset = self.spelling_span_and_offset(loc)
-        lexer = Lexer(self.pp, span.buffer().text, loc - offset, False)
+        lexer = Lexer(self.pp, span.buffer().text, loc - offset, None)
         lexer.cursor = offset
         return lexer
 
