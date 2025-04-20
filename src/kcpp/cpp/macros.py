@@ -258,6 +258,9 @@ class MacroExpansion:
             if token.kind == TokenKind.EOF or not all_consumed:
                 diag_loc = BufferRange(token.loc, token.loc + len(spelling))
                 self.pp.diag(DID.token_concatenation_failed, diag_loc, [spelling])
+                # Make a copy of RHS and give it the correct location
+                rhs = copy(rhs)
+                rhs.loc = concat_loc + 1
                 tokens.append(rhs)
             else:
                 if tokens[-1].flags & TokenFlags.WS:
