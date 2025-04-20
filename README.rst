@@ -2,7 +2,7 @@
 kcpp
 ====
 
-A preprocessor for C++23 writen in Python, implemented as a library.
+A preprocessor for C23 and C++23 writen in Python, implemented as a library.
 
   :Licence: MIT
   :Language: Python (>= 3.10)
@@ -122,18 +122,10 @@ testing them with tricky preprocessing cases.
 Features
 ========
 
-As a **genuinely** conforming C++23 preprocessor ``kcpp`` is essentially complete.  I am
-aware of only a handful of minor conformance issues, which no one should notice in normal
-circumstances, and they will be fixed soon.
-
-Specifically the following are implemented:
+As a **genuinely** conforming C++23 preprocessor ``kcpp`` is essentially complete.
+Specifically, the following are implemented:
 
 - lexing (including UCNs, extended identifiers, and raw string literals)
-- conversion of Unicode character names (those in ``\N{}`` escapes) to codepoints.  I
-  implemented it based on the ideas described by **cor3ntin** at
-  https://cor3ntin.github.io/posts/cp_to_name/.  I added some ideas and improvements of my
-  own to achieve another 20% compaction - see
-  https://github.com/kyuupichan/kcpp/blob/master/src/kcpp/unicode/cp_name_db.py.
 - macro expansion, including variable arguments, ``__VA_OPT__``, and whitespace-correctness
 - all standard directives
 - ``_Pragma`` operator
@@ -142,6 +134,15 @@ Specifically the following are implemented:
 - expression parsing with proper error recovery
 - expression evaluation
 - ``__has_include``, ``__has_cpp_attribute`` preprocessor conditional operators
+- conversion of Unicode character names (those in ``\N{}`` escapes) to codepoints.  I
+  implemented it based on the ideas described by **cor3ntin** at
+  https://cor3ntin.github.io/posts/cp_to_name/.  I added some ideas and improvements of my
+  own to achieve another 20% compaction - see
+  https://github.com/kyuupichan/kcpp/blob/master/src/kcpp/unicode/cp_name_db.py.
+- module-related directives with import-keyword, export-keyword, module-keyword
+
+In addition the following are complete:
+
 - preprocessed output
 - a full diagnostic framework.  This includes changing diagnostic severities from the
   command line, Colourized output to a Unicode terminal, and translations (none
@@ -149,21 +150,30 @@ Specifically the following are implemented:
 - diagnostics can display the macro expansion stack with precise caret locations and range
   highlights, with proper handling of multibyte characters, tabstops and CJK terminal
   character widths
-- module-related directives with import-keyword, export-keyword, module-keyword
 
+For C23 preprocessing, C++-specific features are disabled (alternative operators, raw
+string literals, ``<=>``, ``.*`` and ``->*`` tokens, ``__has_cpp_attribute`` and
+user-defined suffixes).  The following C23 features are missing simply because I
+implemented C++23 first.  They are all easy, apart from ``#embed`` which is quite a new
+concept (and in C++26) which will need some thought on its implementation:
+
+  - bit-precise integer suffixes
+  - decimal floating-point suffixes
+  - slightly different charcter literal semantics
+  - different predefined macros
+  - ``__has_c_attribute``
+  - ``#embed``, ``__has_embed``, etc.
 
 Future
 ======
 
 - the multiple-include optimization is not yet implemented
 - some GCC and Clang extensions should be supported
-- a few changes to support C23 preprocessing (particularly ``#embed``) should be added
 - features like ``Makefile`` output are worth considering going forwards.
-- pprecompiled headers are possibly an idea.  I suspect an implementation would largely
-overlap with modules.  Again, Python is a good place to experiment before attempting an
-implementation in C++, but there is little point doing this until a compiler frontend
-exists
-- a logical next step would be to add a C and C++ front-end in Python, perhaps combined?
+- pprecompiled headers are possibly an idea.  An implementation would probably share a lot
+  with modules.  Python is a good place to experiment before attempting an implementation
+  in C++, but there is little point doing this until a compiler frontend exists
+- add a C and C++ front-end in Python, perhaps as a single parser and codebase?
 
 It should be easy to extend the code to provide hooks for analysis or other tools needing
 a preprocessor to do grunt work.
