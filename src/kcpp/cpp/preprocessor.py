@@ -59,6 +59,9 @@ class Language:
     def is_cxx(self):
         return self.kind == 'C++'
 
+    def is_c(self):
+        return self.kind == 'C'
+
 
 class SourceFileChangeReason(IntEnum):
     enter = auto()    # via #include, command line, predefine buffer, etc.

@@ -205,6 +205,9 @@ class LiteralInterpreter:
         self.int_width = target.pp_arithmetic_width() if pp_arithmetic else target.int_width
         self.permit_ud_suffix = not pp_arithmetic
         self.permit_long_long = True
+        self.permit_size_suffix = pp.language.is_cxx() and pp.language.year >= 2023
+        self.permit_fixed_width_float_suffixes = self.permit_size_suffix
+        self.permit_bit_precise_suffix = pp.language.is_c() and pp.language.year >= 2023
         self.integer_precisions = [
             (IntegerKind.int, target.int_width - 1),
             (IntegerKind.uint, target.int_width),
@@ -500,10 +503,12 @@ class LiteralInterpreter:
     # integer-suffix:
     #     unsigned-suffix long-suffix[opt]
     #     unsigned-suffix long-long-suffix[opt]
-    #     unsigned-suffix size-suffix[opt]
+    #     unsigned-suffix size-suffix[opt]             [from C++23]
+    #     unsigned-suffix bit-precise-int-suffix[opt]  [from C23]
     #     long-suffix unsigned-suffix[opt]
     #     long-long-suffix unsigned-suffix[opt]
-    #     size-suffix unsigned-suffix[opt]
+    #     size-suffix unsigned-suffix[opt]             [from C++23]
+    #     bit-precise-int-suffix unsigned-suffix[opt]  [from C23]
     # unsigned-suffix: one of
     #     u U
     # long-suffix: one of
@@ -512,6 +517,8 @@ class LiteralInterpreter:
     #     ll LL
     # size-suffix: one of
     #     z Z
+    # bit-precise-int-suffix: one of
+    #     bw BW
     def read_integer_suffix(self, state, cursor, result, radix):
         is_unsigned = False
         suffix = ''
@@ -523,8 +530,7 @@ class LiteralInterpreter:
             cursor += 1
             letter = state.get_byte(cursor)
 
-        # Size indicator?
-        if letter in (90, 122):  # 'Z' 'z'
+        if letter in (90, 122) and self.permit_size_suffix:   # 'Z' 'z'
             suffix = 'Z'
             cursor += 1
         elif letter in (76, 108):  # 'L' 'l'
@@ -535,6 +541,10 @@ class LiteralInterpreter:
                 suffix = 'LL'
             else:
                 suffix = 'L'
+        elif letter in (87, 119) and self.permit_bit_precise_suffix:  # 'W' 'w'
+            if state.get_byte(cursor) == letter - 21:
+                cursor += 2
+                suffix = 'WB'
 
         # Unsigned suffix?
         if not is_unsigned:
@@ -552,6 +562,9 @@ class LiteralInterpreter:
         '''This function implements the logic of Table 8 — Types of integer-literals
         [tab:lex.icon.type].
         '''
+        if suffix == 'WB':
+            return IntegerKind.ubit_precise if is_unsigned else IntegerKind.bit_precise
+
         if suffix == 'Z':
             precisions = self.size_t_precisions
             start = 0
@@ -577,24 +590,25 @@ class LiteralInterpreter:
         if letter in (70, 102):  # 'F' 'f'
             cursor += 1
             kind = RealKind.float
-            two = state.get_bytes(cursor, 2)
-            if two == b'16':
-                cursor += 2
-                kind = RealKind.float16_t
-            elif two == b'32':
-                cursor += 2
-                kind = RealKind.float32_t
-            elif two == b'64':
-                cursor += 2
-                kind = RealKind.float64_t
-            elif two == b'12' and state.get_byte(cursor + 2) == 56:  # '8'
-                cursor += 3
-                kind = RealKind.float128_t
+            if self.permit_fixed_width_float_suffixes:
+                two = state.get_bytes(cursor, 2)
+                if two == b'16':
+                    cursor += 2
+                    kind = RealKind.float16_t
+                elif two == b'32':
+                    cursor += 2
+                    kind = RealKind.float32_t
+                elif two == b'64':
+                    cursor += 2
+                    kind = RealKind.float64_t
+                elif two == b'12' and state.get_byte(cursor + 2) == 56:  # '8'
+                    cursor += 3
+                    kind = RealKind.float128_t
         elif letter in (76, 108):  # 'L' 'l'
             cursor += 1
             kind = RealKind.long_double
-        elif letter in (66, 98):  # 'B' 'b'
-            if (state.get_byte(cursor + 1) == letter + 4  # 'f' or 'F' of same case
+        elif letter in (66, 98) and self.permit_fixed_width_float_suffixes:  # 'B' 'b'
+            if (state.get_byte(cursor + 1) == letter + 4       # 'f' or 'F' of same case
                     and state.get_bytes(cursor + 2, 2) == b'16'):
                 cursor += 4
                 kind = RealKind.bfloat16_t
