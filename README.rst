@@ -157,12 +157,12 @@ user-defined suffixes).  The following C23 features are missing simply because I
 implemented C++23 first.  They are all easy, apart from ``#embed`` which is quite a new
 concept (and in C++26) which will need some thought on its implementation:
 
-  - bit-precise integer suffixes
-  - decimal floating-point suffixes
-  - slightly different charcter literal semantics
-  - different predefined macros
-  - ``__has_c_attribute``
-  - ``#embed``, ``__has_embed``, etc.
+- bit-precise integer suffixes
+- decimal floating-point suffixes
+- slightly different charcter literal semantics
+- different predefined macros
+- ``__has_c_attribute``
+- ``#embed``, ``__has_embed``, etc.
 
 Future
 ======
