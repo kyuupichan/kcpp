@@ -5,6 +5,7 @@
 '''Driver skins.'''
 
 import argparse
+import sys
 
 from kcpp.core import host
 from kcpp.cpp import Preprocessor, Config, Language
@@ -32,6 +33,10 @@ class Skin:
         self.command_line = None
         self.environ = None
         self.frontend_class = None
+
+    def error(self, msg):
+        print('kcpp: error:', msg, file=sys.stderr)
+        exit(1)
 
     @classmethod
     def skin(cls, argv, environ, frontend_class):
@@ -88,6 +93,8 @@ class Skin:
 class KCPP(Skin):
 
     COLOURS_ENVVAR = 'KCPP_COLOURS'
+    c_year = 2023
+    cxx_year = 2023
 
     def add_frontend_commands(self, group, frontend_class):
         group.add_argument('-o', '--output', metavar='FILENAME', default='',
@@ -166,12 +173,14 @@ class KCPP(Skin):
                            help='colourize diagnostic output')
         group.add_argument('--columns', action=argparse.BooleanOptionalAction, default=False,
                            help='show column numbers in diagnostics')
+        group.add_argument('--c', action='store_const', default=None, const=self.c_year)
+        group.add_argument('--c++', action='store_const', dest='cxx', default=None,
+                           const=self.cxx_year)
 
     def preprocessor_configuration(self, source):
         config = Config.default()
         config.output = self.command_line.output
-        if any(source.endswith(suffix) for suffix in self.c_suffixes):
-            config.language = Language('C', 2023)
+        config.language = self.language(source)
         config.target_name = self.command_line.target
         config.narrow_exec_charset = self.command_line.exec_charset
         config.wide_exec_charset = self.command_line.wide_exec_charset
@@ -185,6 +194,25 @@ class KCPP(Skin):
         config.angled_dirs = self.command_line.angled_dir
         config.system_dirs = self.command_line.system_dir
         return config
+
+    def language(self, source):
+        c_year = None
+        cxx_year = None
+        if self.command_line.c:
+            c_year = self.command_line.c
+        if self.command_line.cxx:
+            cxx_year = self.command_line.cxx
+        if c_year is None and cxx_year is None:
+            if any(source.endswith(suffix) for suffix in self.c_suffixes):
+                c_year = self.c_year
+            else:
+                cxx_year = self.cxx_year
+        if c_year:
+            if cxx_year:
+                self.error('cannot specify both C and C++')
+            return Language('C', c_year)
+        else:
+            return Language('C++', cxx_year)
 
     def create_frontend(self, pp):
         frontend = self.frontend_class(pp)

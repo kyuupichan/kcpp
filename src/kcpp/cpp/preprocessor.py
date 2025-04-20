@@ -339,14 +339,20 @@ class Preprocessor:
             b'u8': Encoding.UTF_8,
             b'u': Encoding.UTF_16,
             b'U': Encoding.UTF_32,
-            b'R': Encoding.RAW,
-            b'LR': Encoding.WIDE_RAW,
-            b'u8R': Encoding.UTF_8_RAW,
-            b'uR': Encoding.UTF_16_RAW,
-            b'UR': Encoding.UTF_32_RAW,
         }
         for spelling, encoding in encoding_prefixes.items():
             self.get_identifier(spelling).set_encoding(encoding)
+
+        if self.language.is_cxx():
+            encoding_prefixes = {
+                b'R': Encoding.RAW,
+                b'LR': Encoding.WIDE_RAW,
+                b'u8R': Encoding.UTF_8_RAW,
+                b'uR': Encoding.UTF_16_RAW,
+                b'UR': Encoding.UTF_32_RAW,
+            }
+            for spelling, encoding in encoding_prefixes.items():
+                self.get_identifier(spelling).set_encoding(encoding)
 
         # The variadic macro identifiers
         for spelling in (b'__VA_ARGS__', b'__VA_OPT__'):

@@ -368,9 +368,10 @@ class Lexer:
 
         c, ncursor = self.read_logical_byte(cursor)
         if c == 61:  # '='
-            c, cursor = self.read_logical_byte(ncursor)
-            if c == 62:  # '>'
-                return TokenKind.LEG, cursor
+            if self.pp.language.is_cxx():
+                c, cursor = self.read_logical_byte(ncursor)
+                if c == 62:  # '>'
+                    return TokenKind.LEG, cursor
             return TokenKind.LE, ncursor
         if c == 60:  # '<'
             c, cursor = self.read_logical_byte(ncursor)
@@ -403,9 +404,10 @@ class Lexer:
         if c == 61:  # '='
             return TokenKind.MINUS_ASSIGN, ncursor
         if c == 62:  # '>'
-            c, cursor = self.read_logical_byte(ncursor)
-            if c == 42:  # '*'
-                return TokenKind.DEREF_STAR, cursor
+            if self.pp.language.is_cxx():
+                c, cursor = self.read_logical_byte(ncursor)
+                if c == 42:  # '*'
+                    return TokenKind.DEREF_STAR, cursor
             return TokenKind.DEREF, ncursor
         return TokenKind.MINUS, cursor
 
@@ -508,12 +510,12 @@ class Lexer:
         c, ncursor = self.read_logical_byte(cursor)
         if c in ASCII_DIGITS:
             return self.on_number(token, cursor)
-        if c == 42:  # '*'
-            return TokenKind.DOT_STAR, ncursor
         if c == 46:  # '.'
             c, ncursor = self.read_logical_byte(ncursor)
             if c == 46:  # '.'
                 return TokenKind.ELLIPSIS, ncursor
+        if c == 42 and self.pp.language.is_cxx():  # '*'
+            return TokenKind.DOT_STAR, ncursor
         return TokenKind.DOT, cursor
 
     # pp-number:
@@ -743,9 +745,10 @@ class Lexer:
 
         Otherwise return (ident, cursor) where ident is an IdentifierIno object.
         '''
-        kind, ncursor = self.on_identifier(token, cursor + 1, ud_suffix=True)
-        if kind == TokenKind.IDENTIFIER:
-            return token.extra, ncursor
+        if self.pp.language.is_cxx():
+            kind, ncursor = self.on_identifier(token, cursor + 1, ud_suffix=True)
+            if kind == TokenKind.IDENTIFIER:
+                return token.extra, ncursor
         return None, cursor
 
     # raw-string:
