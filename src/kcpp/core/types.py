@@ -177,12 +177,14 @@ class IntegerKind(IntEnum):
     uint = auto()
     long = auto()
     ulong = auto()
-    long_long = auto()
-    ulong_long = auto()
-    char8_t = auto()
-    char16_t = auto()
-    char32_t = auto()
-    wchar_t = auto()
+    long_long = auto()      # from C99, C++11
+    ulong_long = auto()     # from C99, C++11
+    char8_t = auto()        # from C++20
+    char16_t = auto()       # from C++20
+    char32_t = auto()       # from C++20
+    wchar_t = auto()        # from C++98
+    bit_precise = auto()    # from C23
+    ubit_precise = auto()   # from C23
     enumeration = auto()
 
     def __repr__(self):
@@ -195,14 +197,14 @@ class RealKind(IntEnum):
     float = auto()
     double = auto()
     long_double = auto()
-    float16_t = auto()
-    float32_t = auto()
-    float64_t = auto()
-    float128_t = auto()
-    bfloat16_t = auto()
-    decimal32_t = auto()
-    decimal64_t = auto()
-    decimal128_t = auto()
+    float16_t = auto()      # from C++23
+    float32_t = auto()      # from C++23
+    float64_t = auto()      # from C++23
+    float128_t = auto()     # from C++23
+    bfloat16_t = auto()     # from C++23
+    decimal32_t = auto()    # from C23 if __STDC_IEC_60559_DFP__
+    decimal64_t = auto()    # from C23 if __STDC_IEC_60559_DFP__
+    decimal128_t = auto()   # from C23 if __STDC_IEC_60559_DFP__
 
     def __repr__(self):
         return f'RealKind.{self.name}'
