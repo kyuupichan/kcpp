@@ -67,7 +67,7 @@ invalid_op_in_pp_expression:
 
 invalid_numeric_suffix:
   severity: error
-  text: invalid suffix on numeric literal
+  text: invalid suffix on %select{integer|floating point}0 literal
 
 left_shift_overflows:
   severity: warning

@@ -624,7 +624,7 @@ diagnostic_definitions = {
         DID.invalid_numeric_suffix,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'invalid suffix on numeric literal',
+        'invalid suffix on %select{integer|floating point}0 literal',
     ),
     DID.invalid_op_in_pp_expression: DiagnosticDefinition(
         DID.invalid_op_in_pp_expression,

@@ -295,8 +295,9 @@ class LiteralInterpreter:
                 cursor, result = self.read_possible_floating_point(state, 0, 10)
 
             suffix_start = cursor
+            is_floating_point = isinstance(result, FloatingPointLiteral)
             # Suffix interpretation sets result.kind
-            if isinstance(result, FloatingPointLiteral):
+            if is_floating_point:
                 cursor = self.read_floating_point_suffix(state, cursor, result)
             else:
                 cursor = self.read_integer_suffix(state, cursor, result, radix)
@@ -312,7 +313,8 @@ class LiteralInterpreter:
                     loc = SpellingRange(token.loc, cursor, length)
                     result.ud_suffix = UserDefinedSuffix(ud_suffix, loc)
                 else:
-                    state.diag_char_range(DID.invalid_numeric_suffix, suffix_start, length)
+                    state.diag_char_range(DID.invalid_numeric_suffix, suffix_start, length,
+                                          [1 if is_floating_point else 0])
 
             if state.emit_diagnostics(self.pp):
                 if isinstance(result, IntegerLiteral):
