@@ -203,22 +203,41 @@ class LiteralInterpreter:
         self.pp = pp
         self.pp_arithmetic = pp_arithmetic
         self.int_width = target.pp_arithmetic_width() if pp_arithmetic else target.int_width
-        self.permit_ud_suffix = not pp_arithmetic
-        self.permit_long_long = True
-        self.permit_size_suffix = pp.language.is_cxx() and pp.language.year >= 2023
-        self.permit_bit_precise_suffix = pp.language.is_c() and pp.language.year >= 2023
-        # At some point these suffixes should become conditionally supported in the
-        # preprocessor configuration
-        self.permit_fixed_width_float_suffixes = self.permit_size_suffix
-        self.permit_decimal_suffixes = self.permit_bit_precise_suffix
+
+        if pp.language.is_cxx():
+            self.character_literals_require_single_code_unit = True
+            self.plain_char_kind = IntegerKind.char
+            self.permit_long_long = pp.language.year >= 2011
+            self.permit_size_suffix = pp.language.year >= 2023
+            # At some point these suffixes should become conditionally supported in the
+            # preprocessor configuration
+            self.permit_fixed_width_float_suffixes = pp.language.year >= 2023
+            self.permit_bit_precise_suffix = False
+            self.permit_decimal_suffixes = False
+            self.permit_ud_suffix = not pp_arithmetic
+        else:
+            self.character_literals_require_single_code_unit = False
+            self.plain_char_kind = IntegerKind.int
+            self.permit_long_long = pp.language.year >= 1999
+            self.permit_size_suffix = False
+            self.permit_fixed_width_float_suffixes = False
+            self.permit_bit_precise_suffix = pp.language.year >= 2023
+            # At some point these suffixes should become conditionally supported in the
+            # preprocessor configuration
+            self.permit_decimal_suffixes = pp.language.year >= 2023
+            self.permit_ud_suffix = False
+
         self.integer_precisions = [
             (IntegerKind.int, target.int_width - 1),
             (IntegerKind.uint, target.int_width),
             (IntegerKind.long, target.long_width - 1),
             (IntegerKind.ulong, target.long_width),
-            (IntegerKind.long_long, target.long_long_width - 1),
-            (IntegerKind.ulong_long, target.long_long_width),
         ]
+        if self.permit_long_long:
+            self.integer_precisions.extend([
+                (IntegerKind.long_long, target.long_long_width - 1),
+                (IntegerKind.ulong_long, target.long_long_width),
+            ])
         n = [kind for kind, _precision in self.integer_precisions].index(target.size_t_kind)
         assert n % 2 == 1
         self.size_t_precisions = self.integer_precisions[n - 1: n + 1]
@@ -648,6 +667,7 @@ class LiteralInterpreter:
         encoded = bytearray()
         char_width = self.pp.target.integer_width(elab_encoding.char_kind)
         ud_suffix, is_erroneous = self.encode_string(token, encoded, elab_encoding, char_width)
+        # Place it in a StringLiteral to access char_count() and char_value() functionality
         result = StringLiteral(encoded, elab_encoding.char_kind, None)
 
         # If we ever implement C, then it is much more relaxed than C++.  The differences
@@ -664,8 +684,11 @@ class LiteralInterpreter:
             self.pp.diag(DID.empty_character_literal, token.loc)
             is_erroneous = True
         elif count == 1:
-            kind = encoding.integer_kind()
             value = result.char_value(target, 0, False)
+            if encoding == Encoding.NONE:
+                kind = self.plain_char_kind
+            else:
+                kind = encoding.integer_kind()
         else:
             # A multicharacter literal shall not have an encoding prefix.  If a
             # multicharacter literal contains a c-char that is not encodable as a
@@ -791,7 +814,10 @@ class LiteralInterpreter:
         assert isinstance(encoding, ElaboratedEncoding)
 
         state, cursor, ud_suffix = State.from_delimited_literal(token)
-        require_single_code_unit = token.kind == TokenKind.CHARACTER_LITERAL
+        if token.kind == TokenKind.CHARACTER_LITERAL:
+            require_single_code_unit = self.character_literals_require_single_code_unit
+        else:
+            require_single_code_unit = False
         is_raw = encoding.encoding.is_raw()
         mask = (1 << char_width) - 1
         is_erroneous = False
@@ -825,6 +851,8 @@ class LiteralInterpreter:
                         cp = -1
                 # Replace erroneous values.
                 if cp == -1:
+                    # Use replacement character but don't cascade errors if a single
+                    # coding unit is required
                     if require_single_code_unit:
                         cp = 63  # '?'
                     else:
