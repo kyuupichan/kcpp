@@ -64,11 +64,14 @@ class Skin:
         except ValueError:
             pass
 
-        group = parser.add_argument_group(frontend_class.help_group_name)
-        skin.add_frontend_commands(group, frontend_class)
+        pp_group = parser.add_argument_group(title='language')
+        skin.add_language_commands(pp_group)
 
         pp_group = parser.add_argument_group(title='preprocessor')
         skin.add_preprocessor_commands(pp_group)
+
+        group = parser.add_argument_group(frontend_class.help_group_name)
+        skin.add_frontend_commands(group, frontend_class)
 
         diag_group = parser.add_argument_group(title='diagnostics')
         skin.add_diagnostic_commands(diag_group)
@@ -105,13 +108,27 @@ class KCPP(Skin):
             group.add_argument('--list-macros', action='store_true',
                                help='output macro definitions with preprocessed source')
 
-    def add_preprocessor_commands(self, group):
+    def add_language_commands(self, group):
+        group.add_argument('--c', action='store_const', const=self.c_year,
+                           help=f'follow the C standard (currently C{self.c_year % 100})')
+        group.add_argument('--c23', action='store_const', dest='c', const=2023,
+                           help='follow the C23 standard')
+        group.add_argument('--c++', action='store_const', dest='cxx', const=self.cxx_year,
+                           help=f'follow the C++ standard (currently C++{self.cxx_year % 100})')
+        group.add_argument('--c++23', action='store_const', dest='cxx', const=2023,
+                           help='follow the C++23 standard')
+        group.add_argument('--strict', help='strict standards mode with errors',
+                           action='store_true')
+        group.add_argument('--strict-warnings', help='strict standards mode with warnings',
+                           action='store_true')
         group.add_argument('--target', type=str, metavar='TARGET', default='',
                            help='select the target machine')
         group.add_argument('--exec-charset', type=str, metavar='CHARSET',
                            help='set the narrow execution character set')
         group.add_argument('--wide-exec-charset', type=str, metavar='CHARSET',
                            help='set the wide execution character set')
+
+    def add_preprocessor_commands(self, group):
         group.add_argument('--max-include-depth', type=int, default=-1, metavar='DEPTH',
                            help='set the maximum depth of nested source file inclusion')
         group.add_argument('-D', '--define-macro', action='append', default=[],
@@ -150,10 +167,6 @@ class KCPP(Skin):
                            help='emit warnings')
         group.add_argument('--errors', action=argparse.BooleanOptionalAction, default=False,
                            help='emit warnings as errors')
-        group.add_argument('--strict', help='strict standards mode with errors',
-                           action='store_true')
-        group.add_argument('--strict-warnings', help='strict standards mode with warnings',
-                           action='store_true')
         group.add_argument('--diag-suppress', metavar='GROUPS', type=str, default='',
                            help='''suppress the listed diagnostics''')
         group.add_argument('--diag-remark', metavar='GROUPS', type=str, default='',
@@ -173,9 +186,6 @@ class KCPP(Skin):
                            help='colourize diagnostic output')
         group.add_argument('--columns', action=argparse.BooleanOptionalAction, default=False,
                            help='show column numbers in diagnostics')
-        group.add_argument('--c', action='store_const', default=None, const=self.c_year)
-        group.add_argument('--c++', action='store_const', dest='cxx', default=None,
-                           const=self.cxx_year)
 
     def preprocessor_configuration(self, source):
         config = Config.default()
@@ -267,6 +277,9 @@ class GCC(Skin):
                                action='store_true', default=False)
             group.add_argument('-dD', help='output macro definitions with preprocessed source',
                                action='store_true', default=False)
+
+    def add_language_commands(self, group):
+        pass
 
     def add_preprocessor_commands(self, group):
         group.add_argument('-fexec-charset', type=str, metavar='CHARSET',
