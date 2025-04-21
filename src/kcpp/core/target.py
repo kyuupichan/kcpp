@@ -54,12 +54,12 @@ class Target:
     def is_unsigned(self, kind):
         ukind = self.underlying_kind(kind)
         if ukind in (IntegerKind.schar, IntegerKind.short, IntegerKind.int, IntegerKind.long,
-                     IntegerKind.long_long):
+                     IntegerKind.long_long, IntegerKind.bit_precise):
             return False
         if ukind in (IntegerKind.uchar, IntegerKind.ushort, IntegerKind.uint, IntegerKind.ulong,
-                     IntegerKind.ulong_long):
+                     IntegerKind.ulong_long, IntegerKind.ubit_precise):
             return True
-        raise RuntimeError(f'kind {kind} not handled in is_signed()')
+        raise RuntimeError(f'kind {kind.name} not handled in is_unsigned()')
 
     def integer_width(self, kind):
         kind = self.underlying_kind(kind)
@@ -73,4 +73,4 @@ class Target:
             return self.long_width
         if kind in (IntegerKind.long_long, IntegerKind.ulong_long):
             return self.long_long_width
-        raise RuntimeError(f'kind {kind} not handled in is_signed()')
+        raise RuntimeError(f'kind {kind.name} not handled in is_signed()')

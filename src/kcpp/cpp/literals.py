@@ -206,8 +206,11 @@ class LiteralInterpreter:
         self.permit_ud_suffix = not pp_arithmetic
         self.permit_long_long = True
         self.permit_size_suffix = pp.language.is_cxx() and pp.language.year >= 2023
-        self.permit_fixed_width_float_suffixes = self.permit_size_suffix
         self.permit_bit_precise_suffix = pp.language.is_c() and pp.language.year >= 2023
+        # At some point these suffixes should become conditionally supported in the
+        # preprocessor configuration
+        self.permit_fixed_width_float_suffixes = self.permit_size_suffix
+        self.permit_decimal_suffixes = self.permit_bit_precise_suffix
         self.integer_precisions = [
             (IntegerKind.int, target.int_width - 1),
             (IntegerKind.uint, target.int_width),
@@ -542,7 +545,7 @@ class LiteralInterpreter:
             else:
                 suffix = 'L'
         elif letter in (87, 119) and self.permit_bit_precise_suffix:  # 'W' 'w'
-            if state.get_byte(cursor) == letter - 21:
+            if state.get_byte(cursor + 1) == letter - 21:
                 cursor += 2
                 suffix = 'WB'
 
@@ -582,7 +585,9 @@ class LiteralInterpreter:
         return IntegerKind.error
 
     # floating-point-suffix: one of
-    #     f l f16 f32 f64 f128 bf16 F L F16 F32 F64 F128 BF16
+    #     f l
+    #     f16 f32 f64 f128 bf16 F L F16 F32 F64 F128 BF16    [from C++23]
+    #     dd df dl DD DF DL                                  [from C23]
     def read_floating_point_suffix(self, state, cursor, result):
         kind = RealKind.double
         letter = state.get_byte(cursor)
@@ -607,6 +612,17 @@ class LiteralInterpreter:
         elif letter in (76, 108):  # 'L' 'l'
             cursor += 1
             kind = RealKind.long_double
+        elif letter in (68, 100) and self.permit_decimal_suffixes:  # 'D' 'd'
+            next_c = state.get_byte(cursor + 1)
+            if next_c == letter:                   # 'D' or 'd' of same case
+                kind = RealKind.decimal32_t
+                cursor += 2
+            elif next_c == letter + 2:             # 'F' or 'f' of same case
+                kind = RealKind.decimal64_t
+                cursor += 2
+            elif next_c == letter + 8:             # 'L' or 'l' of same case
+                kind = RealKind.decimal128_t
+                cursor += 2
         elif letter in (66, 98) and self.permit_fixed_width_float_suffixes:  # 'B' 'b'
             if (state.get_byte(cursor + 1) == letter + 4       # 'f' or 'F' of same case
                     and state.get_bytes(cursor + 2, 2) == b'16'):
