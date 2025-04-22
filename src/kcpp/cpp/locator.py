@@ -359,11 +359,11 @@ class Locator:
     def range_coords(self, source_range):
         if isinstance(source_range, SpellingRange):
             # Convert the SpellingRange to a BufferRange
-            assert source_range.start < source_range.end
+            assert source_range.start <= source_range.end
             lexer = self.lexer_at_loc(source_range.token_loc)
             cursor = lexer.cursor
             lexer.get_token_quietly()
-            offsets = [source_range.start, source_range.end]
+            offsets = [source_range.start, max(source_range.start + 1, source_range.end)]
             # FIXME: this is ugly, find something better
             lexer.utf8_spelling(cursor, lexer.cursor, offsets)
             source_range = BufferRange(offsets[0], offsets[1])
