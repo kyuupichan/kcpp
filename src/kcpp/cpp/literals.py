@@ -204,6 +204,7 @@ class LiteralInterpreter:
         self.pp_arithmetic = pp_arithmetic
         self.int_width = target.pp_arithmetic_width() if pp_arithmetic else target.int_width
         self.permit_named_universal_characters = pp.language.permit_named_universal_characters()
+        self.permit_braced_escape_sequences = pp.language.permit_braced_escape_sequences()
 
         if pp.language.is_cxx():
             self.character_literals_require_single_code_unit = True
@@ -906,7 +907,7 @@ class LiteralInterpreter:
                     break
                 cursor = ncursor
                 cp = cp * 8 + HEX_DIGIT_VALUES[c]
-        elif cp == 111:  # 'o'
+        elif cp == 111 and self.permit_braced_escape_sequences:  # 'o'
             kind = NumericEscapeKind.OCTAL
             cp, cursor = self.braced_escape_sequence(state, cursor, 8)
         elif cp == 120:  # 'x'
@@ -922,7 +923,7 @@ class LiteralInterpreter:
         return cp, cursor, kind
 
     def hexadecimal_escape_sequence(self, state, cursor):
-        if state.get_byte(cursor) == 123:  # '{'
+        if state.get_byte(cursor) == 123 and self.permit_braced_escape_sequences:  # '{'
             return self.braced_escape_sequence(state, cursor, 16)
 
         count = 0
@@ -1000,7 +1001,8 @@ class LiteralInterpreter:
         return cp, cursor, is_ucn
 
     def hex_ucn(self, state, cursor, is_U):
-        if not is_U and state.get_byte(cursor) == 123:  # '{'
+        # '{'
+        if not is_U and state.get_byte(cursor) == 123 and self.permit_braced_escape_sequences:
             return self.braced_escape_sequence(state, cursor, 16)
 
         count = 0
