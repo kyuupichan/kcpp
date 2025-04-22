@@ -62,6 +62,20 @@ class Language:
     def is_c(self):
         return self.kind == 'C'
 
+    def has_extended_basic_charset(self):
+        return self.is_c() and self.year >= 2023 or self.is_cxx() and self.year > 2023
+
+    def permit_ws_in_escaped_newlines(self):
+        # C seems to be avoiding this
+        return self.is_cxx() and self.year >= 2023
+
+    def permit_braced_escape_sequences(self):
+        return self.is_c() and self.year > 2023 or self.is_cxx() and self.year >= 2023
+
+    def permit_named_universal_characters(self):
+        # C seems to be avoiding these
+        return self.is_cxx() and self.year >= 2023
+
 
 class SourceFileChangeReason(IntEnum):
     enter = auto()    # via #include, command line, predefine buffer, etc.
@@ -184,7 +198,7 @@ class Preprocessor:
         # The basic charset and raw string delimiter characters
         self.basic_charset = set(
             b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz'
-            b'!"#%&\'*+,-./:;<=>?[]^{|}~ ()\\\t\v\f\r\n'
+            b'!"#%&\'*+,-./:;<=>?[]^{|}~ ()\\\t\v\f\n'
         )
 
         # Internal state
@@ -201,6 +215,7 @@ class Preprocessor:
         self.skip_to_eod = False
         self.skipping = False
         self.trace_includes = False
+
         # Collected whilst in a macro-expanding directive.  Handled when leaving the
         # directive.
         self._Pragma_strings = []
@@ -236,8 +251,8 @@ class Preprocessor:
         self.target = copy(target)
 
         # Extended basic character set?  This will depend on language
-        if False:
-            self.basic_charset.update('$@`')
+        if self.language.has_extended_basic_charset():
+            self.basic_charset.update(b'$@`')
 
         # Set the narrow and wide charsets
         def set_charset(attrib, charset_name, integer_kind):

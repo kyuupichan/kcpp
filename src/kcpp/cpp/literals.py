@@ -203,6 +203,7 @@ class LiteralInterpreter:
         self.pp = pp
         self.pp_arithmetic = pp_arithmetic
         self.int_width = target.pp_arithmetic_width() if pp_arithmetic else target.int_width
+        self.permit_named_universal_characters = pp.language.permit_named_universal_characters()
 
         if pp.language.is_cxx():
             self.character_literals_require_single_code_unit = True
@@ -992,7 +993,7 @@ class LiteralInterpreter:
         is_ucn = True
         if cp == 85 or cp == 117:  # 'U' 'u'
             cp, cursor = self.hex_ucn(state, cursor, cp == 85)
-        elif cp == 78:  # 'N'
+        elif cp == 78 and self.permit_named_universal_characters:  # 'N'
             cp, cursor = self.named_character(state, cursor)
         else:
             is_ucn = False
