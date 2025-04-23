@@ -584,7 +584,7 @@ def standard_c_predefines(pp):
 def standard_cxx_predefines(pp):
     yield '__cplusplus', '202302L'
     yield '__STDC__', '1'
-    # We do not define __STDC_VERSION__ or __STDC_ISO_10646__ when compiling C++.
+    # We do not define __STDC_VERSION__ when compiling C++.
 
     # The values for C++23
     yield '__cpp_aggregate_bases', '201603L'
@@ -665,5 +665,11 @@ def target_predefines(pp):
 
     yield '__STDC_HOSTED__', '1'
 
-    # FIXME: __STDC_MB_MIGHT_NEQ_WC__
-    # FIXME: __STDC_NO_THREADS__ etc
+    # These two are conditionally defined, both for C and C++.
+    if pp.target.wide_charset.name.startswith('UTF-32'):
+        yield '__STDC_ISO_10646__', '202409L'    # Unicode 16.0
+
+    if pp.literal_interpreter.mb_might_neq_wc():
+        yield '__STDC_MB_MIGHT_NEQ_WC__', '1'
+
+    # TODO C23: 6.10.10.4 Conditional feature macros

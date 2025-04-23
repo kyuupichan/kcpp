@@ -244,6 +244,18 @@ class LiteralInterpreter:
         assert n % 2 == 1
         self.size_t_precisions = self.integer_precisions[n - 1: n + 1]
 
+    def mb_might_neq_wc(self):
+        def value(encoding, c):
+            target = self.pp.target
+            elab = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
+            encoded = elab.charset.encoder(c)
+            char_size = target.integer_width(elab.char_kind) // 8
+            struct = packing_struct(char_size, target.is_little_endian)
+            value, = struct.unpack(encoded[:char_size])
+            return value
+
+        return value(Encoding.NONE, 'a') != value(Encoding.WIDE, 'a')
+
     def interpret(self, token):
         '''Return a literal.'''
         if token.kind == TokenKind.NUMBER:
