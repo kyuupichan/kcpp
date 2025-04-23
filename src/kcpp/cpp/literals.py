@@ -278,18 +278,11 @@ class LiteralInterpreter:
             state.is_erroneous = self.pp.emit(diagnostic)
 
     def interpret(self, token):
-        '''Return a literal.'''
+        '''Return an IntegerLiteral or FloatingPointLiteral instance.'''
         if token.kind == TokenKind.NUMBER:
-            result = self.interpret_number(token)
+            return self.interpret_number(token)
         else:
-            result = self.interpret_character_literal(token)
-
-        # Reject user-defined suffixes in preprocessor expressions.
-        if self.pp_arithmetic and result.ud_suffix:
-            self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
-            result = IntegerKind.erroneous_literal()
-
-        return result
+            return self.interpret_character_literal(token)
 
     #
     # Numeric literals
@@ -707,6 +700,10 @@ class LiteralInterpreter:
         encoded = bytearray()
         char_width = self.pp.target.integer_width(elab_encoding.char_kind)
         ud_suffix, state = self.encode_string(token, encoded, elab_encoding, char_width)
+        # Reject user-defined suffixes in preprocessor expressions.
+        if ud_suffix and self.pp_arithmetic:
+            self.emit(state, Diagnostic(DID.user_defined_suffix_in_pp_expr, ud_suffix.loc))
+
         # Place it in a StringLiteral to access char_count() and char_value() functionality
         result = StringLiteral(encoded, elab_encoding.char_kind, None)
 
