@@ -57,6 +57,10 @@ class IntegerLiteral:
     # An instance of UserDefinedSuffix, or None
     ud_suffix: object
 
+    @classmethod
+    def erroneous_literal(cls):
+        return cls(IntegerKind.error, 0, None)
+
     def to_short_text(self):
         ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
         return f'IntegerLiteral({self.kind.name}, {self.value}{ud_suffix_part})'
@@ -71,6 +75,10 @@ class FloatingPointLiteral:
     radix: int
     # An instance of UserDefinedSuffix, or None
     ud_suffix: object
+
+    @classmethod
+    def erroneous_literal(cls):
+        return cls(RealKind.error, 0, 0, 0, 0, None)
 
     def to_short_text(self):
         ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
@@ -363,10 +371,7 @@ class LiteralInterpreter:
                                          [1 if is_floating_point else 0])
 
             if state.is_erroneous:
-                if isinstance(result, IntegerLiteral):
-                    result.kind = IntegerKind.error
-                else:
-                    result.kind = RealKind.error
+                result = result.erroneous_literal()
 
         return result
 
