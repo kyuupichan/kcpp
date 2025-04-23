@@ -419,8 +419,8 @@ class LiteralInterpreter:
 
         encoded = bytearray()
         elab_encoding = ElaboratedEncoding.for_filename_encoding()
-        _, is_erroneous = self.encode_string(token, encoded, elab_encoding, 8)
-        if is_erroneous:
+        _, state = self.encode_string(token, encoded, elab_encoding, 8)
+        if state.is_erroneous:
             return None
         return bytes(encoded)
 
@@ -707,7 +707,7 @@ class LiteralInterpreter:
 
         encoded = bytearray()
         char_width = self.pp.target.integer_width(elab_encoding.char_kind)
-        ud_suffix, is_erroneous = self.encode_string(token, encoded, elab_encoding, char_width)
+        ud_suffix, state = self.encode_string(token, encoded, elab_encoding, char_width)
         # Place it in a StringLiteral to access char_count() and char_value() functionality
         result = StringLiteral(encoded, elab_encoding.char_kind, None)
 
@@ -722,8 +722,7 @@ class LiteralInterpreter:
         target = self.pp.target
         count = result.char_count(target)
         if count == 0:
-            self.pp.diag(DID.empty_character_literal, token.loc)
-            is_erroneous = True
+            self.diag(state, DID.empty_character_literal)
         elif count == 1:
             value = result.char_value(target, 0, False)
             if encoding == Encoding.NONE:
@@ -737,7 +736,6 @@ class LiteralInterpreter:
             # ill-formed.
             if elab_encoding.encoding != Encoding.NONE:
                 did = DID.multicharacter_literal_with_prefix
-                is_erroneous = True
             else:
                 did = DID.multicharacter_literal
                 kind = IntegerKind.int
@@ -754,12 +752,12 @@ class LiteralInterpreter:
                     value -= max_value
 
             # Emit exactly one diagnostic for multicharacter literals
-            self.pp.diag(did, token.loc)
+            self.diag(state, did)
 
-        if is_erroneous:
-            kind = IntegerKind.error
-
-        return IntegerLiteral(kind, value, ud_suffix)
+        if state.is_erroneous:
+            return IntegerLiteral.erroneous_literal()
+        else:
+            return IntegerLiteral(kind, value, ud_suffix)
 
     #
     # String literals
@@ -838,8 +836,8 @@ class LiteralInterpreter:
         char_width = self.pp.target.integer_width(elab_encoding.char_kind)
         encoded = bytearray()
         for token in tokens:
-            _, token_erroneous = self.encode_string(token, encoded, elab_encoding, char_width)
-            is_erroneous = is_erroneous or token_erroneous
+            _, state = self.encode_string(token, encoded, elab_encoding, char_width)
+            is_erroneous = is_erroneous or state.is_erroneous
 
         # Revert to initial shift state, and append a NUL byte to the string.
         encoder = elab_encoding.charset.encoder
@@ -861,7 +859,6 @@ class LiteralInterpreter:
             require_single_code_unit = False
         is_raw = encoding.encoding.is_raw()
         mask = (1 << char_width) - 1
-        is_erroneous = False
         encoder = encoding.charset.encoder
         while cursor < state.limit:
             # Erroneous characters or values are returned as -1
@@ -876,8 +873,8 @@ class LiteralInterpreter:
                 # Numeric escapes are good as long as their value fits in width bits.
                 if cp > mask:
                     args = [kind - 1, f'0x{cp:02X}', encoding.char_kind.name]
-                    state.diag_char_range(DID.escape_sequence_value_too_large,
-                                          start, cursor, args)
+                    self.diag_char_range(state, DID.escape_sequence_value_too_large,
+                                         start, cursor, args)
                     cp &= mask
                 elif cp == -1:
                     # Replace erroneous values with 0.
@@ -888,7 +885,7 @@ class LiteralInterpreter:
                 if cp != -1:
                     did = validate_codepoint(cp)
                     if did:
-                        state.diag_char_range(did, start, cursor, [codepoint_to_hex(cp)])
+                        self.diag_char_range(state, did, start, cursor, [codepoint_to_hex(cp)])
                         cp = -1
                 # Replace erroneous values.
                 if cp == -1:
@@ -909,20 +906,18 @@ class LiteralInterpreter:
                     encoded_part = encoder(chr(cp))
                 except UnicodeError:
                     args = [printable_char(cp), encoding.charset.name]
-                    state.diag_char_range(DID.character_does_not_exist, start, cursor, args)
+                    self.diag_char_range(state, DID.character_does_not_exist, start, cursor, args)
                     encoded_part = encoder('?')
 
                 if require_single_code_unit and len(encoded_part) > char_width // 8:
                     args = [printable_char(cp), encoding.char_kind.name, encoding.charset.name]
-                    state.diag_char_range(DID.character_not_single_code_unit, start, cursor, args)
+                    self.diag_char_range(state, DID.character_not_single_code_unit,
+                                         start, cursor, args)
                     encoded_part = encoder('?')
 
             encoded.extend(encoded_part)
-            # Emit a diagnostic and clear state for next character
-            if state.emit_diagnostics(self.pp):
-                is_erroneous = True
 
-        return ud_suffix, is_erroneous
+        return ud_suffix, state
 
     def escape_sequence_or_UCN(self, state, cursor):
         '''We have just read a backslash.'''
@@ -956,8 +951,8 @@ class LiteralInterpreter:
             kind = NumericEscapeKind.NONE
             cp, cursor, is_ucn = self.maybe_ucn(state, cursor, cp)
             if not is_ucn:
-                state.diag_char_range(DID.unrecognized_escape_sequence, backslash_loc,
-                                      cursor, ['\\' + printable_form(cp)])
+                self.diag_char_range(state, DID.unrecognized_escape_sequence, backslash_loc,
+                                     cursor, ['\\' + printable_form(cp)])
 
         return cp, cursor, kind
 
@@ -983,7 +978,7 @@ class LiteralInterpreter:
             break
 
         if count == 0:
-            state.diag_char_range(DID.missing_digit_sequence, start_loc, cursor, [1])
+            self.diag_char_range(state, DID.missing_digit_sequence, start_loc, cursor, [1])
             value = -1
 
         return value, cursor
@@ -993,7 +988,7 @@ class LiteralInterpreter:
         brace_loc = cursor
         c, cursor = state.get_char(cursor)
         if c != 123:  # '{'
-            state.diag_char(DID.expected_open_brace, brace_loc)
+            self.diag_char(state, DID.expected_open_brace, brace_loc)
             return -1, cursor
 
         count = 0
@@ -1010,8 +1005,8 @@ class LiteralInterpreter:
 
             if c == 125:  # '}'
                 if count == 0 and value != -1:
-                    state.diag_char_range(DID.missing_digit_sequence, brace_loc, cursor,
-                                          [int(radix == 16)])
+                    self.diag_char_range(state, DID.missing_digit_sequence, brace_loc, cursor,
+                                         [int(radix == 16)])
                     value = -1
                 return value, cursor
 
@@ -1020,7 +1015,7 @@ class LiteralInterpreter:
                 return -1, cursor
 
             if value != -1:
-                state.diag_char(DID.invalid_digit, c_cursor, [bases.index(radix)])
+                self.diag_char(state, DID.invalid_digit, c_cursor, [bases.index(radix)])
                 value = -1
 
     def maybe_ucn(self, state, cursor, cp):
@@ -1058,7 +1053,7 @@ class LiteralInterpreter:
                     continue
                 break
 
-            state.diag_char(DID.invalid_digit, c_cursor, [3])
+            self.diag_char(state, DID.invalid_digit, c_cursor, [3])
             cp = -1
             break
 
@@ -1068,7 +1063,7 @@ class LiteralInterpreter:
         brace_loc = cursor
         c, cursor = state.get_char(cursor)
         if c != 123:  # '{'
-            state.diag_char(DID.expected_open_brace, brace_loc)
+            self.diag_char(state, DID.expected_open_brace, brace_loc)
             return -1, brace_loc
 
         name = ''
@@ -1078,8 +1073,8 @@ class LiteralInterpreter:
             if c == 125:  # '}'
                 cp = name_to_cp(name)
                 if cp == -1:
-                    state.diag_char_range(DID.unrecognized_universal_character_name,
-                                          name_loc, max(name_loc + 1, cursor - 1), [name])
+                    self.diag_char_range(state, DID.unrecognized_universal_character_name,
+                                         name_loc, max(name_loc + 1, cursor - 1), [name])
                 return cp, cursor
 
             if c == -1:
@@ -1091,7 +1086,7 @@ class LiteralInterpreter:
     def expected_close_brace(self, state, cursor, brace_loc):
         loc = SpellingRange(state.token.loc, brace_loc, brace_loc + 1)
         note = Diagnostic(DID.prior_match, loc, ['{'])
-        state.diag_char(DID.expected_close_brace, cursor, [note])
+        self.diag_char(state, DID.expected_close_brace, cursor, [note])
 
 
 @dataclass(slots=True)
