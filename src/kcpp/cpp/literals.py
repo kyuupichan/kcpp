@@ -257,13 +257,13 @@ class LiteralInterpreter:
         return value(Encoding.NONE, 'a') != value(Encoding.WIDE, 'a')
 
     def diag(self, state, did, args=None):
-        self.emit(state, Diagnostic(did, self.token.loc, args))
+        self.emit(state, Diagnostic(did, state.token.loc, args))
 
     def diag_char(self, state, did, start, args=None):
         self.diag_char_range(state, did, start, start + 1, args)
 
     def diag_char_range(self, state, did, start, end, args=None):
-        self.emit(state, Diagnostic(did, SpellingRange(self.token.loc, start, end), args))
+        self.emit(state, Diagnostic(did, SpellingRange(state.token.loc, start, end), args))
 
     def emit(self, state, diagnostic):
         if not state.is_erroneous:
@@ -359,10 +359,10 @@ class LiteralInterpreter:
                     loc = SpellingRange(token.loc, cursor, length)
                     result.ud_suffix = UserDefinedSuffix(ud_suffix, loc)
                 else:
-                    state.diag_char_range(DID.invalid_numeric_suffix, suffix_start, length,
-                                          [1 if is_floating_point else 0])
+                    self.diag_char_range(state, DID.invalid_numeric_suffix, suffix_start, length,
+                                         [1 if is_floating_point else 0])
 
-            if state.emit_diagnostics(self.pp):
+            if state.is_erroneous:
                 if isinstance(result, IntegerLiteral):
                     result.kind = IntegerKind.error
                 else:
@@ -381,12 +381,10 @@ class LiteralInterpreter:
         state = State.from_pp_number(token)
         cursor, line_number, _ = self.read_radix_digits(state, 0, 10, True)
         if cursor != state.limit:
-            state.diag_char(DID.line_number_must_be_digit_sequence, cursor)
-        if state.emit_diagnostics(self.pp):
-            return -1
+            self.diag_char(state, DID.line_number_must_be_digit_sequence, cursor)
         if line_number == 0 or line_number > max_value:
-            self.pp.diag(DID.line_number_out_of_range, token.loc, [f'{max_value:,d}'])
-        return line_number
+            self.diag(state, DID.line_number_out_of_range, [f'{max_value:,d}'])
+        return -1 if state.is_erroneous else line_number
 
     def interpret_filename(self, token):
         '''Interpret a filename for a #line directive.  Return a byte string on success, or None
@@ -464,7 +462,7 @@ class LiteralInterpreter:
             # octal because a digit cannot begin a literal suffix.
             if not 0 <= dvalue < base:
                 if require_digit or 2 <= dvalue < 10:
-                    state.diag_char(DID.invalid_digit, cursor, [bases.index(base)])
+                    self.diag_char(state, DID.invalid_digit, cursor, [bases.index(base)])
                 return cursor, value, count
             cursor += 1
             count += 1
@@ -549,7 +547,7 @@ class LiteralInterpreter:
         else:
             exponent = None
             if require_exponent:
-                state.diag_char(DID.hexadecimal_exponent_required, cursor)
+                self.diag_char(state, DID.hexadecimal_exponent_required, cursor)
 
         return cursor, exponent
 
@@ -608,7 +606,7 @@ class LiteralInterpreter:
 
         result.kind = self.integer_kind_for_suffix(result.value, radix, is_unsigned, suffix)
         if result.kind == IntegerKind.error:
-            state.diag(DID.integer_too_large)
+            self.diag(state, DID.integer_too_large)
         return cursor
 
     def integer_kind_for_suffix(self, value, radix, is_unsigned, suffix):
