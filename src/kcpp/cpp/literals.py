@@ -256,6 +256,19 @@ class LiteralInterpreter:
 
         return value(Encoding.NONE, 'a') != value(Encoding.WIDE, 'a')
 
+    def diag(self, state, did, args=None):
+        self.emit(state, Diagnostic(did, self.token.loc, args))
+
+    def diag_char(self, state, did, start, args=None):
+        self.diag_char_range(state, did, start, start + 1, args)
+
+    def diag_char_range(self, state, did, start, end, args=None):
+        self.emit(state, Diagnostic(did, SpellingRange(self.token.loc, start, end), args))
+
+    def emit(self, state, diagnostic):
+        if not state.is_erroneous:
+            state.is_erroneous = self.pp.emit(diagnostic)
+
     def interpret(self, token):
         '''Return a literal.'''
         if token.kind == TokenKind.NUMBER:
@@ -446,7 +459,9 @@ class LiteralInterpreter:
                 digit = state.get_byte(cursor)
                 require_digit = True
             dvalue = HEX_DIGIT_VALUES.get(digit, -1)
-            # Valid digit for this base?  It is an error only if we require a digit
+            # If this is a digit but not valid for the radix, it is an error only if we
+            # require a digit, or it is a decimal digit outside the range of binary or
+            # octal because a digit cannot begin a literal suffix.
             if not 0 <= dvalue < base:
                 if require_digit or 2 <= dvalue < 10:
                     state.diag_char(DID.invalid_digit, cursor, [bases.index(base)])
@@ -1072,9 +1087,10 @@ class State:
     '''Maintains state whilst interpreting a literal.'''
 
     token: Token
-    spelling: bytes    # UTF-8 encoded
+    spelling: bytes      # UTF-8 encoded
     limit: int
     diags: list
+    is_erroneous: bool
 
     @classmethod
     def from_pp_number(cls, token):
@@ -1084,7 +1100,7 @@ class State:
         # Sanity check
         assert ud_suffix is None
         assert limit and 48 <= spelling[0] <= 57 or (spelling[0] == 46 and limit > 1)
-        return cls(token, spelling, limit, [])
+        return cls(token, spelling, limit, [], False)
 
     @classmethod
     def from_delimited_literal(cls, token):
@@ -1096,7 +1112,7 @@ class State:
         if ud_suffix:
             suffix_loc = SpellingRange(token.loc, limit + 1, length)
             ud_suffix = UserDefinedSuffix(ud_suffix, suffix_loc)
-        return cls(token, spelling, limit, []), body, ud_suffix
+        return cls(token, spelling, limit, [], False), body, ud_suffix
 
     def emit_diagnostics(self, pp):
         if self.diags:
