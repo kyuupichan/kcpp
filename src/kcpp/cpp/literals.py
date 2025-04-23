@@ -348,27 +348,29 @@ class LiteralInterpreter:
             else:
                 cursor, result = self.read_possible_floating_point(state, 0, 10)
 
-            suffix_start = cursor
+            # A suffix is either a standard-defined suffix or a user-defined suffix (when
+            # permitted).  The two are distinct and cannot co-exist, so "1UC" is a
+            # user-defined suffix of UC, not a standard suffix of U and a user-defined
+            # suffix of C.
             is_floating_point = isinstance(result, FloatingPointLiteral)
-            # Suffix interpretation sets result.kind
             if is_floating_point:
-                cursor = self.read_floating_point_suffix(state, cursor, result)
+                kind = self.read_floating_point_suffix(state, cursor)
             else:
-                cursor = self.read_integer_suffix(state, cursor, result, radix)
+                kind = self.read_integer_suffix(state, cursor, result.value, radix)
 
-            # Handle a user-defined suffix, if any
-            suffix = state.spelling[cursor:]
-            if suffix:
+            if kind is None:
+                ud_suffix = None
+                suffix = state.spelling[cursor:]
                 if self.permit_ud_suffix:
                     ud_suffix = self.pp.maybe_identifier(suffix)
-                else:
-                    ud_suffix = None
-                if ud_suffix:
-                    loc = SpellingRange(token.loc, cursor, length)
-                    result.ud_suffix = UserDefinedSuffix(ud_suffix, loc)
-                else:
-                    self.diag_char_range(state, DID.invalid_numeric_suffix, suffix_start, length,
+                    if ud_suffix:
+                        loc = SpellingRange(token.loc, cursor, length)
+                        result.ud_suffix = UserDefinedSuffix(ud_suffix, loc)
+                if ud_suffix is None:
+                    self.diag_char_range(state, DID.invalid_numeric_suffix, cursor, length,
                                          [1 if is_floating_point else 0])
+            else:
+                result.kind = kind
 
             if state.is_erroneous:
                 result = result.erroneous_literal()
@@ -575,7 +577,10 @@ class LiteralInterpreter:
     #     z Z
     # bit-precise-int-suffix: one of
     #     bw BW
-    def read_integer_suffix(self, state, cursor, result, radix):
+    def read_integer_suffix(self, state, cursor, value, radix):
+        '''Return a pair (is_unsigned, canonical_suffix).  canonical_suffix is empty if the suffix
+        was not recognised in its entirety.
+        '''
         is_unsigned = False
         suffix = ''
 
@@ -609,10 +614,12 @@ class LiteralInterpreter:
                 is_unsigned = True
                 cursor += 1
 
-        result.kind = self.integer_kind_for_suffix(result.value, radix, is_unsigned, suffix)
-        if result.kind == IntegerKind.error:
-            self.diag(state, DID.integer_too_large)
-        return cursor
+        kind = None
+        if cursor == state.limit:
+            kind = self.integer_kind_for_suffix(value, radix, is_unsigned, suffix)
+            if kind == IntegerKind.error:
+                self.diag(state, DID.integer_too_large)
+        return kind
 
     def integer_kind_for_suffix(self, value, radix, is_unsigned, suffix):
         '''This function implements the logic of Table 8 — Types of integer-literals
@@ -641,7 +648,10 @@ class LiteralInterpreter:
     #     f l
     #     f16 f32 f64 f128 bf16 F L F16 F32 F64 F128 BF16    [from C++23]
     #     dd df dl DD DF DL                                  [from C23]
-    def read_floating_point_suffix(self, state, cursor, result):
+    def read_floating_point_suffix(self, state, cursor):
+        '''If the remaining text beginning at cursor is a floating point suffix (including the
+        case of no suffix), return an instance of RealKind.  Otherwise return None.
+        '''
         kind = RealKind.double
         letter = state.get_byte(cursor)
 
@@ -682,8 +692,7 @@ class LiteralInterpreter:
                 cursor += 4
                 kind = RealKind.bfloat16_t
 
-        result.kind = kind
-        return cursor
+        return kind if cursor == state.limit else None
 
     #
     # Character literals
