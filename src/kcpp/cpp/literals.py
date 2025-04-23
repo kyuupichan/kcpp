@@ -287,10 +287,7 @@ class LiteralInterpreter:
         # For preprocessor expressions, reject floating point numbers and user-defined
         # suffixes.
         if self.pp_arithmetic:
-            if isinstance(result, FloatingPointLiteral):
-                self.pp.diag(DID.floating_point_in_pp_expr, token.loc)
-                result = IntegerLiteral(IntegerKind.error, 0, None)
-            elif result.ud_suffix:
+            if result.ud_suffix:
                 self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
                 result.kind = IntegerKind.error
 
@@ -524,10 +521,14 @@ class LiteralInterpreter:
         if fraction is None and exponent is None:
             result = IntegerLiteral(IntegerKind.int, value, None)
         else:
-            post_dot_digits = 0 if fraction is None else count
-            exponent = exponent or 0
-            result = FloatingPointLiteral(RealKind.double, value, post_dot_digits,
-                                          exponent, base, None)
+            if self.pp_arithmetic:
+                self.diag(state, DID.floating_point_in_pp_expr)
+                result = IntegerLiteral.erroneous_literal()
+            else:
+                post_dot_digits = 0 if fraction is None else count
+                exponent = exponent or 0
+                result = FloatingPointLiteral(RealKind.double, value, post_dot_digits,
+                                              exponent, base, None)
         return cursor, result
 
     def read_exponent(self, state, cursor, base, require_exponent):
