@@ -562,6 +562,9 @@ def standard_predefines(pp):
     '''Yield the predefined macros required by the user's selected standard as (name,
     expansion) pairs.
     '''
+    # Defined for C and C++
+    yield '__STDC__', '1'
+
     if pp.language.is_cxx():
         yield from standard_cxx_predefines(pp)
     else:
@@ -569,8 +572,6 @@ def standard_predefines(pp):
 
 
 def standard_c_predefines(pp):
-    yield '__STDC__', '1'
-
     # The values for C23
     yield '__STDC_EMBED_NOT_FOUND__', '0'
     yield '__STDC_EMBED_FOUND__', '1'
@@ -578,12 +579,10 @@ def standard_c_predefines(pp):
     yield '__STDC_UTF_16__', '1'
     yield '__STDC_UTF_32__', '1'
     yield '__STDC_VERSION__', '202311L'
-    # FIXME: __STDC_ISO_10646__
 
 
 def standard_cxx_predefines(pp):
     yield '__cplusplus', '202302L'
-    yield '__STDC__', '1'
     # We do not define __STDC_VERSION__ when compiling C++.
 
     # The values for C++23
@@ -668,7 +667,6 @@ def target_predefines(pp):
     # These two are conditionally defined, both for C and C++.
     if pp.target.wide_charset.name.startswith('UTF-32'):
         yield '__STDC_ISO_10646__', '202409L'    # Unicode 16.0
-
     if pp.literal_interpreter.mb_might_neq_wc():
         yield '__STDC_MB_MIGHT_NEQ_WC__', '1'
 
