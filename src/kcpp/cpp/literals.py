@@ -265,13 +265,13 @@ class LiteralInterpreter:
         return value(Encoding.NONE, 'a') != value(Encoding.WIDE, 'a')
 
     def diag(self, state, did, args=None):
-        self.emit(state, Diagnostic(did, state.token.loc, args))
+        self.emit(state, Diagnostic(did, state.token_loc, args))
 
     def diag_char(self, state, did, start, args=None):
         self.diag_char_range(state, did, start, start + 1, args)
 
     def diag_char_range(self, state, did, start, end, args=None):
-        self.emit(state, Diagnostic(did, SpellingRange(state.token.loc, start, end), args))
+        self.emit(state, Diagnostic(did, SpellingRange(state.token_loc, start, end), args))
 
     def emit(self, state, diagnostic):
         if not state.is_erroneous:
@@ -306,7 +306,7 @@ class LiteralInterpreter:
             # be a floating point literal in the presence of decimal points or exponents.
             #
             # If user-defined suffixes are a thing, then we also have to be careful when
-            # advancing past a letter what might begin one.  For example, "0b2m" should be
+            # advancing past a letter that might begin one.  For example, "0b2m" should be
             # read as 0 with a ud-suffix of "b2m", and not an invalid binary number.  This
             # consideration applies to consuming the 0x prefix, the 0b prefix, and also
             # possible exponents 'e' in floating point numbers, e.g., 12ergs.
@@ -412,37 +412,9 @@ class LiteralInterpreter:
             return None
         return bytes(encoded)
 
-    # binary-literal:
-    #    0b binary-digit
-    #    0B binary-digit
-    #    binary-literal ’[opt] binary-digit
-    # binary-digit: one of
-    #    0 1
-
-    # octal-literal:
-    #    0
-    #    octal-literal ’[opt] octal-digit
-    # octal-digit: one of
-    #    0 1 2 3 4 5 6 7
-
-    # hexadecimal-literal:
-    #     hexadecimal-prefix hexadecimal-digit-sequence
-    # hexadecimal-prefix: one of
-    #     0x 0X
-    # hexadecimal-digit-sequence:
-    #     hexadecimal-digit
-    #     hexadecimal-digit-sequence ’[opt] hexadecimal-digit
-    # hexadecimal-digit: one of
-    #     0 1 2 3 4 5 6 7 8 9 a b c d e f A B C D E F
-
-    # decimal-literal:
-    #     nonzero-digit
-    #     decimal-literal ’[opt] digit
-    # nonzero-digit: one of
-    #     1 2 3 4 5 6 7 8 9
-    # digit: one of
-    #     0 1 2 3 4 5 6 7 8 9
     def read_radix_digits(self, state, cursor, base, require_digit):
+        '''Return a triple (cursor, value, count).  Count is the number of digits consumed
+        (which need not be the number of characters, because of the apostrophe).'''
         count = 0
         value = 0
         while True:
@@ -464,35 +436,10 @@ class LiteralInterpreter:
             value = value * base + dvalue
             require_digit = False
 
-    # hexadecimal-floating-point-literal:
-    #     hexadecimal-prefix hexadecimal-fractional-constant binary-exponent-part
-    #         floating-point-suffix[opt]
-    #     hexadecimal-prefix hexadecimal-digit-sequence binary-exponent-part
-    #         floating-point-suffix[opt]
-    # hexadecimal-fractional-constant:
-    #     hexadecimal-digit-sequence[opt] . hexadecimal-digit-sequence
-    #     hexadecimal-digit-sequence .
-    # binary-exponent-part:
-    #     p sign[opt] digit-sequence
-    #     P sign[opt] digit-sequence
-    # sign: one of
-    #     + -
-    # floating-point-suffix: one of
-    #     f l f16 f32 f64 f128 bf16 F L F16 F32 F64 F128 BF16
-
-    # decimal-floating-point-literal:
-    #     fractional-constant exponent-part[opt] floating-point-suffix[opt]
-    #     digit-sequence exponent-part floating-point-suffix[opt]
-    # fractional-constant:
-    #     digit-sequence[opt] . digit-sequence
-    #     digit-sequence .
-    # exponent-part:
-    #     e sign[opt] digit-sequence
-    #     E sign[opt] digit-sequence
-    # digit-sequence:
-    #     digit
-    #     digit-sequence ’[opt] digit
     def read_possible_floating_point(self, state, cursor, base):
+        '''Return a (cursor, literal) pair, where literal is an instance of IntegerLiteral or
+        FloatingPointLiteral.
+        '''
         fraction = None
         value = 0
 
@@ -505,21 +452,20 @@ class LiteralInterpreter:
             cursor, fraction, count = self.read_radix_digits(state, cursor + 1, base, False)
             value = value * pow(base, count) + fraction
 
-        # Read exponent, if any
+        # Read exponent, if any.  There must be an exponent for hexadecimal floats.
         cursor, exponent = self.read_exponent(state, cursor, base,
                                               fraction is not None and base == 16)
 
         if fraction is None and exponent is None:
             result = IntegerLiteral(IntegerKind.int, value, None)
+        elif self.pp_arithmetic:
+            self.diag(state, DID.floating_point_in_pp_expr)
+            result = IntegerLiteral.erroneous_literal()
         else:
-            if self.pp_arithmetic:
-                self.diag(state, DID.floating_point_in_pp_expr)
-                result = IntegerLiteral.erroneous_literal()
-            else:
-                post_dot_digits = 0 if fraction is None else count
-                exponent = exponent or 0
-                result = FloatingPointLiteral(RealKind.double, value, post_dot_digits,
-                                              exponent, base, None)
+            post_dot_digits = 0 if fraction is None else count
+            exponent = exponent or 0
+            result = FloatingPointLiteral(RealKind.double, value, post_dot_digits,
+                                          exponent, base, None)
         return cursor, result
 
     def read_exponent(self, state, cursor, base, require_exponent):
@@ -550,29 +496,8 @@ class LiteralInterpreter:
 
         return cursor, exponent
 
-    # integer-suffix:
-    #     unsigned-suffix long-suffix[opt]
-    #     unsigned-suffix long-long-suffix[opt]
-    #     unsigned-suffix size-suffix[opt]             [from C++23]
-    #     unsigned-suffix bit-precise-int-suffix[opt]  [from C23]
-    #     long-suffix unsigned-suffix[opt]
-    #     long-long-suffix unsigned-suffix[opt]
-    #     size-suffix unsigned-suffix[opt]             [from C++23]
-    #     bit-precise-int-suffix unsigned-suffix[opt]  [from C23]
-    # unsigned-suffix: one of
-    #     u U
-    # long-suffix: one of
-    #     l L
-    # long-long-suffix: one of
-    #     ll LL
-    # size-suffix: one of
-    #     z Z
-    # bit-precise-int-suffix: one of
-    #     bw BW
     def read_integer_suffix(self, state, cursor, value, radix):
-        '''Return a pair (is_unsigned, canonical_suffix).  canonical_suffix is empty if the suffix
-        was not recognised in its entirety.
-        '''
+        '''Return an integer kind for the literal based on the suffix or lack thereof.'''
         is_unsigned = False
         suffix = ''
 
@@ -707,13 +632,12 @@ class LiteralInterpreter:
         # Place it in a StringLiteral to access char_count() and char_value() functionality
         result = StringLiteral(encoded, elab_encoding.char_kind, None)
 
-        # If we ever implement C, then it is much more relaxed than C++.  The differences
-        # are that a) the type of a character literal is 'int' b) Multicharacter literals
-        # with L prefix must be accepted with an implementation-defined value.  c)
-        # Literals with no encoding prefix or with the L prefix, must accept characters
-        # that encode to multiple code units.  d) L and no prefix literals (character and
-        # string) must accept characters not in the target charset with an
-        # implementation-defined value
+        # C is much more relaxed than C++.  The differences are that a) the type of an
+        # unsuffixed character literal is 'int' b) Wide multicharacter literals must be
+        # accepted with an implementation-defined value.  c) Literals with no encoding
+        # prefix or with the L prefix, must accept characters that encode to multiple code
+        # units.  d) Wide and unsuffixed character and string literals must accept
+        # characters not in the target charset with an implementation-defined value
         value = 0
         target = self.pp.target
         count = result.char_count(target)
@@ -726,10 +650,9 @@ class LiteralInterpreter:
             else:
                 kind = encoding.integer_kind()
         else:
-            # A multicharacter literal shall not have an encoding prefix.  If a
-            # multicharacter literal contains a c-char that is not encodable as a
-            # single code unit in the ordinary literal encoding, the program is
-            # ill-formed.
+            # In C++ a multicharacter literal shall not have an encoding prefix.  If it
+            # contains a c-char that is not encodable as a single code unit in the
+            # ordinary literal encoding, the program is ill-formed.
             if elab_encoding.encoding != Encoding.NONE:
                 did = DID.multicharacter_literal_with_prefix
             else:
@@ -1080,7 +1003,7 @@ class LiteralInterpreter:
             name += chr(c)
 
     def expected_close_brace(self, state, cursor, brace_loc):
-        loc = SpellingRange(state.token.loc, brace_loc, brace_loc + 1)
+        loc = SpellingRange(state.token_loc, brace_loc, brace_loc + 1)
         note = Diagnostic(DID.prior_match, loc, ['{'])
         self.diag_char(state, DID.expected_close_brace, cursor, [note])
 
@@ -1089,7 +1012,7 @@ class LiteralInterpreter:
 class State:
     '''Maintains state whilst interpreting a literal.'''
 
-    token: Token
+    token_loc: int
     spelling: bytes      # UTF-8 encoded
     limit: int
     is_erroneous: bool
@@ -1102,7 +1025,7 @@ class State:
         # Sanity check
         assert ud_suffix is None
         assert limit and 48 <= spelling[0] <= 57 or (spelling[0] == 46 and limit > 1)
-        return cls(token, spelling, limit, False)
+        return cls(token.loc, spelling, limit, False)
 
     @classmethod
     def from_delimited_literal(cls, token):
@@ -1114,7 +1037,7 @@ class State:
         if ud_suffix:
             suffix_loc = SpellingRange(token.loc, limit + 1, length)
             ud_suffix = UserDefinedSuffix(ud_suffix, suffix_loc)
-        return cls(token, spelling, limit, False), body, ud_suffix
+        return cls(token.loc, spelling, limit, False), body, ud_suffix
 
     def first_non_decimal_digit(self, cursor):
         '''Return the first character starting from cursor that is not a decimal digit.'''
