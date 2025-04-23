@@ -284,12 +284,10 @@ class LiteralInterpreter:
         else:
             result = self.interpret_character_literal(token)
 
-        # For preprocessor expressions, reject floating point numbers and user-defined
-        # suffixes.
-        if self.pp_arithmetic:
-            if result.ud_suffix:
-                self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
-                result.kind = IntegerKind.error
+        # Reject user-defined suffixes in preprocessor expressions.
+        if self.pp_arithmetic and result.ud_suffix:
+            self.pp.diag(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc)
+            result = IntegerKind.erroneous_literal()
 
         return result
 
@@ -1097,7 +1095,6 @@ class State:
     token: Token
     spelling: bytes      # UTF-8 encoded
     limit: int
-    diags: list
     is_erroneous: bool
 
     @classmethod
@@ -1108,7 +1105,7 @@ class State:
         # Sanity check
         assert ud_suffix is None
         assert limit and 48 <= spelling[0] <= 57 or (spelling[0] == 46 and limit > 1)
-        return cls(token, spelling, limit, [], False)
+        return cls(token, spelling, limit, False)
 
     @classmethod
     def from_delimited_literal(cls, token):
@@ -1120,23 +1117,7 @@ class State:
         if ud_suffix:
             suffix_loc = SpellingRange(token.loc, limit + 1, length)
             ud_suffix = UserDefinedSuffix(ud_suffix, suffix_loc)
-        return cls(token, spelling, limit, [], False), body, ud_suffix
-
-    def emit_diagnostics(self, pp):
-        if self.diags:
-            pp.diag(*self.diags[0])
-            self.diags.clear()
-            return True
-        return False
-
-    def diag(self, did, args=None):
-        self.diags.append((did, self.token.loc, args))
-
-    def diag_char(self, did, start, args=None):
-        self.diag_char_range(did, start, start + 1, args)
-
-    def diag_char_range(self, did, start, end, args=None):
-        self.diags.append((did, SpellingRange(self.token.loc, start, end), args))
+        return cls(token, spelling, limit, False), body, ud_suffix
 
     def first_non_decimal_digit(self, cursor):
         '''Return the first character starting from cursor that is not a decimal digit.'''
