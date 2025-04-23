@@ -1,7 +1,7 @@
 import pytest
 
 
-from kcpp.cpp import Preprocessor
+from kcpp.cpp import Preprocessor, Language
 from kcpp.diagnostics import DiagnosticManager
 
 
@@ -36,4 +36,5 @@ class TestLexer:
 
 def create_lexer(raw):
     pp = Preprocessor(DiagnosticManager())
+    pp.language = Language('C++', 2023)
     return pp.push_virtual_buffer('<test>', raw)
