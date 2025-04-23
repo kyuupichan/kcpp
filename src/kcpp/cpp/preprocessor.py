@@ -426,13 +426,17 @@ class Preprocessor:
         self.emit(Diagnostic(did, loc, args))
 
     def emit(self, diagnostic):
+        '''Emit a diagnostic; return True if the error count increased.'''
+        diag_manager = self.diag_manager
+        error_count = diag_manager.error_count
         if not self.ignore_diagnostics:
             # Emit these instead as invalid token concatentation
             if self.lexing_scratch and diagnostic.did in (
                     DID.unterminated_block_comment, DID.incomplete_UCN_as_tokens):
                 return
-            if self.diag_manager.emit(diagnostic):
+            if diag_manager.emit(diagnostic):
                 self.halt_compilation()
+        return error_count != diag_manager.error_count
 
     def ice(self, loc, text):
         self.emit(Diagnostic(DID.internal_compiler_error, loc, [text]))

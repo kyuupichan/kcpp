@@ -407,7 +407,7 @@ class DiagnosticManager:
     def emit(self, diagnostic):
         '''Emit a diagnostic, return True if compilation should be halted because there
         has been a fatal error, or the error limit has been reached.'''
-        # Suppress diagnostics with source locations
+        # If compilation should halt, suppress diagnostics with source locations
         if self.should_halt_compilation() and (
                 diagnostic.loc not in (location_none, location_command_line)):
             return True
