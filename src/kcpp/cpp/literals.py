@@ -216,7 +216,6 @@ class LiteralInterpreter:
         target = pp.target
         self.pp = pp
         self.pp_arithmetic = pp_arithmetic
-        self.int_width = target.pp_arithmetic_width() if pp_arithmetic else target.int_width
         self.permit_named_universal_characters = pp.language.permit_named_universal_characters()
         self.permit_braced_escape_sequences = pp.language.permit_braced_escape_sequences()
 
@@ -257,6 +256,13 @@ class LiteralInterpreter:
         n = [kind for kind, _precision in self.integer_precisions].index(target.size_t_kind)
         assert n % 2 == 1
         self.size_t_precisions = self.integer_precisions[n - 1: n + 1]
+
+    def integer_width(self, kind):
+        target = self.pp.target
+        if self.pp_arithmetic:
+            return target.pp_arithmetic_width()
+        else:
+            return target.integer_width(kind)
 
     def empty_string_literal(self, encoding):
         encoding = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
@@ -643,49 +649,49 @@ class LiteralInterpreter:
         # prefix or with the L prefix, must accept characters that encode to multiple code
         # units.  d) Wide and unsuffixed character and string literals must accept
         # characters not in the target charset with an implementation-defined value
-        value = 0
+        did = None
         count = result.char_count()
-        if count == 0:
-            self.diag(state, DID.empty_character_literal)
-        elif count == 1:
-            value = result.char_value(0)
-            # Treat as signed if underlying character type is signed
-            if not result.encoding.is_unsigned:
-                limit = 1 << (result.encoding.char_size * 8)
-                if value & (limit >> 1):
-                    value -= limit
-            if encoding == Encoding.NONE:
-                kind = self.plain_char_kind
+        if count <= 1:
+            if count == 0:
+                self.diag(state, DID.empty_character_literal)
+                value = 0
             else:
-                kind = encoding.integer_kind()
+                value = result.char_value(0)
+            value_kind = result.encoding.char_kind
+            if encoding == Encoding.NONE:   # In C, it's an 'int'.
+                result_kind = self.plain_char_kind
+            else:
+                result_kind = value_kind
         else:
             # In C++ a multicharacter literal shall not have an encoding prefix.  If it
             # contains a c-char that is not encodable as a single code unit in the
             # ordinary literal encoding, the program is ill-formed.
+            value = 0
+            value_kind = result_kind = IntegerKind.int
             if encoding != Encoding.NONE:
                 did = DID.multicharacter_literal_with_prefix
             else:
                 did = DID.multicharacter_literal
-                kind = IntegerKind.int
                 width = result.encoding.char_size * 8
                 for n in range(count):
                     value = (value << width) + result.char_value(n)
-                # Treat as a target 'int', truncating if necessary and observing the
-                # sign bit
-                max_value = 1 << self.int_width
-                if value >= max_value:
-                    did = DID.multicharacter_literal_truncated
-                    value &= max_value - 1
-                if value & (max_value >> 1):
-                    value -= max_value
 
-            # Emit exactly one diagnostic for multicharacter literals
+        # Truncate the value if necessary (only happens if multichar) and treat it as signed
+        # if the value kind is signed
+        limit = 1 << self.integer_width(value_kind)
+        if value >= limit:
+            did = DID.multicharacter_literal_truncated
+            value &= limit - 1
+        if not self.pp.target.is_unsigned(value_kind) and value & (limit >> 1):
+            value -= limit
+
+        if did:
             self.diag(state, did)
 
         if state.is_erroneous:
             return IntegerLiteral.erroneous_literal()
         else:
-            return IntegerLiteral(kind, value, result.ud_suffix)
+            return IntegerLiteral(result_kind, value, result.ud_suffix)
 
     #
     # String literals
