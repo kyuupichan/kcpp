@@ -79,18 +79,21 @@ missing_digit_sequence:
   text: missing %select{octal|hexadecimal}0 digit sequence
 
 multicharacter_literal:
+  # A non-strict warning for C and C++ if no prefix
   severity: warning
   group: multichar
   text: multicharacter literal
 
-multicharacter_literal_truncated:
+multicharacter_literal_wide:
+  # A strict warning for C++
   severity: warning
-  group: multichar
-  text: value of multicharacter literal truncated to fit in type %q{int}
+  group: multichar_wide_strict
+  text: wide multicharacter literal
 
-multicharacter_literal_with_prefix:
+multicharacter_literal_unicode:
+  # A non-discretionary error in C and C++
   severity: error
-  text: multicharacter literals cannot have an encoding prefix
+  text: multicharacter literals cannot have a unicode prefix
 
 shift_of_negative_value:
   # Undefined behaviour in C.  C++ defines the semantics and we implement those.

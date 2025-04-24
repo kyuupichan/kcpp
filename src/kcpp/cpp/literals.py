@@ -647,44 +647,50 @@ class LiteralInterpreter:
         # prefix or with the L prefix, must accept characters that encode to multiple code
         # units.  d) Wide and unsuffixed character and string literals must accept
         # characters not in the target charset with an implementation-defined value
-        did = None
         count = result.char_count()
+        value_kind = result.encoding.char_kind
         if count <= 1:
             if count == 0:
                 self.diag(state, DID.empty_character_literal)
                 value = 0
             else:
                 value = result.char_value(0)
-            value_kind = result.encoding.char_kind
             if encoding == Encoding.NONE:   # In C, it's an 'int'.
                 result_kind = self.plain_char_kind
             else:
                 result_kind = value_kind
         else:
-            # In C++ a multicharacter literal shall not have an encoding prefix.  If it
-            # contains a c-char that is not encodable as a single code unit in the
-            # ordinary literal encoding, the program is ill-formed.
+            # In C++ a multicharacter literal shall not have an encoding prefix and is
+            # conditionally-supported.  If it contains a c-char that is not encodable as a
+            # single code unit in the ordinary literal encoding, the program is
+            # ill-formed.  We support unprefixed and wide literals with the same semantics
+            # as C, but wide literals error in strict mode.
+
+            # For C unprefixed multicharacter literals have type 'int', and wide character
+            # literals type wchar_t.  unicode multicharacter literals are a constraint
+            # violation.
             value = 0
-            value_kind = result_kind = IntegerKind.int
-            if encoding != Encoding.NONE:
-                did = DID.multicharacter_literal_with_prefix
-            else:
+            if encoding == Encoding.NONE or encoding == Encoding.WIDE:
                 did = DID.multicharacter_literal
+                if encoding == Encoding.NONE:
+                    value_kind = IntegerKind.int
+                elif encoding == Encoding.WIDE and self.pp.language.is_cxx():
+                    did = DID.multicharacter_literal_wide
                 width = result.encoding.char_size * 8
                 for n in range(count):
                     value = (value << width) + result.char_value(n)
+            else:
+                did = DID.multicharacter_literal_unicode
+            self.diag(state, did)
+            result_kind = value_kind
 
         # Truncate the value if necessary (only happens if multichar) and treat it as signed
         # if the value kind is signed
         limit = 1 << self.integer_width(value_kind)
         if value >= limit:
-            did = DID.multicharacter_literal_truncated
             value &= limit - 1
         if not self.pp.target.is_unsigned(value_kind) and value & (limit >> 1):
             value -= limit
-
-        if did:
-            self.diag(state, did)
 
         if state.is_erroneous:
             return IntegerLiteral.erroneous_literal()

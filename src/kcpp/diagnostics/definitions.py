@@ -38,6 +38,7 @@ class DiagnosticGroup(IntEnum):
     line_number = auto()
     macro_redefined = auto()
     macro_ws = auto()
+    multichar_wide = auto()
     overflow = auto()
     predefined = auto()
     raw_delimiter = auto()
@@ -143,8 +144,8 @@ class DID(IntEnum):
     max_include_depth_reached = auto()
     missing_digit_sequence = auto()
     multicharacter_literal = auto()
-    multicharacter_literal_truncated = auto()
-    multicharacter_literal_with_prefix = auto()
+    multicharacter_literal_unicode = auto()
+    multicharacter_literal_wide = auto()
     nested_va_opt = auto()
     predefined_macro_redefined = auto()
     prior_macro_definition = auto()
@@ -722,17 +723,17 @@ diagnostic_definitions = {
         DiagnosticGroup.multichar,
         'multicharacter literal',
     ),
-    DID.multicharacter_literal_truncated: DiagnosticDefinition(
-        DID.multicharacter_literal_truncated,
-        DiagnosticSeverity.warning,
-        DiagnosticGroup.multichar,
-        'value of multicharacter literal truncated to fit in type %q{int}',
-    ),
-    DID.multicharacter_literal_with_prefix: DiagnosticDefinition(
-        DID.multicharacter_literal_with_prefix,
+    DID.multicharacter_literal_unicode: DiagnosticDefinition(
+        DID.multicharacter_literal_unicode,
         DiagnosticSeverity.error,
         DiagnosticGroup.none,
-        'multicharacter literals cannot have an encoding prefix',
+        'multicharacter literals cannot have a unicode prefix',
+    ),
+    DID.multicharacter_literal_wide: DiagnosticDefinition(
+        DID.multicharacter_literal_wide,
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.multichar_wide,
+        'wide multicharacter literal',
     ),
     DID.nested_va_opt: DiagnosticDefinition(
         DID.nested_va_opt,
