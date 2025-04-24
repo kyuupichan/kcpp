@@ -87,40 +87,87 @@ class FloatingPointLiteral:
 
 
 @dataclass(slots=True)
+class ElaboratedEncoding:
+    '''Details of an encoding of a string or character literal.'''
+    # The encoding prefix of a string literal
+    encoding: Encoding
+    # The element (character type) kind
+    char_kind: IntegerKind
+    # The size, in bytes, of an element
+    char_size: int
+    # If char_kind, the element type, is unsigned
+    is_unsigned: bool
+    # If the encoding is little-endian
+    is_little_endian: bool
+    # The execution character set
+    charset: Charset
+    # A function that packs an unsigned value into bytes of the correct endianness
+    pack: any
+    # A function that unpacks part of an image into an unsigned value
+    unpack: any
+
+    @classmethod
+    def for_encoding_and_interpreter(cls, encoding, interpreter):
+        # FIXME: pre-calculate these
+        target = interpreter.pp.target
+        is_little_endian = target.is_little_endian
+        basic = encoding.basic_encoding()
+        if basic == Encoding.NONE:
+            charset = target.narrow_charset
+        elif basic == Encoding.WIDE:
+            charset = target.wide_charset
+        elif basic == Encoding.UTF_8:
+            charset = Charset.from_name('UTF-8')
+        elif basic == Encoding.UTF_16:
+            charset = Charset.from_name('UTF-16LE' if is_little_endian else 'UTF-16BE')
+        elif basic == Encoding.UTF_32:
+            charset = Charset.from_name('UTF-32LE' if is_little_endian else 'UTF-32BE')
+        else:
+            raise RuntimeError('unimplemented encoding')
+
+        kind = encoding.integer_kind()
+        is_unsigned = target.is_unsigned(kind)
+        char_size = target.integer_width(kind) // 8
+        ps = packing_struct(char_size, is_little_endian)
+        return cls(encoding, kind, char_size, is_unsigned, is_little_endian, charset,
+                   ps.pack, ps.unpack)
+
+    @classmethod
+    def for_filename_encoding(cls):
+        '''Appropriate values for encoding a string literal to filename bytes.  We store these as
+        internally as bytes; characters in the string literal should be stored as UTF-8.
+        '''
+        return cls(Encoding.NONE, IntegerKind.uchar, 1, True, True, Charset.from_name('UTF-8'),
+                   structB.pack, structB.unpack)
+
+
+@dataclass(slots=True)
 class StringLiteral:
     # The string literal as encoded in memory for the target machine, including the
     # terminating NUL.  An erroneous string literal is of zero length.
-    encoded: bytes
-    # The array element (character) type
-    char_kind: IntegerKind
+    image: bytes
+    # Information about the image's encoding
+    encoding: ElaboratedEncoding
     # An instance of UserDefinedSuffix, or None
     ud_suffix: object
 
-    def char_count(self, target):
-        char_size = target.integer_width(self.char_kind) // 8
-        return len(self.encoded) // char_size
+    def char_count(self):
+        return len(self.image) // self.encoding.char_size
 
-    def char_value(self, target, index, force_unsigned):
-        '''Return the value of the character, which may be negative if the target has signed
-        characters.  If force_unsigned is true, the encoding is returned as a non-negative
-        integer.
-        '''
-        char_size = target.integer_width(self.char_kind) // 8
-        index *= char_size
-        if not 0 <= index < len(self.encoded):
-            raise IndexError
-        struct = packing_struct(char_size, target.is_little_endian)
-        value, = struct.unpack(self.encoded[index: index + char_size])
-        if not force_unsigned and not target.is_unsigned(self.char_kind):
-            limit = 1 << (char_size * 8)
-            assert value < limit
-            if value & (limit >> 1):
-                value -= limit
+    def char_value(self, n):
+        '''Return the unsigned value of the 'n'th character.'''
+        assert 0 <= n < self.char_count()
+        char_size = self.encoding.char_size
+        value, = self.encoding.unpack(self.image[n * char_size: (n + 1) * char_size])
         return value
 
     def to_short_text(self):
-        ud_suffix_part = f', {self.ud_suffix.ident.spelling.decode()}' if self.ud_suffix else ''
-        return f'StringLiteral({bytes(self.encoded)}, {self.char_kind.name}{ud_suffix_part})'
+        type_name = self.encoding.char_kind.name
+        if self.ud_suffix:
+            ud_suffix = self.ud_suffix.ident.spelling.decode()
+            return f'StringLiteral({bytes(self.image)}, {type_name}, {ud_suffix})'
+        else:
+            return f'StringLiteral({bytes(self.image)}, {type_name})'
 
 
 def printable_form(cp):
@@ -146,54 +193,6 @@ class NumericEscapeKind(IntEnum):
     NONE = 0
     OCTAL = 1
     HEXADECIMAL = 2
-
-
-@dataclass(slots=True)
-class ElaboratedEncoding:
-    '''Details of an encoding of a string or character literal.'''
-    # The encoding prefix of a string literal
-    encoding: Encoding
-    # The element (character type) kind
-    char_kind: IntegerKind
-    # If the encoding is little-endian
-    is_little_endian: bool
-    # The execution character set
-    charset: Charset
-    # A function that packs an unsigned value into bytes of the correct endianness
-    pack: any
-
-    @classmethod
-    def for_encoding_and_interpreter(cls, encoding, interpreter):
-        # FIXME: pre-calculate these
-        target = interpreter.pp.target
-        is_little_endian = target.is_little_endian
-        basic = encoding.basic_encoding()
-        if basic == Encoding.NONE:
-            charset = target.narrow_charset
-        elif basic == Encoding.WIDE:
-            charset = target.wide_charset
-        elif basic == Encoding.UTF_8:
-            charset = Charset.from_name('UTF-8')
-        elif basic == Encoding.UTF_16:
-            charset = Charset.from_name('UTF-16LE' if is_little_endian else 'UTF-16BE')
-        elif basic == Encoding.UTF_32:
-            charset = Charset.from_name('UTF-32LE' if is_little_endian else 'UTF-32BE')
-        else:
-            raise RuntimeError('unimplemented encoding')
-
-        kind = encoding.integer_kind()
-        char_size = target.integer_width(kind) // 8
-        pack = packing_struct(char_size, is_little_endian).pack
-        return cls(encoding, kind, is_little_endian, charset, pack)
-
-    @classmethod
-    def for_filename_encoding(cls):
-        '''Appropriate values for encoding a string literal to filename bytes.  We store these as
-        internally as bytes; characters in the string literal should be stored as UTF-8.
-        '''
-        return cls(Encoding.NONE, IntegerKind.uchar, True, Charset.from_name('UTF-8'),
-                   structB.pack)
-
 
 def packing_struct(octets, is_little_endian):
     if octets == 1:
@@ -256,10 +255,10 @@ class LiteralInterpreter:
         def value(encoding, c):
             target = self.pp.target
             elab = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
-            encoded = elab.charset.encoder(c)
+            image = elab.charset.encoder(c)
             char_size = target.integer_width(elab.char_kind) // 8
             struct = packing_struct(char_size, target.is_little_endian)
-            value, = struct.unpack(encoded[:char_size])
+            value, = struct.unpack(image[:char_size])
             return value
 
         return value(Encoding.NONE, 'a') != value(Encoding.WIDE, 'a')
@@ -405,12 +404,12 @@ class LiteralInterpreter:
                          [selector])
             return None
 
-        encoded = bytearray()
+        image = bytearray()
         elab_encoding = ElaboratedEncoding.for_filename_encoding()
-        _, state = self.encode_string(token, encoded, elab_encoding, 8)
+        _, state = self.encode_string(token, image, elab_encoding, 8)
         if state.is_erroneous:
             return None
-        return bytes(encoded)
+        return bytes(image)
 
     def read_radix_digits(self, state, cursor, base, require_digit):
         '''Return a triple (cursor, value, count).  Count is the number of digits consumed
@@ -622,15 +621,15 @@ class LiteralInterpreter:
         encoding = TokenFlags.get_encoding(token.flags)
         elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
 
-        encoded = bytearray()
+        image = bytearray()
         char_width = self.pp.target.integer_width(elab_encoding.char_kind)
-        ud_suffix, state = self.encode_string(token, encoded, elab_encoding, char_width)
+        ud_suffix, state = self.encode_string(token, image, elab_encoding, char_width)
         # Reject user-defined suffixes in preprocessor expressions.
         if ud_suffix and self.pp_arithmetic:
             self.emit(state, Diagnostic(DID.user_defined_suffix_in_pp_expr, ud_suffix.loc))
 
         # Place it in a StringLiteral to access char_count() and char_value() functionality
-        result = StringLiteral(encoded, elab_encoding.char_kind, None)
+        result = StringLiteral(image, elab_encoding, None)
 
         # C is much more relaxed than C++.  The differences are that a) the type of an
         # unsuffixed character literal is 'int' b) Wide multicharacter literals must be
@@ -640,11 +639,16 @@ class LiteralInterpreter:
         # characters not in the target charset with an implementation-defined value
         value = 0
         target = self.pp.target
-        count = result.char_count(target)
+        count = result.char_count()
         if count == 0:
             self.diag(state, DID.empty_character_literal)
         elif count == 1:
-            value = result.char_value(target, 0, False)
+            value = result.char_value(0)
+            # Treat as signed if underlying character type is signed
+            if not result.encoding.is_unsigned:
+                limit = 1 << (result.encoding.char_size * 8)
+                if value & (limit >> 1):
+                    value -= limit
             if encoding == Encoding.NONE:
                 kind = self.plain_char_kind
             else:
@@ -660,7 +664,7 @@ class LiteralInterpreter:
                 kind = IntegerKind.int
                 width = self.pp.target.integer_width(elab_encoding.char_kind)
                 for n in range(count):
-                    value = (value << width) + result.char_value(target, n, True)
+                    value = (value << width) + result.char_value(n)
                 # Treat as a target 'int', truncating if necessary and observing the
                 # sign bit
                 max_value = 1 << self.int_width
@@ -753,22 +757,23 @@ class LiteralInterpreter:
         # Now loop through the tokens and encode them.
         elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(common_encoding, self)
         char_width = self.pp.target.integer_width(elab_encoding.char_kind)
-        encoded = bytearray()
+        image = bytearray()
         for token in tokens:
-            _, state = self.encode_string(token, encoded, elab_encoding, char_width)
+            _, state = self.encode_string(token, image, elab_encoding, char_width)
             is_erroneous = is_erroneous or state.is_erroneous
 
         # Revert to initial shift state, and append a NUL byte to the string.
         encoder = elab_encoding.charset.encoder
-        encoded.extend(encoder('', final=True) + encoder('\0'))
+        image.extend(encoder('', final=True) + encoder('\0'))
 
-        char_kind = IntegerKind.error if is_erroneous else elab_encoding.char_kind
-        return StringLiteral(encoded, char_kind, common_ud_suffix), next_token
+        if is_erroneous:
+            elab_encoding.char_kind = IntegerKind.error
+        return StringLiteral(image, elab_encoding, common_ud_suffix), next_token
 
-    def encode_string(self, token, encoded, encoding, char_width):
-        '''Encode the string literal 'token' into 'encoded', a bytearray.  'encoding' contains
+    def encode_string(self, token, image, encoding, char_width):
+        '''Encode the string literal 'token' into 'image', a bytearray.  'encoding' contains
         details of the coding to use.'''
-        assert isinstance(encoded, bytearray)
+        assert isinstance(image, bytearray)
         assert isinstance(encoding, ElaboratedEncoding)
 
         state, cursor, ud_suffix = State.from_delimited_literal(token)
@@ -798,7 +803,7 @@ class LiteralInterpreter:
                 elif cp == -1:
                     # Replace erroneous values with 0.
                     cp = 0
-                encoded_part = encoding.pack(cp)
+                image_part = encoding.pack(cp)
             else:
                 # Characters must have their codepoints validated.
                 if cp != -1:
@@ -822,19 +827,19 @@ class LiteralInterpreter:
                 # literal’s associated character encoding or if it cannot be encoded as a
                 # single code unit, then the program is ill-formed.
                 try:
-                    encoded_part = encoder(chr(cp))
+                    image_part = encoder(chr(cp))
                 except UnicodeError:
                     args = [printable_char(cp), encoding.charset.name]
                     self.diag_char_range(state, DID.character_does_not_exist, start, cursor, args)
-                    encoded_part = encoder('?')
+                    image_part = encoder('?')
 
-                if require_single_code_unit and len(encoded_part) > char_width // 8:
+                if require_single_code_unit and len(image_part) > char_width // 8:
                     args = [printable_char(cp), encoding.char_kind.name, encoding.charset.name]
                     self.diag_char_range(state, DID.character_not_single_code_unit,
                                          start, cursor, args)
-                    encoded_part = encoder('?')
+                    image_part = encoder('?')
 
-            encoded.extend(encoded_part)
+            image.extend(image_part)
 
         return ud_suffix, state
 
