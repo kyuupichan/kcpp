@@ -13,8 +13,9 @@ character_does_not_exist:
   text: character %q0 does not exist in character set %q1
 
 character_not_single_code_unit:
-  severity: error
-  text: character %q0 cannot be encoded as a single %q1 in character set %q2
+  severity: warning
+  group: char_not_single
+  text: character %q0 cannot be encoded as a single %q1
 
 comma_in_pp_expression:
   severity: warning

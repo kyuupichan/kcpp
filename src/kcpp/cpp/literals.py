@@ -9,12 +9,12 @@ from enum import IntEnum
 from struct import Struct
 
 from ..core import (
-    IntegerKind, RealKind, TokenKind, TokenFlags, Encoding, IdentifierInfo, Token,
+    IntegerKind, RealKind, TokenKind, TokenFlags, Encoding, IdentifierInfo,
 )
 from ..diagnostics import DID, SpellingRange, Diagnostic
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
-    codepoint_to_hex, SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, REPLACEMENT_CHAR, Charset,
+    codepoint_to_hex, SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, Charset,
 )
 
 __all__ = [
@@ -200,6 +200,7 @@ class NumericEscapeKind(IntEnum):
     NONE = 0
     OCTAL = 1
     HEXADECIMAL = 2
+
 
 def packing_struct(octets, is_little_endian):
     if octets == 1:
@@ -795,16 +796,9 @@ class LiteralInterpreter:
         encoding = string_literal.encoding
         encoding_prefix = encoding.encoding
         char_size = encoding.char_size
+        encoder = encoding.charset.encoder
         mask = (1 << char_size * 8) - 1
         is_raw = encoding_prefix.is_raw()
-        encoder = encoding.charset.encoder
-
-        # Decide on a replacement character.  For unicode encodings, unless single byte and
-        # for a character literal, use the replacement character.  Otherwise use '?'
-        if encoding_prefix.is_unicode() and (char_size > 1 or not single_code_unit):
-            replacement_char = REPLACEMENT_CHAR
-        else:
-            replacement_char = 63   # '?'
 
         while cursor < state.limit:
             # Erroneous characters or values are returned as -1
@@ -816,16 +810,17 @@ class LiteralInterpreter:
                 kind = NumericEscapeKind.NONE
 
             if kind != NumericEscapeKind.NONE:
-                # Numeric escapes are good as long as their value fits in width bits.
-                if cp > mask:
-                    args = [kind - 1, f'0x{cp:02X}', encoding.char_kind.name]
-                    self.diag_char_range(state, DID.escape_sequence_value_too_large,
-                                         start, cursor, args)
-                    cp &= mask
-                elif cp == -1:
-                    # Replace erroneous values with 0.
-                    cp = 0
-                image_part = encoding.pack(cp)
+                # Replace erroneous escapes with encoded '?', just like for characters
+                if cp == -1:
+                    image_part = encoder(chr(63))  # '?'
+                else:
+                    # Numeric escapes are good as long as their value fits in width bits.
+                    if cp > mask:
+                        args = [kind - 1, f'0x{cp:02X}', encoding.char_kind.name]
+                        self.diag_char_range(state, DID.escape_sequence_value_too_large,
+                                             start, cursor, args)
+                        cp &= mask
+                    image_part = encoding.pack(cp)
             else:
                 # Characters must have their codepoints validated.
                 if cp != -1:
@@ -833,30 +828,29 @@ class LiteralInterpreter:
                     if did:
                         self.diag_char_range(state, did, start, cursor, [codepoint_to_hex(cp)])
                         cp = -1
-                # Replace erroneous values.
+                # Replace erroneous values as '?'
                 if cp == -1:
-                    cp = replacement_char
+                    cp = 63   # '?'
                 # Convert the character into the execution character set.  This can fail
                 # (if the character is not available).  It can result in 1 or more
                 # encoded codepoints in the execution character set.
-                #
-                # [lex.ccon 3.1]: If the specified character lacks representation in the
-                # literal’s associated character encoding or if it cannot be encoded as a
-                # single code unit, then the program is ill-formed.
                 try:
                     image_part = encoder(chr(cp))
                 except UnicodeError:
                     args = [printable_char(cp), encoding.charset.name]
                     self.diag_char_range(state, DID.character_does_not_exist, start, cursor, args)
-                    image_part = encoder(chr(replacement_char))
+                    image_part = encoder(chr(63))  # '?'
 
-                # Only take the trailing bytes of the encoding if it is too wide to fit in
-                # a single c-char for character constants
+                # If it is too wide to fit in a single code unit, take the trailing part.
+                # In C these character literals are valid with a user-defined value.  In
+                # C++ they are ill-formed with a prefix, and conditionally supported
+                # without one.
                 if single_code_unit and len(image_part) > char_size:
-                    args = [printable_char(cp), encoding.char_kind.name, encoding.charset.name]
+                    args = [printable_char(cp), encoding.char_kind.name]
                     self.diag_char_range(state, DID.character_not_single_code_unit,
                                          start, cursor, args)
-                    image_part = image_part[-char_size:]
+                    image_part = encoder(chr(63))  # '?'
+                    assert len(image_part) == char_size
 
             image.extend(image_part)
 

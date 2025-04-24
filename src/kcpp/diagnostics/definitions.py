@@ -46,6 +46,7 @@ class DiagnosticGroup(IntEnum):
     strict_start = comma_expr
     strict_end = shift_count
     # Not strict groups:
+    char_not_single = auto()
     directive_in_args = auto()
     multichar = auto()
     shift_of_negative = auto()
@@ -280,9 +281,9 @@ diagnostic_definitions = {
     ),
     DID.character_not_single_code_unit: DiagnosticDefinition(
         DID.character_not_single_code_unit,
-        DiagnosticSeverity.error,
-        DiagnosticGroup.none,
-        'character %q0 cannot be encoded as a single %q1 in character set %q2',
+        DiagnosticSeverity.warning,
+        DiagnosticGroup.char_not_single,
+        'character %q0 cannot be encoded as a single %q1',
     ),
     DID.codepoint_basic_character_set: DiagnosticDefinition(
         DID.codepoint_basic_character_set,
