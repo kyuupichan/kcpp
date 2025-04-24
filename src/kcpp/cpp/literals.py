@@ -644,7 +644,6 @@ class LiteralInterpreter:
         # units.  d) Wide and unsuffixed character and string literals must accept
         # characters not in the target charset with an implementation-defined value
         value = 0
-        target = self.pp.target
         count = result.char_count()
         if count == 0:
             self.diag(state, DID.empty_character_literal)
