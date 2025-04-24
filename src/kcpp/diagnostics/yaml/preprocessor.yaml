@@ -37,7 +37,8 @@ invalid_charset:
 
 macro_produced_defined:
   severity: error
-  group: defined_strict
+  group: defined
+  strict: true
   text: macro expansion producing operator %q{defined} is ill-formed
 
 macro_defined_here:

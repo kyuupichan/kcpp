@@ -19,7 +19,8 @@ character_not_single_code_unit:
 
 comma_in_pp_expression:
   severity: warning
-  group: comma_expr_strict
+  group: comma_expr
+  strict: true
   text: comma operator should not be used in a preprocessor expression
 
 division_by_zero:
@@ -28,7 +29,8 @@ division_by_zero:
 
 empty_character_literal:
   severity: error
-  group: invalid_pp_token_strict
+  group: invalid_pp_token
+  strict: true
   text: empty character literal
 
 escape_sequence_value_too_large:
@@ -50,7 +52,8 @@ hexadecimal_exponent_required:
 integer_overflow:
   # A warning.  The correct value is simply truncated.
   severity: warning
-  group: overflow_strict
+  group: overflow
+  strict: true
   text: integer overflow
 
 integer_too_large:
@@ -72,7 +75,8 @@ invalid_numeric_suffix:
 
 left_shift_overflows:
   severity: warning
-  group: overflow_strict
+  group: overflow
+  strict: true
   text: left shift overflows
 
 missing_digit_sequence:
@@ -88,7 +92,8 @@ multicharacter_literal:
 multicharacter_literal_wide:
   # A strict warning for C++
   severity: warning
-  group: multichar_wide_strict
+  group: multichar_wide
+  strict: true
   text: wide multicharacter literal
 
 multicharacter_literal_unicode:
@@ -109,7 +114,8 @@ shift_count_negative:
 
 shift_count_too_large:
   severity: error
-  group: shift_count_strict
+  group: shift_count
+  strict: true
   text: shift count must be less than the integer width
 
 string_concatenation_conflict:
@@ -131,7 +137,8 @@ undefined_identifier:
 
 unrecognized_escape_sequence:
   severity: warning
-  group: escape_sequence_strict
+  group: escape_sequence
+  strict: true
   text: invalid escape sequence %q0
 
 unrecognized_universal_character_name:

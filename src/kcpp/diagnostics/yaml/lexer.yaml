@@ -26,7 +26,8 @@ codepoint_surrogate:
 
 delimeter_too_long:
   severity: warning
-  group: raw_delimiter_strict
+  group: raw_delimiter
+  strict: true
   text: raw string literal delimeter is too long
 
 delimeter_invalid_character:
@@ -73,5 +74,6 @@ utf8_surrogate:
 
 vertical_whitespace_in_directive:
   severity: ignored
-  group: directive_ws_strict
+  group: directive_ws
+  strict: true
   text: "%select{vertical tab|form feed}0 in preprocessing directive"

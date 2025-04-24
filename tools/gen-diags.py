@@ -60,15 +60,20 @@ diagnostic_definitions = {
 }"""
 
 
+valid_keys = {'group', 'text', 'severity', 'strict'}
+valid_severities = {'none', 'note', 'ignored', 'remark', 'warning', 'error', 'fatal'}
+
 def read_defns(entry):
     with open(entry.path, 'r') as f:
         doc = f.read()
     result = yaml.safe_load(doc)
     print(f'read {entry.path}', file=sys.stderr)
     for key, defn in result.items():
+        unknown = set(defn.keys()).difference(valid_keys)
+        if unknown:
+            print(f'WARNING: {key} has invalid keys {unknown}', file=sys.stderr)
         severity = defn.get('severity')
-        if severity not in ('none', 'note', 'ignored', 'remark', 'warning', 'error',
-                            'fatal', 'ice'):
+        if severity not in valid_severities:
             print(f'WARNING: diagnostic {key} has invalid severity', file=sys.stderr)
             defn['severity'] = 'fatal'
         group = defn.get('group')
@@ -79,6 +84,7 @@ def read_defns(entry):
         elif group is not None and severity != 'error':
             print(f'WARNING: diagnostic {key} must not have a group', file=sys.stderr)
             del defn['group']
+
     return result
 
 
@@ -107,9 +113,7 @@ def group_lines(defns):
         group = defn.get('group')
         if group is None:
             continue
-        if group.endswith('_strict'):
-            group = group[:-7]
-            defn['group'] = group
+        if defn.get('strict', False):
             strict_groups.add(group)
         else:
             groups.add(group)
