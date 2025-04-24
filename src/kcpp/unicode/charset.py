@@ -212,7 +212,6 @@ class Charset:
     '''A Charset abstraction for the preprocessor.'''
     name: str
     is_unicode: bool
-    replacement_char: int
     encoder: any
 
     unicode_charsets: ClassVar[set] = {'utf32', 'utf32be', 'utf32le', 'utf16', 'utf16be',
@@ -225,8 +224,7 @@ class Charset:
         encoder = getincrementalencoder(name)().encode
         encoder('\0')  # Skip any BOM
         is_unicode = name.replace('_', '').replace('-', '').lower() in cls.unicode_charsets
-        replacement_char = REPLACEMENT_CHAR if is_unicode else 63  # '?'
-        return cls(name, is_unicode, replacement_char, encoder)
+        return cls(name, is_unicode, encoder)
 
     def encoding_unit_size(self):
         '''Returns the length of encoding units of the character set in bytes.  Each character is

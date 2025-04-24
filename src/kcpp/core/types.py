@@ -566,6 +566,9 @@ class Encoding(IntEnum):
     def is_raw(self):
         return bool(self.value & Encoding.RAW)
 
+    def is_unicode(self):
+        return self.basic_encoding() in (Encoding.UTF_8, Encoding.UTF_16, Encoding.UTF_32)
+
     def basic_encoding(self):
         '''Strips any RAW flag.'''
         return Encoding(self.value & ~Encoding.RAW)

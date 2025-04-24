@@ -14,7 +14,7 @@ from ..core import (
 from ..diagnostics import DID, SpellingRange, Diagnostic
 from ..unicode import (
     utf8_cp, printable_char, is_surrogate, is_valid_codepoint, name_to_cp,
-    codepoint_to_hex, SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, Charset,
+    codepoint_to_hex, SIMPLE_ESCAPES, CONTROL_CHARACTER_LETTERS, REPLACEMENT_CHAR, Charset,
 )
 
 __all__ = [
@@ -220,7 +220,6 @@ class LiteralInterpreter:
         self.permit_braced_escape_sequences = pp.language.permit_braced_escape_sequences()
 
         if pp.language.is_cxx():
-            self.character_literals_require_single_code_unit = True
             self.plain_char_kind = IntegerKind.char
             self.permit_long_long = pp.language.year >= 2011
             self.permit_size_suffix = pp.language.year >= 2023
@@ -231,7 +230,6 @@ class LiteralInterpreter:
             self.permit_decimal_suffixes = False
             self.permit_ud_suffix = not pp_arithmetic
         else:
-            self.character_literals_require_single_code_unit = False
             self.plain_char_kind = IntegerKind.int
             self.permit_long_long = pp.language.year >= 1999
             self.permit_size_suffix = False
@@ -786,16 +784,22 @@ class LiteralInterpreter:
         object.
         '''
         state, cursor, string_literal.ud_suffix = State.from_delimited_literal(token)
-        if token.kind == TokenKind.CHARACTER_LITERAL:
-            require_single_code_unit = self.character_literals_require_single_code_unit
-        else:
-            require_single_code_unit = False
+        single_code_unit = token.kind == TokenKind.CHARACTER_LITERAL
         image = string_literal.image
         encoding = string_literal.encoding
+        encoding_prefix = encoding.encoding
         char_size = encoding.char_size
         mask = (1 << char_size * 8) - 1
-        is_raw = encoding.encoding.is_raw()
+        is_raw = encoding_prefix.is_raw()
         encoder = encoding.charset.encoder
+
+        # Decide on a replacement character.  For unicode encodings, unless single byte and
+        # for a character literal, use the replacement character.  Otherwise use '?'
+        if encoding_prefix.is_unicode() and (char_size > 1 or not single_code_unit):
+            replacement_char = REPLACEMENT_CHAR
+        else:
+            replacement_char = 63   # '?'
+
         while cursor < state.limit:
             # Erroneous characters or values are returned as -1
             start = cursor
@@ -825,12 +829,7 @@ class LiteralInterpreter:
                         cp = -1
                 # Replace erroneous values.
                 if cp == -1:
-                    # Use replacement character but don't cascade errors if a single
-                    # coding unit is required
-                    if require_single_code_unit:
-                        cp = 63  # '?'
-                    else:
-                        cp = encoding.charset.replacement_char
+                    cp = replacement_char
                 # Convert the character into the execution character set.  This can fail
                 # (if the character is not available).  It can result in 1 or more
                 # encoded codepoints in the execution character set.
@@ -843,13 +842,15 @@ class LiteralInterpreter:
                 except UnicodeError:
                     args = [printable_char(cp), encoding.charset.name]
                     self.diag_char_range(state, DID.character_does_not_exist, start, cursor, args)
-                    image_part = encoder('?')
+                    image_part = encoder(chr(replacement_char))
 
-                if require_single_code_unit and len(image_part) > char_size:
+                # Only take the trailing bytes of the encoding if it is too wide to fit in
+                # a single c-char for character constants
+                if single_code_unit and len(image_part) > char_size:
                     args = [printable_char(cp), encoding.char_kind.name, encoding.charset.name]
                     self.diag_char_range(state, DID.character_not_single_code_unit,
                                          start, cursor, args)
-                    image_part = encoder('?')
+                    image_part = image_part[-char_size:]
 
             image.extend(image_part)
 
