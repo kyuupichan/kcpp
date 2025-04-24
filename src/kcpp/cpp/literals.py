@@ -145,11 +145,15 @@ class ElaboratedEncoding:
 class StringLiteral:
     # The string literal as encoded in memory for the target machine, including the
     # terminating NUL.  An erroneous string literal is of zero length.
-    image: bytes
-    # Information about the image's encoding
+    image: bytearray
+    # Information about the image's encoding.  None if erroneous.
     encoding: ElaboratedEncoding
     # An instance of UserDefinedSuffix, or None
     ud_suffix: object
+
+    @classmethod
+    def erroneous_literal(cls):
+        return cls(bytearray(), None, None)
 
     def char_count(self):
         return len(self.image) // self.encoding.char_size
@@ -162,7 +166,10 @@ class StringLiteral:
         return value
 
     def to_short_text(self):
-        type_name = self.encoding.char_kind.name
+        if self.encoding:
+            type_name = self.encoding.char_kind.name
+        else:
+            type_name = IntegerKind.error.name
         if self.ud_suffix:
             ud_suffix = self.ud_suffix.ident.spelling.decode()
             return f'StringLiteral({bytes(self.image)}, {type_name}, {ud_suffix})'
@@ -250,6 +257,10 @@ class LiteralInterpreter:
         n = [kind for kind, _precision in self.integer_precisions].index(target.size_t_kind)
         assert n % 2 == 1
         self.size_t_precisions = self.integer_precisions[n - 1: n + 1]
+
+    def empty_string_literal(self, encoding):
+        encoding = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
+        return StringLiteral(bytearray(), encoding, None)
 
     def mb_might_neq_wc(self):
         def value(encoding, c):
@@ -404,12 +415,12 @@ class LiteralInterpreter:
                          [selector])
             return None
 
-        image = bytearray()
-        elab_encoding = ElaboratedEncoding.for_filename_encoding()
-        _, state = self.encode_string(token, image, elab_encoding, 8)
+        encoding = ElaboratedEncoding.for_filename_encoding()
+        literal = StringLiteral(bytearray(), encoding, None)
+        state = self.encode_and_append(literal, token)
         if state.is_erroneous:
             return None
-        return bytes(image)
+        return bytes(literal.image)
 
     def read_radix_digits(self, state, cursor, base, require_digit):
         '''Return a triple (cursor, value, count).  Count is the number of digits consumed
@@ -619,17 +630,12 @@ class LiteralInterpreter:
         assert token.kind == TokenKind.CHARACTER_LITERAL
         # First, encode the characters as for string literals
         encoding = TokenFlags.get_encoding(token.flags)
-        elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(encoding, self)
+        result = self.empty_string_literal(encoding)
 
-        image = bytearray()
-        char_width = self.pp.target.integer_width(elab_encoding.char_kind)
-        ud_suffix, state = self.encode_string(token, image, elab_encoding, char_width)
+        state = self.encode_and_append(result, token)
         # Reject user-defined suffixes in preprocessor expressions.
-        if ud_suffix and self.pp_arithmetic:
-            self.emit(state, Diagnostic(DID.user_defined_suffix_in_pp_expr, ud_suffix.loc))
-
-        # Place it in a StringLiteral to access char_count() and char_value() functionality
-        result = StringLiteral(image, elab_encoding, None)
+        if result.ud_suffix and self.pp_arithmetic:
+            self.emit(state, Diagnostic(DID.user_defined_suffix_in_pp_expr, result.ud_suffix.loc))
 
         # C is much more relaxed than C++.  The differences are that a) the type of an
         # unsuffixed character literal is 'int' b) Wide multicharacter literals must be
@@ -657,12 +663,12 @@ class LiteralInterpreter:
             # In C++ a multicharacter literal shall not have an encoding prefix.  If it
             # contains a c-char that is not encodable as a single code unit in the
             # ordinary literal encoding, the program is ill-formed.
-            if elab_encoding.encoding != Encoding.NONE:
+            if encoding != Encoding.NONE:
                 did = DID.multicharacter_literal_with_prefix
             else:
                 did = DID.multicharacter_literal
                 kind = IntegerKind.int
-                width = self.pp.target.integer_width(elab_encoding.char_kind)
+                width = result.encoding.char_size * 8
                 for n in range(count):
                     value = (value << width) + result.char_value(n)
                 # Treat as a target 'int', truncating if necessary and observing the
@@ -680,7 +686,7 @@ class LiteralInterpreter:
         if state.is_erroneous:
             return IntegerLiteral.erroneous_literal()
         else:
-            return IntegerLiteral(kind, value, ud_suffix)
+            return IntegerLiteral(kind, value, result.ud_suffix)
 
     #
     # String literals
@@ -755,34 +761,35 @@ class LiteralInterpreter:
                                                  self.string_spelling_range(token, 1))
 
         # Now loop through the tokens and encode them.
-        elab_encoding = ElaboratedEncoding.for_encoding_and_interpreter(common_encoding, self)
-        char_width = self.pp.target.integer_width(elab_encoding.char_kind)
-        image = bytearray()
+        result = self.empty_string_literal(common_encoding)
         for token in tokens:
-            _, state = self.encode_string(token, image, elab_encoding, char_width)
+            state = self.encode_and_append(result, token)
             is_erroneous = is_erroneous or state.is_erroneous
-
-        # Revert to initial shift state, and append a NUL byte to the string.
-        encoder = elab_encoding.charset.encoder
-        image.extend(encoder('', final=True) + encoder('\0'))
+        result.ud_suffix = common_ud_suffix
 
         if is_erroneous:
-            elab_encoding.char_kind = IntegerKind.error
-        return StringLiteral(image, elab_encoding, common_ud_suffix), next_token
+            result = result.erroneous_literal()
+        else:
+            # Revert to initial shift state, and append a NUL byte to the string.
+            encoder = result.encoding.charset.encoder
+            result.image.extend(encoder('', final=True) + encoder('\0'))
 
-    def encode_string(self, token, image, encoding, char_width):
-        '''Encode the string literal 'token' into 'image', a bytearray.  'encoding' contains
-        details of the coding to use.'''
-        assert isinstance(image, bytearray)
-        assert isinstance(encoding, ElaboratedEncoding)
+        return result, next_token
 
-        state, cursor, ud_suffix = State.from_delimited_literal(token)
+    def encode_and_append(self, string_literal, token):
+        '''Encode the delimited literal token onto the end of string_literal.  Return a state
+        object.
+        '''
+        state, cursor, string_literal.ud_suffix = State.from_delimited_literal(token)
         if token.kind == TokenKind.CHARACTER_LITERAL:
             require_single_code_unit = self.character_literals_require_single_code_unit
         else:
             require_single_code_unit = False
+        image = string_literal.image
+        encoding = string_literal.encoding
+        char_size = encoding.char_size
+        mask = (1 << char_size * 8) - 1
         is_raw = encoding.encoding.is_raw()
-        mask = (1 << char_width) - 1
         encoder = encoding.charset.encoder
         while cursor < state.limit:
             # Erroneous characters or values are returned as -1
@@ -833,7 +840,7 @@ class LiteralInterpreter:
                     self.diag_char_range(state, DID.character_does_not_exist, start, cursor, args)
                     image_part = encoder('?')
 
-                if require_single_code_unit and len(image_part) > char_width // 8:
+                if require_single_code_unit and len(image_part) > char_size:
                     args = [printable_char(cp), encoding.char_kind.name, encoding.charset.name]
                     self.diag_char_range(state, DID.character_not_single_code_unit,
                                          start, cursor, args)
@@ -841,7 +848,7 @@ class LiteralInterpreter:
 
             image.extend(image_part)
 
-        return ud_suffix, state
+        return state
 
     def escape_sequence_or_UCN(self, state, cursor):
         '''We have just read a backslash.'''
