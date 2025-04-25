@@ -68,9 +68,6 @@ class Lexer:
         self.is_start_of_line = bool(pp_state)
         self.in_header_name = False
         self.clean = True
-        self.ws_in_escaped_newlines = pp.language.permit_ws_in_escaped_newlines()
-        self.braced_escape_sequences = pp.language.permit_braced_escape_sequences()
-        self.named_universal_characters = pp.language.permit_named_universal_characters()
 
     def cursor_loc(self):
         return self.cursor + self.start_loc
@@ -881,7 +878,8 @@ class Lexer:
                 break
 
             # '{'
-            if c == 123 and count == 0 and limit == 4 and self.braced_escape_sequences:
+            if (c == 123 and count == 0 and limit == 4
+                    and self.pp.features.delimited_escape_sequences):
                 limit = -1
                 continue
 
@@ -943,7 +941,7 @@ class Lexer:
         c, cursor = self.read_logical_byte(cursor)
         if c == 85 or c == 117:  # 'U' 'u'
             return self.hex_ucn(cursor, c == 85, ucn_start)
-        if c == 78 and self.named_universal_characters:  # 'N'
+        if c == 78 and self.pp.features.named_universal_characters:  # 'N'
             return self.named_character(cursor, ucn_start)
         # Not a UCN, just the backslash.  Later lexing can start at the logical byte
         return Character(CharacterKind.valid_other, 92, None), cursor - 1

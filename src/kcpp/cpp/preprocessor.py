@@ -15,7 +15,7 @@ from ..core import (
     Encoding, targets, host
 )
 from ..diagnostics import (
-    DID, Diagnostic, DiagnosticGroup, DiagnosticSeverity,
+    DID, Diagnostic, DiagnosticGroup, DiagnosticSeverity, StrictKind,
     TokenRange, location_command_line, location_none,
 )
 from ..parsing import ParserState
@@ -68,20 +68,6 @@ class Language:
     def is_c(self):
         return self.kind == 'C'
 
-    def has_extended_basic_charset(self):
-        return self.is_c() and self.year >= 2023 or self.is_cxx() and self.year > 2023
-
-    def permit_ws_in_escaped_newlines(self):
-        # C seems to be avoiding this
-        return self.is_cxx() and self.year >= 2023
-
-    def permit_braced_escape_sequences(self):
-        return self.is_c() and self.year > 2023 or self.is_cxx() and self.year >= 2023
-
-    def permit_named_universal_characters(self):
-        # C seems to be avoiding these
-        return self.is_cxx() and self.year >= 2023
-
     def set_diagnostics(self, diag_manager):
         if self.is_c():
             # In C, these must be accepted
@@ -90,6 +76,36 @@ class Language:
             # In C, these are strict errors (compile-time undefined behaviour)
             for group in (DiagnosticGroup.shift_of_negative, ):
                 diag_manager.set_group_strictness(group, True)
+
+
+@dataclass(slots=True)
+class Features:
+    # If whitespace between a backslash and newline are permitted
+    ws_in_line_splices: bool
+    # If @, $ and ` are in the basic character set
+    extended_basic_charset: bool
+    # If \N escapes are accepted
+    named_universal_characters: bool
+    # If \x{}, \o{} in character and string literals, and \u{} in UCNs, are accepted
+    delimited_escape_sequences: bool
+
+    @classmethod
+    def default(cls, language, strict):
+        year = language.year
+        if language.is_c():
+            return Features(
+                ws_in_line_splices=False,  # not strict,
+                extended_basic_charset=year >= 2023,
+                named_universal_characters=False,  # not strict,
+                delimited_escape_sequences=False,  # not strict,
+            )
+        else:
+            return Features(
+                ws_in_line_splices=True,
+                extended_basic_charset=year >= 2026,
+                named_universal_characters=True,
+                delimited_escape_sequences=True,
+            )
 
 
 class SourceFileChangeReason(IntEnum):
@@ -138,6 +154,7 @@ class Config:
     '''
     output: str
     language: Language
+    features: str
     # These are a comma-separated list of diagnostic groups.  They are not part of the
     # diagnostic configuration as they must be done after language-specific diagnostic
     # settings
@@ -164,6 +181,7 @@ class Config:
         return cls(
             '',                          # output
             Language('C++', 2023),       # language
+            '',                          # features
             '', '', '', '',              # diag_suppress, diag_remark, diag_warning, diag_error
             '',                          # diag_once
             '',                          # target_name
@@ -187,8 +205,9 @@ class Preprocessor:
         '''Basic initialization.  Customization, and initialization based on that, comes
         with a call to push_main_source_file().
         '''
-        # Language and target
+        # Language, features and target
         self.language = None
+        self.features = None
         self.target = None
 
         # Tracks locations
@@ -271,6 +290,11 @@ class Preprocessor:
                 self.stdout = result
 
         self.language = config.language
+        self.features = Features.default(self.language,
+                                         self.diag_manager.strict != StrictKind.none)
+
+        if self.features.extended_basic_charset:
+            self.basic_charset.update(b'$@`')
 
         # Language-specific diagnostic severities then command-line overrides
         self.language.set_diagnostics(self.diag_manager)
@@ -285,10 +309,6 @@ class Preprocessor:
         if not target:
             target = targets['aarch64-apple-darwin']
         self.target = copy(target)
-
-        # Extended basic character set?  This will depend on language
-        if self.language.has_extended_basic_charset():
-            self.basic_charset.update(b'$@`')
 
         # Set the narrow and wide charsets
         def set_charset(attrib, charset_name, integer_kind):

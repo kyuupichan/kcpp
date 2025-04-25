@@ -18,7 +18,7 @@ from .definitions import DID, DiagnosticGroup, DiagnosticSeverity, diagnostic_de
 __all__ = [
     'Diagnostic', 'DiagnosticConsumer', 'DiagnosticManager', 'DiagnosticConfig',
     'DiagnosticContext', 'DiagnosticListener', 'DiagnosticPrinter',
-    'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords',
+    'BufferRange', 'SpellingRange', 'TokenRange', 'RangeCoords', 'StrictKind',
     'location_command_line', 'location_none',
 ]
 

@@ -217,8 +217,6 @@ class LiteralInterpreter:
         target = pp.target
         self.pp = pp
         self.pp_arithmetic = pp_arithmetic
-        self.permit_named_universal_characters = pp.language.permit_named_universal_characters()
-        self.permit_braced_escape_sequences = pp.language.permit_braced_escape_sequences()
 
         if pp.language.is_cxx():
             self.plain_char_kind = IntegerKind.char
@@ -878,9 +876,10 @@ class LiteralInterpreter:
                     break
                 cursor = ncursor
                 cp = cp * 8 + HEX_DIGIT_VALUES[c]
-        elif cp == 111 and self.permit_braced_escape_sequences:  # 'o'
+        elif cp == 111 and self.pp.features.delimited_escape_sequences:  # 'o'
+
             kind = NumericEscapeKind.OCTAL
-            cp, cursor = self.braced_escape_sequence(state, cursor, 8)
+            cp, cursor = self.delimited_escape_sequence(state, cursor, 8)
         elif cp == 120:  # 'x'
             kind = NumericEscapeKind.HEXADECIMAL
             cp, cursor = self.hexadecimal_escape_sequence(state, cursor)
@@ -894,8 +893,8 @@ class LiteralInterpreter:
         return cp, cursor, kind
 
     def hexadecimal_escape_sequence(self, state, cursor):
-        if state.get_byte(cursor) == 123 and self.permit_braced_escape_sequences:  # '{'
-            return self.braced_escape_sequence(state, cursor, 16)
+        if state.get_byte(cursor) == 123 and self.pp.features.delimited_escape_sequences:  # '{'
+            return self.delimited_escape_sequence(state, cursor, 16)
 
         count = 0
         value = 0
@@ -920,7 +919,7 @@ class LiteralInterpreter:
 
         return value, cursor
 
-    def braced_escape_sequence(self, state, cursor, radix):
+    def delimited_escape_sequence(self, state, cursor, radix):
         assert radix in (8, 16)
         brace_loc = cursor
         c, cursor = state.get_char(cursor)
@@ -965,16 +964,16 @@ class LiteralInterpreter:
         is_ucn = True
         if cp == 85 or cp == 117:  # 'U' 'u'
             cp, cursor = self.hex_ucn(state, cursor, cp == 85)
-        elif cp == 78 and self.permit_named_universal_characters:  # 'N'
+        elif cp == 78 and self.pp.features.named_universal_characters:  # 'N'
             cp, cursor = self.named_character(state, cursor)
         else:
             is_ucn = False
         return cp, cursor, is_ucn
 
     def hex_ucn(self, state, cursor, is_U):
-        # '{'
-        if not is_U and state.get_byte(cursor) == 123 and self.permit_braced_escape_sequences:
-            return self.braced_escape_sequence(state, cursor, 16)
+        if (not is_U and state.get_byte(cursor) == 123   # '{'
+                and self.pp.features.delimited_escape_sequences):
+            return self.delimited_escape_sequence(state, cursor, 16)
 
         count = 0
         cp = 0
