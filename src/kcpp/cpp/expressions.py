@@ -81,6 +81,7 @@ class ExprParser:
         self.width = pp.target.pp_arithmetic_width()
         self.mask = (1 << self.width) - 1
         self.literal_interpreter = LiteralInterpreter(pp, True)
+        self.left_shift_can_overflow = not pp.language.is_cxx_from(2020)
         # Pass diagnostics on to the preprocessor.
         self.diag = pp.diag
 
@@ -451,10 +452,7 @@ class ExprParser:
                 # later.  We take the C++ value.
                 if lhs_value < 0:
                     self.diag(DID.shift_of_negative_value, op.loc, [0, lhs.loc])
-                elif self.pp.language.is_cxx_and_after(2020):
-                    # We cannot diagnose overflow when it doesn't!
-                    pass
-                elif value > (self.mask >> 1):
+                elif self.left_shift_can_overflow and value > (self.mask >> 1):
                     self.diag(DID.left_shift_overflows, op.loc, [lhs.loc, rhs.loc])
             lhs.value = value & self.mask
         else:

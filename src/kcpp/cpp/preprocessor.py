@@ -62,7 +62,7 @@ class Language:
     def is_cxx(self):
         return self.kind == 'C++'
 
-    def is_cxx_and_after(self, year):
+    def is_cxx_from(self, year):
         return self.kind == 'C++' and self.year >= year
 
     def is_c(self):
