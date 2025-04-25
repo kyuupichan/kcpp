@@ -191,6 +191,11 @@ class KCPP(Skin):
         config = Config.default()
         config.output = self.command_line.output
         config.language = self.language(source)
+        config.diag_suppress = self.command_line.diag_suppress
+        config.diag_remark = self.command_line.diag_remark
+        config.diag_warning = self.command_line.diag_warning
+        config.diag_error = self.command_line.diag_error
+        config.diag_once = self.command_line.diag_once
         config.target_name = self.command_line.target
         config.narrow_exec_charset = self.command_line.exec_charset
         config.wide_exec_charset = self.command_line.wide_exec_charset
@@ -235,11 +240,6 @@ class KCPP(Skin):
         config = DiagnosticConfig.default()
         config.error_output = self.command_line.error_output
         config.error_limit = self.command_line.error_limit
-        config.diag_suppress = self.command_line.diag_suppress
-        config.diag_remark = self.command_line.diag_remark
-        config.diag_warning = self.command_line.diag_warning
-        config.diag_error = self.command_line.diag_error
-        config.diag_once = self.command_line.diag_once
         config.worded_locations = True
         config.show_columns = self.command_line.columns
         config.remarks = self.command_line.remarks

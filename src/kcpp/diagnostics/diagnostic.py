@@ -202,12 +202,6 @@ class StrictKind(IntEnum):
 class DiagnosticConfig:
     error_output: str
     error_limit: int
-    # These take a comma-separated list of diagnostic groups
-    diag_suppress: str
-    diag_remark: str
-    diag_warning: str
-    diag_error: str
-    diag_once: str
     worded_locations: bool           # "line 5", "at end of source", etc.
     show_columns: bool               # if column numbers appear in diagnostics
     remarks: bool                    # whether to emit remarks
@@ -221,8 +215,6 @@ class DiagnosticConfig:
         return cls(
             '',                      # error_output
             100,                     # error_limit
-            '', '', '', '',          # diag_suppress, diag_remark, diag_warning, diag_error,
-            '',                      # diag_once
             True,                    # worded_locations
             False,                   # show_columns
             False, True, False,      # remarks, warnings, errors
@@ -335,11 +327,7 @@ class DiagnosticManager:
         self.group_settings = bytearray(max_group_id + 1)
         for group_id in range(DiagnosticGroup.strict_start, DiagnosticGroup.strict_end + 1):
             self.group_settings[group_id] |= GroupSettings.strict
-
-        # Update for command line overrides
-        self.parse_group_settings(config)
-        # Make a copy so default settings can be restored by #pragma diag_default
-        self.default_group_settings = self.group_settings.copy()
+        self.default_group_settings = None   # Set by parse_group_settings()
 
     def override_group_severity(self, group_id, severity):
         if severity is DiagnosticSeverity.default:
@@ -373,6 +361,8 @@ class DiagnosticManager:
             self.override_group_severity(group_id, DiagnosticSeverity.error)
         for group_id in parse_groups(config.diag_once):
             self.set_group_once_only(group_id)
+        # Make a copy so default settings can be restored by #pragma diag_default
+        self.default_group_settings = self.group_settings.copy()
 
     def severity(self, did):
         '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''

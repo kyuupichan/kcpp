@@ -64,6 +64,7 @@ diagnostic_definitions = {
 valid_keys = {'group', 'text', 'severity', 'strict'}
 valid_severities = {'none', 'note', 'ignored', 'remark', 'warning', 'error', 'fatal'}
 
+
 def read_defns(entry):
     with open(entry.path, 'r') as f:
         doc = f.read()

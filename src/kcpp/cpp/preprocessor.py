@@ -79,6 +79,9 @@ class Language:
         # C seems to be avoiding these
         return self.is_cxx() and self.year >= 2023
 
+    def set_diagnostics(self, diag_manager):
+        pass
+
 
 class SourceFileChangeReason(IntEnum):
     enter = auto()    # via #include, command line, predefine buffer, etc.
@@ -126,6 +129,14 @@ class Config:
     '''
     output: str
     language: Language
+    # These are a comma-separated list of diagnostic groups.  They are not part of the
+    # diagnostic configuration as they must be done after language-specific diagnostic
+    # settings
+    diag_suppress: str
+    diag_remark: str
+    diag_warning: str
+    diag_error: str
+    diag_once: str
     target_name: str
     narrow_exec_charset: str
     wide_exec_charset: str
@@ -144,6 +155,8 @@ class Config:
         return cls(
             '',                          # output
             Language('C++', 2023),       # language
+            '', '', '', '',              # diag_suppress, diag_remark, diag_warning, diag_error
+            '',                          # diag_once
             '',                          # target_name
             '', '',                      # narrow and wide exec charsets
             '',                          # source date epoch
@@ -249,6 +262,10 @@ class Preprocessor:
                 self.stdout = result
 
         self.language = config.language
+
+        # Language-specific diagnostic severities then command-line overrides
+        self.language.set_diagnostics(self.diag_manager)
+        self.diag_manager.parse_group_settings(config)
 
         # Next the target as others depend on this
         target = None
