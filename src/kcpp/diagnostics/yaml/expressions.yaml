@@ -77,7 +77,7 @@ invalid_numeric_suffix:
   text: invalid suffix on %select{integer|floating point}0 literal
 
 left_shift_overflows:
-  # In at least C++23 and higher, there is no such thing as left shift overflow.
+  # Since C++20 there is no such thing as left shift overflow
   severity: warning
   group: overflow
   strict: true
