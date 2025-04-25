@@ -14,6 +14,7 @@ __all__ = [
 
 class DiagnosticSeverity(IntEnum):
     '''The severity of a diagnostic.'''
+    default = 0          # Used internally as a sentinel
     none = auto()        # Source file locations, compilation summaries, etc.
     note = auto()        # Notes are emitted nested inside another diagnostic
     ignored = auto()     # Indicates this diagnostic is suppressed and to be ignored

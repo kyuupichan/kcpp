@@ -338,8 +338,12 @@ class DiagnosticManager:
 
         # Update for command line overrides
         self.parse_group_settings(config)
+        # Make a copy so default settings can be restored by #pragma diag_default
+        self.default_group_settings = self.group_settings.copy()
 
     def override_group_severity(self, group_id, severity):
+        if severity is DiagnosticSeverity.default:
+            severity = self.default_group_settings[group_id] & 0xf
         self.group_settings[group_id] = (self.group_settings[group_id] & ~0xf) | severity
 
     def set_group_once_only(self, group_id):
@@ -391,7 +395,7 @@ class DiagnosticManager:
                     severity = max(severity, DiagnosticSeverity.error)
 
             # Now honour user-selected group overrides (which take priority over strictness)
-            if group_severity := group_settings & 0xf:
+            if (group_severity := group_settings & 0xf) != DiagnosticSeverity.default:
                 severity = DiagnosticSeverity(group_severity)
 
             # Honour diagnose once only requests

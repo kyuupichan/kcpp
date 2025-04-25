@@ -14,7 +14,10 @@ from ..core import (
     Buffer, IntegerKind, IdentifierInfo, SpecialKind, Token, TokenKind, TokenFlags,
     Encoding, targets, host
 )
-from ..diagnostics import DID, Diagnostic, TokenRange, location_command_line, location_none
+from ..diagnostics import (
+    DID, Diagnostic, DiagnosticGroup, DiagnosticSeverity,
+    TokenRange, location_command_line, location_none,
+)
 from ..parsing import ParserState
 from ..unicode import Charset, CodepointOutputKind
 
@@ -226,6 +229,13 @@ class Preprocessor:
         self.counter = 0                       # For __COUNTER__.
         self.source_date_epoch = None          # For reproducible timestamps
         self.command_line_buffer = None
+
+        self.register_pragma_namespace(b'diag_default', self.on_pragma_diag_default)
+        self.register_pragma_namespace(b'diag_error', self.on_pragma_diag_error)
+        self.register_pragma_namespace(b'diag_once', self.on_pragma_diag_once)
+        self.register_pragma_namespace(b'diag_remark', self.on_pragma_diag_remark)
+        self.register_pragma_namespace(b'diag_suppress', self.on_pragma_diag_suppress)
+        self.register_pragma_namespace(b'diag_warning', self.on_pragma_diag_warning)
 
     def _configure(self, config):
         '''Configure the preprocessor.'''
@@ -1200,6 +1210,45 @@ class Preprocessor:
                 self._Pragma_strings.append(string)
             else:
                 self.process_Pragma_string(string)
+
+    def on_pragma_diag_default(self, token):
+        return self.pragma_diagnostic_severity(DiagnosticSeverity.default)
+
+    def on_pragma_diag_suppress(self, token):
+        return self.pragma_diagnostic_severity(DiagnosticSeverity.ignored)
+
+    def on_pragma_diag_remark(self, token):
+        return self.pragma_diagnostic_severity(DiagnosticSeverity.remark)
+
+    def on_pragma_diag_warning(self, token):
+        return self.pragma_diagnostic_severity(DiagnosticSeverity.warning)
+
+    def on_pragma_diag_error(self, token):
+        return self.pragma_diagnostic_severity(DiagnosticSeverity.error)
+
+    def on_pragma_diag_once(self, token):
+        return self.pragma_diagnostic_severity(-1)
+
+    def pragma_diagnostic_severity(self, severity):
+        '''#pramga diag_warning group1 [group2 ...].'''
+        found = False
+        while True:
+            token = self.get_token()
+            if token.kind != TokenKind.IDENTIFIER:
+                if token.kind != TokenKind.EOF or not found:
+                    self.diag(DID.expected_identifier, token.loc)
+                return False
+            found = True
+            spelling = token.extra.spelling.decode()
+            try:
+                group_id = DiagnosticGroup[spelling].value
+            except KeyError:
+                self.diag(DID.unknown_diagnostic_group, token.loc, [spelling])
+            else:
+                if severity == -1:
+                    self.diag_manager.set_group_once_only(group_id)
+                else:
+                    self.diag_manager.override_group_severity(group_id, severity)
 
     def ignore_directive(self, token):
         pass
