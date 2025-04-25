@@ -230,33 +230,6 @@ class DiagnosticConfig:
             Translations(),
         )
 
-    def parse_group_settings(self, group_severities, group_onces):
-        '''Handle user-requested severity overrides.'''
-        def parse_groups(groups):
-            '''A generator yielding group IDs.'''
-            groups = groups.split(',')
-            for group in groups:
-                if group:
-                    # Be strict - don't strip or canonicalize case
-                    try:
-                        yield DiagnosticGroup[group].value
-                    except KeyError:
-                        unknown_groups.add(group)
-
-        unknown_groups = set()
-        for group_id in parse_groups(self.diag_suppress):
-            group_severities[group_id] = DiagnosticSeverity.ignored
-        for group_id in parse_groups(self.diag_remark):
-            group_severities[group_id] = DiagnosticSeverity.remark
-        for group_id in parse_groups(self.diag_warning):
-            group_severities[group_id] = DiagnosticSeverity.warning
-        for group_id in parse_groups(self.diag_error):
-            group_severities[group_id] = DiagnosticSeverity.error
-        for group_id in parse_groups(self.diag_once):
-            group_onces[group_id] = True
-
-        return unknown_groups
-
 
 class DiagnosticConsumer(ABC):
     '''This interface is passed diagnostics emitted by the preprocessor.  It can do what it
@@ -301,6 +274,17 @@ class DiagnosticPrinter(DiagnosticConsumer):
             print(diagnostic.to_short_text(), file=self.stderr)
 
 
+class GroupSettings(IntEnum):
+    '''Group flags and severity overrides.'''
+    strict = 0x80
+    once_only = 0x40
+    warned = 0x20
+    reserved = 0x10
+
+    def severity(self):
+        return DiagnosticSeverity(self.value) & 0xf
+
+
 class DiagnosticManager:
 
     formatting_code = re.compile('%(([a-z]+)({.[^}]*})?)?([0-9]?)')
@@ -338,15 +322,6 @@ class DiagnosticManager:
         else:
             self.strict = StrictKind.none
 
-        # Per-group severities and once-only settings
-        max_group_id = max(DiagnosticGroup)
-        self.group_severities = bytearray(max_group_id + 1)
-        self.group_onces = bytearray(max_group_id + 1)
-
-        unknown_groups = config.parse_group_settings(self.group_severities, self.group_onces)
-        for group in sorted(unknown_groups):
-            self.emit(Diagnostic(DID.unknown_diagnostic_group, location_command_line, [group]))
-
         if filename := config.error_output:
             result = host.open_file_for_writing(filename)
             if isinstance(result, str):
@@ -354,6 +329,46 @@ class DiagnosticManager:
                                      [filename, result]))
             else:
                 self.consumer.stderr = result
+
+        # Initialize per-group settings
+        max_group_id = max(DiagnosticGroup)
+        self.group_settings = bytearray(max_group_id + 1)
+        for group_id in range(DiagnosticGroup.strict_start, DiagnosticGroup.strict_end + 1):
+            self.group_settings[group_id] |= GroupSettings.strict
+
+        # Update for command line overrides
+        self.parse_group_settings(config)
+
+    def override_group_severity(self, group_id, severity):
+        self.group_settings[group_id] = (self.group_settings[group_id] & ~0xf) | severity
+
+    def set_group_once_only(self, group_id):
+        self.group_settings[group_id] |= GroupSettings.once_only
+
+    def parse_group_settings(self, config):
+        '''Handle user-requested severity overrides.'''
+        def parse_groups(groups):
+            '''A generator yielding group IDs.'''
+            groups = groups.split(',')
+            for group in groups:
+                if group:
+                    # Be strict - don't strip or canonicalize case
+                    try:
+                        yield DiagnosticGroup[group].value
+                    except KeyError:
+                        self.emit(Diagnostic(DID.unknown_diagnostic_group, location_command_line,
+                                             [group]))
+
+        for group_id in parse_groups(config.diag_suppress):
+            self.override_group_severity(group_id, DiagnosticSeverity.ignored)
+        for group_id in parse_groups(config.diag_remark):
+            self.override_group_severity(group_id, DiagnosticSeverity.remark)
+        for group_id in parse_groups(config.diag_warning):
+            self.override_group_severity(group_id, DiagnosticSeverity.warning)
+        for group_id in parse_groups(config.diag_error):
+            self.override_group_severity(group_id, DiagnosticSeverity.error)
+        for group_id in parse_groups(config.diag_once):
+            self.set_group_once_only(group_id)
 
     def severity(self, did):
         '''Return a possibly remapped severity for the diagnostic.  Update error counts.'''
@@ -367,30 +382,35 @@ class DiagnosticManager:
             if self.file_manager.in_system_header():
                 return DiagnosticSeverity.ignored
 
+            group_settings = self.group_settings[defn.group]
             # For strict groups, upgrade severity based on strict mode
-            if DiagnosticGroup.strict_start <= defn.group <= DiagnosticGroup.strict_end:
+            if group_settings & GroupSettings.strict:
                 if self.strict is StrictKind.warnings:
                     severity = max(severity, DiagnosticSeverity.warning)
                 elif self.strict is StrictKind.errors:
                     severity = max(severity, DiagnosticSeverity.error)
 
             # Now honour user-selected group overrides (which take priority over strictness)
-            group_severity = self.group_severities[defn.group]
-            if group_severity:
-                severity = group_severity
+            if group_severity := group_settings & 0xf:
+                severity = DiagnosticSeverity(group_severity)
 
             # Honour diagnose once only requests
-            if self.group_onces[defn.group]:
-                self.group_severities[defn.group] = DiagnosticSeverity.ignored
+            flags = GroupSettings.once_only | GroupSettings.warned
+            if group_settings & flags == flags:
+                severity = DiagnosticSeverity.ignored
 
         if severity is DiagnosticSeverity.remark:
-            if not self.remarks:
+            if self.remarks:
+                self.group_settings[defn.group] |= GroupSettings.warned
+            else:
                 severity = DiagnosticSeverity.ignored
         elif severity is DiagnosticSeverity.warning:
             if self.errors:
                 severity = DiagnosticSeverity.error
             elif not self.warnings:
                 severity = DiagnosticSeverity.ignored
+            else:
+                self.group_settings[defn.group] |= GroupSettings.warned
 
         # Update the error counts we maintain
         if severity >= DiagnosticSeverity.error:
