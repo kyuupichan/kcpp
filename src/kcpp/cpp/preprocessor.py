@@ -94,10 +94,10 @@ class Features:
         year = language.year
         if language.is_c():
             return Features(
-                ws_in_line_splices=False,  # not strict,
+                ws_in_line_splices=not strict,
                 extended_basic_charset=year >= 2023,
-                named_universal_characters=False,  # not strict,
-                delimited_escape_sequences=False,  # not strict,
+                named_universal_characters=not strict,
+                delimited_escape_sequences=not strict,
             )
         else:
             return Features(
