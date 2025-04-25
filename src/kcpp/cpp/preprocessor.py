@@ -80,7 +80,10 @@ class Language:
         return self.is_cxx() and self.year >= 2023
 
     def set_diagnostics(self, diag_manager):
-        pass
+        if self.is_c():
+            # In C, these must be accepted
+            for group in (DiagnosticGroup.char_missing, DiagnosticGroup.char_not_unitary):
+                diag_manager.override_group_severity(group, DiagnosticSeverity.warning)
 
 
 class SourceFileChangeReason(IntEnum):

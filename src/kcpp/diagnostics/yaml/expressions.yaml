@@ -9,12 +9,15 @@
 #
 
 character_does_not_exist:
+  # A warning for C
   severity: error
+  group: char_missing
   text: character %q0 does not exist in character set %q1
 
 character_not_single_code_unit:
-  severity: warning
-  group: char_not_single
+  # A warning for C
+  severity: error
+  group: char_not_unitary
   text: character %q0 cannot be encoded as a single %q1
 
 comma_in_pp_expression:

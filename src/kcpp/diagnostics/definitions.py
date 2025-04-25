@@ -47,7 +47,8 @@ class DiagnosticGroup(IntEnum):
     strict_start = comma_expr
     strict_end = shift_count
     # Not strict groups:
-    char_not_single = auto()
+    char_missing = auto()
+    char_not_unitary = auto()
     directive_in_args = auto()
     multichar = auto()
     shift_of_negative = auto()
@@ -277,13 +278,13 @@ diagnostic_definitions = {
     DID.character_does_not_exist: DiagnosticDefinition(
         DID.character_does_not_exist,
         DiagnosticSeverity.error,
-        DiagnosticGroup.none,
+        DiagnosticGroup.char_missing,
         'character %q0 does not exist in character set %q1',
     ),
     DID.character_not_single_code_unit: DiagnosticDefinition(
         DID.character_not_single_code_unit,
-        DiagnosticSeverity.warning,
-        DiagnosticGroup.char_not_single,
+        DiagnosticSeverity.error,
+        DiagnosticGroup.char_not_unitary,
         'character %q0 cannot be encoded as a single %q1',
     ),
     DID.codepoint_basic_character_set: DiagnosticDefinition(
