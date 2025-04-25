@@ -334,6 +334,12 @@ class DiagnosticManager:
             severity = self.default_group_settings[group_id] & 0xf
         self.group_settings[group_id] = (self.group_settings[group_id] & ~0xf) | severity
 
+    def set_group_strictness(self, group_id, is_strict):
+        if is_strict:
+            self.group_settings[group_id] = self.group_settings[group_id] | GroupSettings.strict
+        else:
+            self.group_settings[group_id] = self.group_settings[group_id] & ~GroupSettings.strict
+
     def set_group_once_only(self, group_id):
         self.group_settings[group_id] |= GroupSettings.once_only
 

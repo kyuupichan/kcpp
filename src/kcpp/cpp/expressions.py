@@ -447,10 +447,13 @@ class ExprParser:
             value = lhs.value << rhs_value
             if not lhs.is_unsigned:
                 # Undefined in C if lhs.value < 0 or if lhs * pow(2, rhs) cannot be
-                # represented in the result's type.  We take the C++ value, but warn in
-                # cases where it is undefined in C.
+                # represented in the result's type.  Both are well-defined for C++20 and
+                # later.  We take the C++ value.
                 if lhs_value < 0:
                     self.diag(DID.shift_of_negative_value, op.loc, [0, lhs.loc])
+                elif self.pp.language.is_cxx_and_after(2020):
+                    # We cannot diagnose overflow when it doesn't!
+                    pass
                 elif value > (self.mask >> 1):
                     self.diag(DID.left_shift_overflows, op.loc, [lhs.loc, rhs.loc])
             lhs.value = value & self.mask

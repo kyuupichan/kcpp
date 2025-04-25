@@ -110,7 +110,6 @@ def group_lines(defns):
 
     groups = set()
     strict_groups = set()
-    assert not groups.intersection(strict_groups)
     for defn in defns.values():
         group = defn.get('group')
         if group is None:
@@ -120,7 +119,9 @@ def group_lines(defns):
         else:
             groups.add(group)
 
-    assert not groups.intersection(strict_groups)
+    inter = groups.intersection(strict_groups)
+    assert not inter, f'groups both strict and not strict: {inter}'
+
     return '\n'.join(lines(groups, strict_groups))
 
 

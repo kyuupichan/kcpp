@@ -62,6 +62,9 @@ class Language:
     def is_cxx(self):
         return self.kind == 'C++'
 
+    def is_cxx_and_after(self, year):
+        return self.kind == 'C++' and self.year >= year
+
     def is_c(self):
         return self.kind == 'C'
 
@@ -84,6 +87,9 @@ class Language:
             # In C, these must be accepted
             for group in (DiagnosticGroup.char_missing, DiagnosticGroup.char_not_unitary):
                 diag_manager.override_group_severity(group, DiagnosticSeverity.warning)
+            # In C, these are strict errors (compile-time undefined behaviour)
+            for group in (DiagnosticGroup.shift_of_negative, ):
+                diag_manager.set_group_strictness(group, True)
 
 
 class SourceFileChangeReason(IntEnum):
