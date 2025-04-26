@@ -278,6 +278,21 @@ class Preprocessor:
         self.register_pragma_namespace(b'diag_suppress', self.on_pragma_diag_suppress)
         self.register_pragma_namespace(b'diag_warning', self.on_pragma_diag_warning)
 
+    def apply_features(self, features):
+        features = features.split(',')
+        for feature in features:
+            if not feature:
+                continue
+            feature = feature.replace('-', '_')
+            value = True
+            if feature.startswith('no_'):
+                feature = feature[3:]
+                value = False
+            try:
+                setattr(self.features, feature, value)
+            except AttributeError:
+                self.diag(DID.unknown_feature_name, location_command_line, [feature])
+
     def _configure(self, config):
         '''Configure the preprocessor.'''
         config = config or Config.default()
@@ -292,6 +307,7 @@ class Preprocessor:
         self.language = config.language
         self.features = Features.default(self.language,
                                          self.diag_manager.strict != StrictKind.none)
+        self.apply_features(config.features)
 
         if self.features.extended_basic_charset:
             self.basic_charset.update(b'$@`')

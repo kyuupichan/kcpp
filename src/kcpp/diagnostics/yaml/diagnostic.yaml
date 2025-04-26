@@ -108,3 +108,7 @@ starting_compilation:
 unknown_diagnostic_group:
   severity: fatal
   text: unknown diagnostic group %q0
+
+unknown_feature_name:
+  severity: fatal
+  text: unknown feature name %q0

@@ -173,6 +173,7 @@ class DID(IntEnum):
     undefined_identifier = auto()
     unknown_charset = auto()
     unknown_diagnostic_group = auto()
+    unknown_feature_name = auto()
     unknown_target = auto()
     unrecognized_escape_sequence = auto()
     unrecognized_universal_character_name = auto()
@@ -882,6 +883,12 @@ diagnostic_definitions = {
         DiagnosticSeverity.fatal,
         DiagnosticGroup.none,
         'unknown diagnostic group %q0',
+    ),
+    DID.unknown_feature_name: DiagnosticDefinition(
+        DID.unknown_feature_name,
+        DiagnosticSeverity.fatal,
+        DiagnosticGroup.none,
+        'unknown feature name %q0',
     ),
     DID.unknown_target: DiagnosticDefinition(
         DID.unknown_target,

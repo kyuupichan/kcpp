@@ -121,6 +121,9 @@ class KCPP(Skin):
                            action='store_true')
         group.add_argument('--strict-warnings', help='strict standards mode with warnings',
                            action='store_true')
+        group.add_argument('--features', type=str, metavar='FEATURES', action='append',
+                           default=[], help='''features to enable.  Comma-separated feature names,
+                           prefix one with no- to disable it''')
         group.add_argument('--target', type=str, metavar='TARGET', default='',
                            help='select the target machine')
         group.add_argument('--exec-charset', type=str, metavar='CHARSET',
@@ -191,6 +194,7 @@ class KCPP(Skin):
         config = Config.default()
         config.output = self.command_line.output
         config.language = self.language(source)
+        config.features = ','.join(self.command_line.features)
         config.diag_suppress = self.command_line.diag_suppress
         config.diag_remark = self.command_line.diag_remark
         config.diag_warning = self.command_line.diag_warning
